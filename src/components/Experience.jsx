@@ -34,21 +34,36 @@ export function Starfield2D({ handData }) {
     const img = new Image();
     img.src = '/star.png';
     img.onload = () => {
-      textureRef.current = img;
+      // Create transparent versions of textures by using brightness as alpha
+      const processTexture = (color = null) => {
+        const offCanvas = document.createElement('canvas');
+        offCanvas.width = img.width;
+        offCanvas.height = img.height;
+        const offCtx = offCanvas.getContext('2d');
+        offCtx.drawImage(img, 0, 0);
+        
+        const imageData = offCtx.getImageData(0, 0, offCanvas.width, offCanvas.height);
+        const data = imageData.data;
+        
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i], g = data[i+1], b = data[i+2];
+          const brightness = (r + g + b) / 3;
+          
+          if (color) {
+            data[i] = color.r;
+            data[i+1] = color.g;
+            data[i+2] = color.b;
+          }
+          data[i+3] = brightness; // Set alpha based on brightness
+        }
+        offCtx.putImageData(imageData, 0, 0);
+        const newImg = new Image();
+        newImg.src = offCanvas.toDataURL();
+        return newImg;
+      };
 
-      // Create a Neon Pink (#FF007F) version
-      const offCanvas = document.createElement('canvas');
-      offCanvas.width = img.width;
-      offCanvas.height = img.height;
-      const offCtx = offCanvas.getContext('2d');
-      offCtx.drawImage(img, 0, 0);
-      offCtx.globalCompositeOperation = 'source-in';
-      offCtx.fillStyle = '#FF007F';
-      offCtx.fillRect(0, 0, offCanvas.width, offCanvas.height);
-      
-      const pinkImg = new Image();
-      pinkImg.src = offCanvas.toDataURL();
-      pinkTextureRef.current = pinkImg;
+      textureRef.current = processTexture(); // Pure white with alpha
+      pinkTextureRef.current = processTexture({ r: 255, g: 0, b: 127 }); // Neon Pink with alpha
     };
   }, []);
 
@@ -114,9 +129,9 @@ export function Starfield2D({ handData }) {
           }
         }
 
-        // 2. Return to Home Logic (Spring Force)
-        const springX = (star.ox - star.x) * 0.002;
-        const springY = (star.oy - star.y) * 0.002;
+        // 2. Return to Home Logic (Spring Force) - Slowed down
+        const springX = (star.ox - star.x) * 0.0006;
+        const springY = (star.oy - star.y) * 0.0006;
         star.vx += springX * width;
         star.vy += springY * height;
 
