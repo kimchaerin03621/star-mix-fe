@@ -49,9 +49,17 @@ export function useHandTracking(videoRef) {
         const dx = landmarks[0].x - landmarks[12].x;
         const dy = landmarks[0].y - landmarks[12].y;
         const dz = landmarks[0].z - landmarks[12].z;
-        const scale = Math.sqrt(dx * dx + dy * dy + dz * dz) * 2; // Arbitrary multiplier
+        const scale = Math.sqrt(dx * dx + dy * dy + dz * dz) * 2;
 
-        setHandData({ x, y, scale });
+        // Fist Detection: Check if finger tips (8, 12, 16, 20) are "below" their MCP joints (5, 9, 13, 17)
+        // In the normalized coordinate space, Y increases downwards.
+        const isIndexCurled = landmarks[8].y > landmarks[6].y;
+        const isMiddleCurled = landmarks[12].y > landmarks[10].y;
+        const isRingCurled = landmarks[16].y > landmarks[14].y;
+        const isPinkyCurled = landmarks[20].y > landmarks[18].y;
+        const isFist = isIndexCurled && isMiddleCurled && isRingCurled && isPinkyCurled;
+
+        setHandData({ x, y, scale, isFist });
       } else {
         setHandData(null);
       }
