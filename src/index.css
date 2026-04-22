@@ -93,3 +93,127 @@ body {
   background: rgba(255, 255, 255, 0.2);
   transform: translateX(-50%) translateY(-2px);
 }
+
+.preset-controls {
+  margin-top: 20px;
+  display: flex;
+  gap: 10px;
+  pointer-events: auto;
+}
+
+.preset-button {
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.6);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  transition: all 0.2s ease;
+}
+
+.preset-button.active {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.5);
+  color: white;
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
+}
+
+.preset-button:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.song-controls {
+  margin-top: 10px;
+  display: flex;
+  gap: 10px;
+  pointer-events: auto;
+}
+
+.song-button {
+  padding: 6px 12px;
+  background: rgba(255, 0, 127, 0.05);
+  border: 1px solid rgba(255, 0, 127, 0.2);
+  color: rgba(255, 0, 127, 0.6);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.7rem;
+  transition: all 0.2s ease;
+}
+
+.song-button.active {
+  background: rgba(255, 0, 127, 0.3);
+  border-color: rgba(255, 0, 127, 0.8);
+  color: white;
+  box-shadow: 0 0 15px rgba(255, 0, 127, 0.3);
+}
+
+.song-button:hover:not(.active) {
+  background: rgba(255, 0, 127, 0.1);
+  color: white;
+}
+
+/* BPM Sliders */
+.bpm-slider-container {
+  position: absolute;
+  bottom: 10%;
+  height: 60%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+  z-index: 100;
+  pointer-events: auto;
+}
+
+.bpm-slider-container.left { left: 40px; }
+.bpm-slider-container.right { right: 40px; }
+
+.bpm-value {
+  width: 80px; /* Fixed width to prevent jitter */
+  text-align: center;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: #ff007f;
+  text-shadow: 0 0 10px rgba(255, 0, 127, 0.5);
+  letter-spacing: 0.1em;
+}
+
+.bpm-label {
+  font-size: 0.6rem;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+}
+
+.vertical-slider {
+  appearance: none;
+  width: 2px;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.2);
+  outline: none;
+  writing-mode: bt-rl; /* Vertical slider support */
+  -webkit-appearance: slider-vertical;
+  cursor: pointer;
+}
+
+.vertical-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  background: white;
+  /* Making it look like a star/diamond */
+  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+  cursor: pointer;
+  box-shadow: 0 0 15px white;
+}
+
+.vertical-slider::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  background: white;
+  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+  border: none;
+  box-shadow: 0 0 15px white;
+}

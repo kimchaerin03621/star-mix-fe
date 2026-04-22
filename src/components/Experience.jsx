@@ -1,22 +1,24 @@
 import React, { useRef, useEffect } from 'react';
 
-export function Starfield2D({ handData, isAudioActive, onMusicReady }) {
+export function Starfield2D({ handData, isAudioActive, onMusicReady, activePreset, activeSong, songTrigger, leftRate, rightRate }) {
   const canvasRef = useRef(null);
   const textureRef = useRef(null);
   const pinkTextureRef = useRef(null);
   const starsRef = useRef([]);
   const lastHandPos = useRef({ x: 0.5, y: 0.5 });
+  const lastPreset = useRef(activePreset);
   
   // Audio Refs
   const audioCtxRef = useRef(null);
   const audioElementsRef = useRef({ left: null, right: null });
   const pannersRef = useRef({ left: null, right: null });
   const gainsRef = useRef({ left: null, right: null });
+  const eqFiltersRef = useRef({ low: null, mid: null, high: null });
   const masterFilterRef = useRef(null);
 
   // 1. Initialize Stars and Textures
   useEffect(() => {
-    const starCount = 1500; // Increased for a fuller universe
+    const starCount = 1500;
     const newStars = [];
     for (let i = 0; i < starCount; i++) {
       const initialX = Math.random();
@@ -25,14 +27,14 @@ export function Starfield2D({ handData, isAudioActive, onMusicReady }) {
       newStars.push({
         x: initialX, y: initialY,
         ox: initialX, oy: initialY,
-        z: z, // Depth (0.1: Far, 1.0: Near)
+        z: z,
         size: Math.random() * 3 + 0.5,
         speed: Math.random() * 0.0001 + 0.00005,
         vx: 0, vy: 0,
         colorType: initialX < 0.5 ? 'pink' : 'white',
         mass: 0.4 + Math.random() * 0.6,
         phase: Math.random() * Math.PI * 2,
-        twinkleSpeed: 0.001 + Math.random() * 0.004 // Individual pulse speed
+        twinkleSpeed: 0.001 + Math.random() * 0.004
       });
     }
     starsRef.current = newStars;
@@ -62,7 +64,7 @@ export function Starfield2D({ handData, isAudioActive, onMusicReady }) {
     };
   }, []);
 
-  // 2. Initialize Audio (Dynamic Filter & Advanced Mixing)
+  // 2. Initialize Audio
   useEffect(() => {
     if (!isAudioActive) return;
 
@@ -71,37 +73,58 @@ export function Starfield2D({ handData, isAudioActive, onMusicReady }) {
       const ctx = new AudioContext();
       audioCtxRef.current = ctx;
 
-      // Master Filter (Muffled Effect)
       const masterFilter = ctx.createBiquadFilter();
       masterFilter.type = 'lowpass';
-      masterFilter.frequency.value = 800; // Start muffled
+      masterFilter.frequency.value = 20000;
       masterFilter.connect(ctx.destination);
       masterFilterRef.current = masterFilter;
+
+      const lowShelf = ctx.createBiquadFilter();
+      lowShelf.type = 'lowshelf';
+      lowShelf.frequency.value = 250;
+      lowShelf.gain.value = 0;
+
+      const midPeaking = ctx.createBiquadFilter();
+      midPeaking.type = 'peaking';
+      midPeaking.frequency.value = 1000;
+      midPeaking.Q.value = 0.7;
+      midPeaking.gain.value = 0;
+
+      const highShelf = ctx.createBiquadFilter();
+      highShelf.type = 'highshelf';
+      highShelf.frequency.value = 5000;
+      highShelf.gain.value = 0;
+
+      lowShelf.connect(midPeaking);
+      midPeaking.connect(highShelf);
+      highShelf.connect(masterFilter);
+      eqFiltersRef.current = { low: lowShelf, mid: midPeaking, high: highShelf };
 
       const createTrack = (url, initialPan) => {
         const audio = new Audio(url);
         audio.crossOrigin = "anonymous";
         audio.loop = true;
-        
+        audio.preservesPitch = true;
         const source = ctx.createMediaElementSource(audio);
         const gain = ctx.createGain();
-        gain.gain.value = 0; // Start silent
-        
+        gain.gain.value = 0;
         const panner = ctx.createStereoPanner();
         panner.pan.value = initialPan;
-
         source.connect(gain);
         gain.connect(panner);
-        panner.connect(masterFilter); // Connect to master filter
-        
+        panner.connect(lowShelf);
         return { audio, panner, gain };
       };
 
-      const marsUrl = '/Rosewood_vocal_left.mp3';
-      const venusUrl = '/Rosewood_drum_right.mp3';
+      const songMap = {
+        1: { vocal: '/Rosewood_vocal_left.mp3', drum: '/Rosewood_drum_right.mp3' },
+        2: { vocal: '/00_left.mp3', drum: '/gangnamstyle_right.mp3' },
+        3: { vocal: '/Rosewood_vocal_left.mp3', drum: '/Rosewood_drum_right.mp3' },
+      };
+      const { vocal, drum } = songMap[activeSong] || songMap[1];
 
-      const left = createTrack(marsUrl, -1);
-      const right = createTrack(venusUrl, 1);
+      const left = createTrack(vocal, -1);
+      const right = createTrack(drum, 1);
 
       audioElementsRef.current = { left: left.audio, right: right.audio };
       pannersRef.current = { left: left.panner, right: right.panner };
@@ -133,7 +156,7 @@ export function Starfield2D({ handData, isAudioActive, onMusicReady }) {
       }
       if (audioCtxRef.current) audioCtxRef.current.close();
     };
-  }, [isAudioActive]);
+  }, [isAudioActive, activeSong, songTrigger]); // Added songTrigger here
 
   // 3. Render Loop
   useEffect(() => {
@@ -161,7 +184,7 @@ export function Starfield2D({ handData, isAudioActive, onMusicReady }) {
       let normHandX = 0.5;
 
       if (handData) {
-        normHandX = (1 - handData.x); // Current hand X (0: Left, 1: Right)
+        normHandX = (1 - handData.x);
         hX = normHandX * width;
         hY = handData.y * height;
         hScaling = (handData.scale || 0.5) * 450;
@@ -179,109 +202,117 @@ export function Starfield2D({ handData, isAudioActive, onMusicReady }) {
           const dx = (star.x * width) - hX;
           const dy = (star.y * height) - hY;
           const dist = Math.sqrt(dx * dx + dy * dy);
-          
           if (dist < hScaling) {
             const forceFactor = Math.pow(1 - dist / hScaling, 1.5);
-            
-            // 1. Repulsion (Scattering away from hand)
             const repelX = (dx / dist) * 0.15;
             const repelY = (dy / dist) * 0.15;
-            
-            // 2. Vortex (Swirling around hand)
             const swirlX = (-dy / dist) * 0.25;
             const swirlY = (dx / dist) * 0.25;
-            
-            // 3. Direct Velocity (Reduced drag)
             const dragX = handVX * 0.15;
             const dragY = handVY * 0.15;
-            
-            // Combine based on individual mass and depth (Parallax)
-            // Farther stars (low Z) react less to the hand
             const depthFactor = star.z;
             star.vx += (repelX + swirlX + dragX) * forceFactor * (1 / star.mass) * depthFactor;
             star.vy += (repelY + swirlY + dragY) * forceFactor * (1 / star.mass) * depthFactor;
-            
-            // Add a little 'shimmer' jitter
             star.vx += Math.sin(Date.now() * 0.01 + star.phase) * 0.03;
             star.vy += Math.cos(Date.now() * 0.01 + star.phase) * 0.03;
           }
         }
-
-        const springPower = 0.00015; // Much weaker 'magnet' force
+        const springPower = 0.00015;
         star.vx += (star.ox - star.x) * springPower * width;
         star.vy += (star.oy - star.y) * springPower * height;
         star.x += star.vx / width;
         star.y += star.vy / height;
-        
-        // Lower friction (0.93) to allow longer drifting
         star.vx *= 0.93;
         star.vy *= 0.93;
-
         totalDisplacement += Math.sqrt(Math.pow(star.x - star.ox, 2) + Math.pow(star.y - star.oy, 2));
-
         const sx = star.x * width;
         const sy = star.y * height;
-        
-        // Twinkle Logic: Pulsing opacity and size
         const twinkle = Math.sin(Date.now() * star.twinkleSpeed + star.phase * 10);
         const sSize = star.size * star.z * 6 * (0.85 + twinkle * 0.15);
-        
         const currentTex = star.colorType === 'pink' ? pinkTextureRef.current : textureRef.current;
         if (currentTex && currentTex.complete) {
-          // Opacity also twinkles slightly
           ctx.globalAlpha = star.z * (0.7 + twinkle * 0.3);
           ctx.drawImage(currentTex, sx - sSize / 2, sy - sSize / 2, sSize, sSize);
         }
       }
 
-      // --- Advanced Audio Interaction (Centroid Based) ---
-      if (audioCtxRef.current && masterFilterRef.current) {
+      if (audioCtxRef.current && masterFilterRef.current && eqFiltersRef.current.low) {
         const curTime = audioCtxRef.current.currentTime;
         
-        // 1. Calculate Centroids (Center of Mass) for each group
+        audioElementsRef.current.left.playbackRate = leftRate;
+        audioElementsRef.current.right.playbackRate = rightRate;
+
+        if (lastPreset.current !== activePreset) {
+          eqFiltersRef.current.low.gain.setTargetAtTime(0, curTime, 0.1);
+          eqFiltersRef.current.mid.gain.setTargetAtTime(0, curTime, 0.1);
+          eqFiltersRef.current.high.gain.setTargetAtTime(0, curTime, 0.1);
+          masterFilterRef.current.Q.setTargetAtTime(1, curTime, 0.1);
+          lastPreset.current = activePreset;
+        }
+
         let sumXPink = 0, countPink = 0;
         let sumXWhite = 0, countWhite = 0;
         for (let i = 0; i < stars.length; i++) {
           const s = stars[i];
-          if (s.colorType === 'pink') {
-            sumXPink += s.x;
-            countPink++;
-          } else {
-            sumXWhite += s.x;
-            countWhite++;
-          }
+          if (s.colorType === 'pink') { sumXPink += s.x; countPink++; }
+          else { sumXWhite += s.x; countWhite++; }
         }
         const avgXPink = sumXPink / (countPink || 1);
         const avgXWhite = sumXWhite / (countWhite || 1);
 
-        // 2. Muffled Filter based on Hand Visibility (Stays smooth)
-        const targetFreq = handData ? 20000 : 800;
-        masterFilterRef.current.frequency.setTargetAtTime(targetFreq, curTime, 0.4);
+        if (activePreset === 1) {
+          let wMid = 0, wHigh = 0, wLow = 0, wMuffled = 0;
+          if (handData) {
+            const hX = (1 - handData.x);
+            const hY = handData.y;
+            wMid = (1 - hX) * (1 - hY);
+            wHigh = hX * (1 - hY);
+            wLow = (1 - hX) * hY;
+            wMuffled = hX * hY;
+          }
+          const eq = eqFiltersRef.current;
+          eq.low.gain.setTargetAtTime(wLow * 25, curTime, 0.2);
+          eq.mid.gain.setTargetAtTime(wMid * 25, curTime, 0.2);
+          eq.high.gain.setTargetAtTime(wHigh * 25, curTime, 0.2);
+          const targetLP = handData ? 20000 * Math.pow(0.02, wMuffled) : 800;
+          masterFilterRef.current.frequency.setTargetAtTime(targetLP, curTime, 0.4);
+        } else if (activePreset === 2) {
+          if (handData) {
+            const hX = (1 - handData.x);
+            const hY = handData.y;
+            const handSpeedMod = 0.8 + hX * 0.4;
+            audioElementsRef.current.left.playbackRate = leftRate * handSpeedMod;
+            audioElementsRef.current.right.playbackRate = rightRate * handSpeedMod;
+            
+            const targetLP = 20000 * Math.pow(0.02, hY);
+            const targetQ = 1 + hY * 15;
+            masterFilterRef.current.frequency.setTargetAtTime(targetLP, curTime, 0.1);
+            masterFilterRef.current.Q.setTargetAtTime(targetQ, curTime, 0.1);
+          } else {
+            masterFilterRef.current.frequency.setTargetAtTime(800, curTime, 0.4);
+            masterFilterRef.current.Q.setTargetAtTime(1, curTime, 0.4);
+          }
+        }
 
-        // 3. Distribution Based Volume (90:10 Rule)
         if (gainsRef.current.left) {
-          // Pink Star (Vocal): Left(0) gives max gain, Right(1) gives min gain
-          const gainPink = 0.1 + (1 - avgXPink) * 0.8;
-          // White Star (Drum): Right(1) gives max gain, Left(0) gives min gain
-          const gainWhite = 0.1 + avgXWhite * 0.8;
-
-          // Global chaos boost (still adds excitement when mixed)
+          const gainPink = Math.pow(1 - avgXPink, 2.5); 
+          const gainWhite = Math.pow(avgXWhite, 2.5);
           const avgDisplacement = totalDisplacement / stars.length;
-          const chaosBoost = Math.min(avgDisplacement * 5, 0.3);
-
-          gainsRef.current.left.gain.setTargetAtTime(gainPink + chaosBoost, curTime, 0.2);
-          gainsRef.current.right.gain.setTargetAtTime(gainWhite + chaosBoost, curTime, 0.2);
-
-          // 4. Stereo Panning follows the stars
-          const panPink = (avgXPink * 2) - 1; // Map 0..1 to -1..1
-          const panWhite = (avgXWhite * 2) - 1;
-          pannersRef.current.left.pan.setTargetAtTime(panPink, curTime, 0.2);
-          pannersRef.current.right.pan.setTargetAtTime(panWhite, curTime, 0.2);
+          const chaosBoost = Math.min(avgDisplacement * 12, 0.5);
+          gainsRef.current.left.gain.setTargetAtTime(Math.min(1.0, gainPink + chaosBoost), curTime, 0.15);
+          gainsRef.current.right.gain.setTargetAtTime(Math.min(1.0, gainWhite + chaosBoost), curTime, 0.15);
+          const panPink = Math.max(-1, Math.min(1, (avgXPink - 0.25) * 5));
+          const panWhite = Math.max(-1, Math.min(1, (avgXWhite - 0.75) * 5));
+          pannersRef.current.left.pan.setTargetAtTime(panPink, curTime, 0.15);
+          pannersRef.current.right.pan.setTargetAtTime(panWhite, curTime, 0.15);
         }
       }
 
       ctx.globalAlpha = 1.0;
       if (handData) {
+        const hX = (1 - handData.x) * width;
+        const hY = handData.y * height;
+        const hScaling = (handData.scale || 0.5) * 450;
         const gradient = ctx.createRadialGradient(hX, hY, 0, hX, hY, hScaling);
         gradient.addColorStop(0, 'rgba(255, 255, 255, 0.3)');
         gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
@@ -290,17 +321,14 @@ export function Starfield2D({ handData, isAudioActive, onMusicReady }) {
         ctx.beginPath(); ctx.arc(hX, hY, hScaling, 0, Math.PI * 2); ctx.fill();
         ctx.globalCompositeOperation = 'source-over';
       }
-
       animationFrameId = requestAnimationFrame(render);
     };
-
     render();
-
     return () => {
       cancelAnimationFrame(animationFrameId);
       window.removeEventListener('resize', handleResize);
     };
-  }, [handData]);
+  }, [handData, activePreset, leftRate, rightRate]);
 
   return (
     <canvas ref={canvasRef} style={{ position: 'absolute', top: 0, left: 0, width: '100vw', height: '100vh', display: 'block' }} />
