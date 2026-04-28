@@ -57,21 +57,28 @@ export function useHandTracking(videoRef) {
             Math.pow(wrist.y - middleMCP.y, 2)
           ) * 4;
 
-          // Calculate average curl amount (More sensitive range)
-          const tips = [8, 12, 16, 20]; 
-          let totalCurl = 0;
-          tips.forEach(tipIdx => {
-            const tip = landmarks[tipIdx];
-            const dist = Math.sqrt(Math.pow(tip.x - wrist.x, 2) + Math.pow(tip.y - wrist.y, 2));
-            // Tighter range: 0.12 (closed) to 0.28 (open)
-            // This makes subtle movements trigger larger changes
-            const curl = Math.max(0, Math.min(1, (0.28 - dist) / 0.16));
-            totalCurl += curl;
-          });
-          const avgCurl = totalCurl / tips.length;
+          // Calculate Hand Span Area (Polygon of tips + wrist)
+          // Normalizing by scale squared to make it distance-independent
+          const points = [0, 4, 8, 12, 16, 20].map(idx => ({
+            x: (landmarks[idx].x - wrist.x) / (scale || 1),
+            y: (landmarks[idx].y - wrist.y) / (scale || 1)
+          }));
+          
+          // Shoelace formula for area
+          let area = 0;
+          for (let i = 0; i < points.length; i++) {
+            const j = (i + 1) % points.length;
+            area += points[i].x * points[j].y;
+            area -= points[j].x * points[i].y;
+          }
+          area = Math.abs(area) / 2;
 
-          // Slightly lower threshold for fist detection to feel more responsive
-          const isFist = avgCurl > 0.75;
+          // Normalized Area Range: approx 0.02 (closed) to 0.55 (open)
+          // Widened the range to 0.55 to make it start decreasing much later
+          const avgCurl = Math.max(0, Math.min(1, (0.5 - area) / 0.48));
+
+          // Only trigger isFist at the very last moment (92% closed)
+          const isFist = avgCurl > 0.92;
 
           // Advanced Snap Detection
           const thumbTip = landmarks[4];

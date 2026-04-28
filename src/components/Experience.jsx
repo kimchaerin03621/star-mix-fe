@@ -322,28 +322,16 @@ export function Starfield2D({
           }
         }
 
-        // Calculate volume factors based on hand curling (Grasp control)
-        let leftVolFactor = 1.0;
-        let rightVolFactor = 1.0;
+        // Simple Mute logic based on Fist gesture
         let isAnyFist = false;
-
         hands.forEach(h => {
-          const hX = (1 - h.x) * width;
-          // Apply a square power to make the volume drop more noticeably (Exponential curve)
-          const factor = Math.pow(Math.max(0, 1 - (h.curlAmount || 0)), 2.0);
-          
-          if (hX < width / 2) {
-            leftVolFactor = Math.min(leftVolFactor, factor);
-          } else {
-            rightVolFactor = Math.min(rightVolFactor, factor);
-          }
           if (h.isFist) isAnyFist = true;
         });
 
         if (gainsRef.current.left) {
-          // baseGain determined by star density + grasp factor
-          const gainPink = isAnyFist ? 0 : Math.pow(1 - avgXPink, 2.5) * leftVolFactor; 
-          const gainWhite = isAnyFist ? 0 : Math.pow(avgXWhite, 2.5) * rightVolFactor;
+          // No more volFactor, just instant mute on fist
+          const gainPink = isAnyFist ? 0 : Math.pow(1 - avgXPink, 2.5); 
+          const gainWhite = isAnyFist ? 0 : Math.pow(avgXWhite, 2.5);
           const avgDisplacement = totalDisplacement / stars.length;
           const chaosBoost = isAnyFist ? 0 : Math.min(avgDisplacement * 12, 0.5);
           gainsRef.current.left.gain.setTargetAtTime(Math.min(1.0, gainPink + chaosBoost), curTime, 0.1);
