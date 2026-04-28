@@ -310,9 +310,10 @@ body {
 
 .color-controls {
   display: flex;
-  gap: 20px;
   justify-content: center;
-  margin-bottom: 30px;
+  gap: 40px;
+  margin-top: 30px;
+  margin-bottom: 50px; /* Increased space to separate from buttons below */
 }
 
 .color-input-group {
@@ -323,8 +324,50 @@ body {
 }
 
 .color-input-group label {
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   font-weight: bold;
+  color: #888;
+  letter-spacing: 1px;
+}
+
+/* Final Exact Image Mask Color Picker (via SVG) */
+.star-image-mask-picker {
+  position: relative;
+  width: 55px;
+  height: 55px;
+  cursor: pointer;
+  transition: transform 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.star-image-mask-picker:hover {
+  transform: scale(1.15) rotate(10deg);
+}
+
+.star-image-mask-picker svg {
+  pointer-events: none; /* Let clicks pass to the input */
+  /* Drop shadow to make white stars visible on light backgrounds */
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.15)) drop-shadow(0 0 1px rgba(0, 0, 0, 0.1));
+}
+
+.star-image-mask-picker input[type="color"] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* Remove default browser styling for color input */
+.star-color-picker input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+.star-color-picker input[type="color"]::-webkit-color-swatch {
+  border: none;
 }
 
 .editor-actions {

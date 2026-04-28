@@ -196,11 +196,31 @@ function StarEditor({ onApply, onCancel, previousTexture, previousColors }) {
         <div className="color-controls">
           <div className="color-input-group">
             <label>LEFT</label>
-            <input type="color" value={leftColor} onChange={(e) => setLeftColor(e.target.value)} />
+            <div className="star-image-mask-picker">
+              <svg width="55" height="55" viewBox="0 0 100 100">
+                <defs>
+                  <mask id="mask-left">
+                    <image href="/star_picker.png" width="100" height="100" preserveAspectRatio="xMidYMid border" />
+                  </mask>
+                </defs>
+                <rect width="100" height="100" fill={leftColor} mask="url(#mask-left)" />
+              </svg>
+              <input type="color" value={leftColor} onChange={(e) => setLeftColor(e.target.value)} />
+            </div>
           </div>
           <div className="color-input-group">
             <label>RIGHT</label>
-            <input type="color" value={rightColor} onChange={(e) => setRightColor(e.target.value)} />
+            <div className="star-image-mask-picker">
+              <svg width="55" height="55" viewBox="0 0 100 100">
+                <defs>
+                  <mask id="mask-right">
+                    <image href="/star_picker.png" width="100" height="100" preserveAspectRatio="xMidYMid border" />
+                  </mask>
+                </defs>
+                <rect width="100" height="100" fill={rightColor} mask="url(#mask-right)" />
+              </svg>
+              <input type="color" value={rightColor} onChange={(e) => setRightColor(e.target.value)} />
+            </div>
           </div>
         </div>
 
@@ -303,7 +323,7 @@ function App() {
       )}
 
       <div className="ui-overlay">
-        <div className="ui-title">STARMix Lab</div>
+        <div className="ui-title">STARMIX</div>
         <div className="ui-status">
           {isMusicLoading && <div style={{ color: '#ff007f', fontWeight: 'bold' }}>새로운 파동 로딩 중...</div>}
           {!isMusicLoading && (cameraActive ? (handData.length > 0 ? `손 인식 중 (${handData.length}개)` : "손을 기다리는 중...") : "카메라를 켜주세요.")}

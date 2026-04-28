@@ -322,11 +322,29 @@ export function Starfield2D({
           }
         }
 
+        // Calculate volume factors based on hand curling (Grasp control)
+        let leftVolFactor = 1.0;
+        let rightVolFactor = 1.0;
+        let isAnyFist = false;
+
+        hands.forEach(h => {
+          const hX = (1 - h.x) * width;
+          const factor = Math.max(0, 1 - (h.curlAmount || 0)); // Open (0) -> 1.0, Closed (1.0) -> 0.0
+          
+          if (hX < width / 2) {
+            leftVolFactor = Math.min(leftVolFactor, factor);
+          } else {
+            rightVolFactor = Math.min(rightVolFactor, factor);
+          }
+          if (h.isFist) isAnyFist = true;
+        });
+
         if (gainsRef.current.left) {
-          const gainPink = isMuted ? 0 : Math.pow(1 - avgXPink, 2.5); 
-          const gainWhite = isMuted ? 0 : Math.pow(avgXWhite, 2.5);
+          // baseGain determined by star density + grasp factor
+          const gainPink = isAnyFist ? 0 : Math.pow(1 - avgXPink, 2.5) * leftVolFactor; 
+          const gainWhite = isAnyFist ? 0 : Math.pow(avgXWhite, 2.5) * rightVolFactor;
           const avgDisplacement = totalDisplacement / stars.length;
-          const chaosBoost = isMuted ? 0 : Math.min(avgDisplacement * 12, 0.5);
+          const chaosBoost = isAnyFist ? 0 : Math.min(avgDisplacement * 12, 0.5);
           gainsRef.current.left.gain.setTargetAtTime(Math.min(1.0, gainPink + chaosBoost), curTime, 0.1);
           gainsRef.current.right.gain.setTargetAtTime(Math.min(1.0, gainWhite + chaosBoost), curTime, 0.1);
           const panPink = Math.max(-1, Math.min(1, (avgXPink - 0.25) * 5));
@@ -336,14 +354,17 @@ export function Starfield2D({
         }
       }
 
+      // Visualize ALL hands with adjusted aura intensity
       hands.forEach(h => {
         const hX = (1 - h.x) * width;
         const hY = h.y * height;
         const hScaling = (h.scale || 0.5) * 450;
-        const gradient = ctx.createRadialGradient(hX, hY, 0, hX, hY, hScaling);
-        gradient.addColorStop(0, 'rgba(255, 255, 255, 0.3)');
-        gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        
         ctx.globalCompositeOperation = 'lighter';
+        const gradient = ctx.createRadialGradient(hX, hY, 0, hX, hY, hScaling);
+        // Reduced intensity to 0.4 (approx 30% reduction from 0.6)
+        gradient.addColorStop(0, 'rgba(255, 255, 255, 0.4)');
+        gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
         ctx.fillStyle = gradient;
         ctx.beginPath(); ctx.arc(hX, hY, hScaling, 0, Math.PI * 2); ctx.fill();
         ctx.globalCompositeOperation = 'source-over';
