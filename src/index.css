@@ -1,5 +1,7 @@
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif;
   line-height: 1.5;
   font-weight: 400;
 
@@ -179,6 +181,180 @@ body {
   color: #ff007f;
   text-shadow: 0 0 10px rgba(255, 0, 127, 0.5);
   letter-spacing: 0.1em;
+}
+
+/* Star Editor Styles */
+.editor-open-btn {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255, 0, 127, 0.2);
+  border: 2px solid #ff007f;
+  color: #ff007f;
+  padding: 10px 20px;
+  border-radius: 30px;
+  font-weight: bold;
+  cursor: pointer;
+  z-index: 100;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+}
+
+.editor-open-btn:hover {
+  background: #ff007f;
+  color: white;
+  box-shadow: 0 0 20px rgba(255, 0, 127, 0.5);
+}
+
+.star-editor-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(255, 255, 255, 0.9);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  color: #333;
+}
+
+.editor-content {
+  background: white;
+  padding: 40px;
+  border-radius: 20px;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.2);
+  text-align: center;
+  max-width: 500px;
+  width: 90%;
+}
+
+.editor-content h2 {
+  margin-top: 0;
+  font-size: 1.5rem;
+  color: #ff007f;
+}
+
+.drawing-canvas {
+  border: 2px dashed #ccc;
+  background: #f4f4f4;
+  cursor: none;
+  display: block;
+  border-radius: 10px;
+  box-sizing: content-box; /* Ensure border is outside the 300x300 area */
+}
+
+.canvas-container {
+  position: relative;
+  display: inline-block;
+  margin: 20px 0;
+  line-height: 0; /* Remove potential extra space at bottom */
+}
+
+.brush-preview {
+  position: absolute;
+  width: 15px;
+  height: 15px;
+  border: 2px solid #ff007f;
+  border-radius: 50%;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  box-sizing: border-box;
+  z-index: 10;
+}
+
+.tool-controls {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.tool-btn {
+  padding: 8px 18px;
+  border: 2px solid #eee; /* Stronger border */
+  background: #f9f9f9; /* Light grey background for non-active */
+  color: #666;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tool-btn:hover {
+  background: #eee;
+  border-color: #ddd;
+}
+
+.tool-btn.active {
+  background: #ff007f;
+  color: white;
+  border-color: #ff007f;
+  box-shadow: 0 4px 10px rgba(255, 0, 127, 0.3);
+}
+
+.tool-btn.reset {
+  color: #cc0000;
+  border-color: #fee;
+}
+
+.tool-btn.reset:hover {
+  background: #cc0000;
+  color: white;
+  border-color: #cc0000;
+}
+
+.color-controls {
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+  margin-bottom: 30px;
+}
+
+.color-input-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.color-input-group label {
+  font-size: 0.8rem;
+  font-weight: bold;
+}
+
+.editor-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.editor-btn {
+  padding: 12px 25px;
+  border-radius: 10px;
+  border: none;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.editor-btn.apply {
+  background: #ff007f;
+  color: white;
+}
+
+.editor-btn.cancel {
+  background: #eee;
+  color: #666;
+}
+
+.editor-btn:hover {
+  transform: translateY(-2px);
+  opacity: 0.9;
 }
 
 .bpm-label {

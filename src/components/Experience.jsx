@@ -1,11 +1,16 @@
 import React, { useRef, useEffect } from 'react';
 
-export function Starfield2D({ handData, isAudioActive, onMusicReady, activePreset, activeSong, songTrigger, leftRate, rightRate }) {
+export function Starfield2D({ 
+  handData, isAudioActive, onMusicReady, 
+  activePreset, activeSong, songTrigger, 
+  leftRate, rightRate,
+  customTexture, starColors 
+}) {
   const canvasRef = useRef(null);
   const textureRef = useRef(null);
   const pinkTextureRef = useRef(null);
   const starsRef = useRef([]);
-  const lastHandPos = useRef({ x: 0.5, y: 0.5 });
+  const lastHandsPos = useRef([]); 
   const lastPreset = useRef(activePreset);
   
   // Audio Refs
@@ -16,7 +21,17 @@ export function Starfield2D({ handData, isAudioActive, onMusicReady, activePrese
   const eqFiltersRef = useRef({ low: null, mid: null, high: null });
   const masterFilterRef = useRef(null);
 
-  // 1. Initialize Stars and Textures
+  // Helper: Hex to RGB
+  const hexToRgb = (hex) => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16)
+    } : { r: 255, g: 255, b: 255 };
+  };
+
+  // 1. Initialize Stars
   useEffect(() => {
     const starCount = 1500;
     const newStars = [];
@@ -29,7 +44,6 @@ export function Starfield2D({ handData, isAudioActive, onMusicReady, activePrese
         ox: initialX, oy: initialY,
         z: z,
         size: Math.random() * 3 + 0.5,
-        speed: Math.random() * 0.0001 + 0.00005,
         vx: 0, vy: 0,
         colorType: initialX < 0.5 ? 'pink' : 'white',
         mass: 0.4 + Math.random() * 0.6,
@@ -38,33 +52,52 @@ export function Starfield2D({ handData, isAudioActive, onMusicReady, activePrese
       });
     }
     starsRef.current = newStars;
+  }, []);
 
+  // 2. Texture Generation (Handles both Default and Custom)
+  useEffect(() => {
     const img = new Image();
-    img.src = '/star.png';
+    img.src = customTexture || '/star.png';
+    img.crossOrigin = "anonymous";
+    
     img.onload = () => {
-      const processTexture = (color = null) => {
+      const processTexture = (colorHex) => {
+        const color = hexToRgb(colorHex);
         const offCanvas = document.createElement('canvas');
         offCanvas.width = img.width; offCanvas.height = img.height;
         const offCtx = offCanvas.getContext('2d');
         offCtx.drawImage(img, 0, 0);
         const imageData = offCtx.getImageData(0, 0, offCanvas.width, offCanvas.height);
         const data = imageData.data;
+
         for (let i = 0; i < data.length; i += 4) {
-          const brightness = (data[i] + data[i+1] + data[i+2]) / 3;
-          if (color) { data[i] = color.r; data[i+1] = color.g; data[i+2] = color.b; }
-          data[i+3] = brightness;
+          // If custom texture, we treat darker as more opaque (black on white)
+          // If default texture, we treat brighter as more opaque
+          let alpha;
+          if (customTexture) {
+             const brightness = (data[i] + data[i+1] + data[i+2]) / 3;
+             alpha = 255 - brightness; // Black ink becomes opaque
+          } else {
+             alpha = (data[i] + data[i+1] + data[i+2]) / 3;
+          }
+
+          data[i] = color.r;
+          data[i+1] = color.g;
+          data[i+2] = color.b;
+          data[i+3] = alpha;
         }
         offCtx.putImageData(imageData, 0, 0);
         const newImg = new Image();
         newImg.src = offCanvas.toDataURL();
         return newImg;
       };
-      textureRef.current = processTexture();
-      pinkTextureRef.current = processTexture({ r: 255, g: 0, b: 127 });
-    };
-  }, []);
 
-  // 2. Initialize Audio
+      pinkTextureRef.current = processTexture(starColors?.left || '#ff007f');
+      textureRef.current = processTexture(starColors?.right || '#ffffff');
+    };
+  }, [customTexture, starColors]);
+
+  // 3. Initialize Audio
   useEffect(() => {
     if (!isAudioActive) return;
 
@@ -156,9 +189,9 @@ export function Starfield2D({ handData, isAudioActive, onMusicReady, activePrese
       }
       if (audioCtxRef.current) audioCtxRef.current.close();
     };
-  }, [isAudioActive, activeSong, songTrigger]); // Added songTrigger here
+  }, [isAudioActive, activeSong, songTrigger]);
 
-  // 3. Render Loop
+  // 4. Render Loop
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -179,52 +212,50 @@ export function Starfield2D({ handData, isAudioActive, onMusicReady, activePrese
       ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, width, height);
 
-      let hX = 0, hY = 0, hScaling = 0;
-      let handVX = 0, handVY = 0;
-      let normHandX = 0.5;
-
-      if (handData) {
-        normHandX = (1 - handData.x);
-        hX = normHandX * width;
-        hY = handData.y * height;
-        hScaling = (handData.scale || 0.5) * 450;
-        handVX = (hX - lastHandPos.current.x) * 0.25;
-        handVY = (hY - lastHandPos.current.y) * 0.25;
-        lastHandPos.current = { x: hX, y: hY };
-      }
-
+      const hands = Array.isArray(handData) ? handData : [];
       const stars = starsRef.current;
       let totalDisplacement = 0;
 
-      for (let i = 0; i < stars.length; i++) {
-        const star = stars[i];
-        if (handData) {
+      hands.forEach((h, i) => {
+        if (!lastHandsPos.current[i]) {
+          lastHandsPos.current[i] = { x: (1-h.x)*width, y: h.y*height };
+        }
+      });
+
+      stars.forEach(star => {
+        hands.forEach((h, i) => {
+          const hX = (1 - h.x) * width;
+          const hY = h.y * height;
+          const hScaling = (h.scale || 0.5) * 450;
           const dx = (star.x * width) - hX;
           const dy = (star.y * height) - hY;
           const dist = Math.sqrt(dx * dx + dy * dy);
           if (dist < hScaling) {
             const forceFactor = Math.pow(1 - dist / hScaling, 1.5);
-            const repelX = (dx / dist) * 0.15;
-            const repelY = (dy / dist) * 0.15;
-            const swirlX = (-dy / dist) * 0.25;
-            const swirlY = (dx / dist) * 0.25;
-            const dragX = handVX * 0.15;
-            const dragY = handVY * 0.15;
+            const repelX = (dx / dist) * 0.08;
+            const repelY = (dy / dist) * 0.08;
+            const swirlX = (-dy / dist) * 0.12;
+            const swirlY = (dx / dist) * 0.12;
+            const handVX = (hX - (lastHandsPos.current[i]?.x || hX)) * 0.08;
+            const handVY = (hY - (lastHandsPos.current[i]?.y || hY)) * 0.08;
             const depthFactor = star.z;
-            star.vx += (repelX + swirlX + dragX) * forceFactor * (1 / star.mass) * depthFactor;
-            star.vy += (repelY + swirlY + dragY) * forceFactor * (1 / star.mass) * depthFactor;
-            star.vx += Math.sin(Date.now() * 0.01 + star.phase) * 0.03;
-            star.vy += Math.cos(Date.now() * 0.01 + star.phase) * 0.03;
+            star.vx += (repelX + swirlX + handVX) * forceFactor * (1 / star.mass) * depthFactor;
+            star.vy += (repelY + swirlY + handVY) * forceFactor * (1 / star.mass) * depthFactor;
           }
-        }
-        const springPower = 0.00015;
+        });
+
+        // Significantly reduced Brownian motion for a calmer feel
+        star.vx += Math.sin(Date.now() * 0.005 + star.phase) * 0.003;
+        star.vy += Math.cos(Date.now() * 0.005 + star.phase) * 0.003;
+        const springPower = 0.0002;
         star.vx += (star.ox - star.x) * springPower * width;
         star.vy += (star.oy - star.y) * springPower * height;
         star.x += star.vx / width;
         star.y += star.vy / height;
-        star.vx *= 0.93;
-        star.vy *= 0.93;
+        star.vx *= 0.92;
+        star.vy *= 0.92;
         totalDisplacement += Math.sqrt(Math.pow(star.x - star.ox, 2) + Math.pow(star.y - star.oy, 2));
+
         const sx = star.x * width;
         const sy = star.y * height;
         const twinkle = Math.sin(Date.now() * star.twinkleSpeed + star.phase * 10);
@@ -234,11 +265,14 @@ export function Starfield2D({ handData, isAudioActive, onMusicReady, activePrese
           ctx.globalAlpha = star.z * (0.7 + twinkle * 0.3);
           ctx.drawImage(currentTex, sx - sSize / 2, sy - sSize / 2, sSize, sSize);
         }
-      }
+      });
+
+      hands.forEach((h, i) => {
+        lastHandsPos.current[i] = { x: (1-h.x)*width, y: h.y*height };
+      });
 
       if (audioCtxRef.current && masterFilterRef.current && eqFiltersRef.current.low) {
         const curTime = audioCtxRef.current.currentTime;
-        
         audioElementsRef.current.left.playbackRate = leftRate;
         audioElementsRef.current.right.playbackRate = rightRate;
 
@@ -250,6 +284,9 @@ export function Starfield2D({ handData, isAudioActive, onMusicReady, activePrese
           lastPreset.current = activePreset;
         }
 
+        const primaryHand = hands[0];
+        const isMuted = hands.some(h => h.isFist);
+
         let sumXPink = 0, countPink = 0;
         let sumXWhite = 0, countWhite = 0;
         for (let i = 0; i < stars.length; i++) {
@@ -260,47 +297,38 @@ export function Starfield2D({ handData, isAudioActive, onMusicReady, activePrese
         const avgXPink = sumXPink / (countPink || 1);
         const avgXWhite = sumXWhite / (countWhite || 1);
 
-        if (activePreset === 1) {
-          let wMid = 0, wHigh = 0, wLow = 0, wMuffled = 0;
-          if (handData) {
-            const hX = (1 - handData.x);
-            const hY = handData.y;
-            wMid = (1 - hX) * (1 - hY);
-            wHigh = hX * (1 - hY);
-            wLow = (1 - hX) * hY;
-            wMuffled = hX * hY;
-          }
-          const eq = eqFiltersRef.current;
-          eq.low.gain.setTargetAtTime(wLow * 25, curTime, 0.2);
-          eq.mid.gain.setTargetAtTime(wMid * 25, curTime, 0.2);
-          eq.high.gain.setTargetAtTime(wHigh * 25, curTime, 0.2);
-          const targetLP = handData ? 20000 * Math.pow(0.02, wMuffled) : 800;
-          masterFilterRef.current.frequency.setTargetAtTime(targetLP, curTime, 0.4);
-        } else if (activePreset === 2) {
-          if (handData) {
-            const hX = (1 - handData.x);
-            const hY = handData.y;
+        if (primaryHand) {
+          const hX = (1 - primaryHand.x);
+          const hY = primaryHand.y;
+          if (activePreset === 1) {
+            const wMid = (1 - hX) * (1 - hY);
+            const wHigh = hX * (1 - hY);
+            const wLow = (1 - hX) * hY;
+            const wMuffled = hX * hY;
+            const eq = eqFiltersRef.current;
+            eq.low.gain.setTargetAtTime(wLow * 25, curTime, 0.2);
+            eq.mid.gain.setTargetAtTime(wMid * 25, curTime, 0.2);
+            eq.high.gain.setTargetAtTime(wHigh * 25, curTime, 0.2);
+            const targetLP = 20000 * Math.pow(0.02, wMuffled);
+            masterFilterRef.current.frequency.setTargetAtTime(targetLP, curTime, 0.4);
+          } else if (activePreset === 2) {
             const handSpeedMod = 0.8 + hX * 0.4;
             audioElementsRef.current.left.playbackRate = leftRate * handSpeedMod;
             audioElementsRef.current.right.playbackRate = rightRate * handSpeedMod;
-            
             const targetLP = 20000 * Math.pow(0.02, hY);
             const targetQ = 1 + hY * 15;
             masterFilterRef.current.frequency.setTargetAtTime(targetLP, curTime, 0.1);
             masterFilterRef.current.Q.setTargetAtTime(targetQ, curTime, 0.1);
-          } else {
-            masterFilterRef.current.frequency.setTargetAtTime(800, curTime, 0.4);
-            masterFilterRef.current.Q.setTargetAtTime(1, curTime, 0.4);
           }
         }
 
         if (gainsRef.current.left) {
-          const gainPink = Math.pow(1 - avgXPink, 2.5); 
-          const gainWhite = Math.pow(avgXWhite, 2.5);
+          const gainPink = isMuted ? 0 : Math.pow(1 - avgXPink, 2.5); 
+          const gainWhite = isMuted ? 0 : Math.pow(avgXWhite, 2.5);
           const avgDisplacement = totalDisplacement / stars.length;
-          const chaosBoost = Math.min(avgDisplacement * 12, 0.5);
-          gainsRef.current.left.gain.setTargetAtTime(Math.min(1.0, gainPink + chaosBoost), curTime, 0.15);
-          gainsRef.current.right.gain.setTargetAtTime(Math.min(1.0, gainWhite + chaosBoost), curTime, 0.15);
+          const chaosBoost = isMuted ? 0 : Math.min(avgDisplacement * 12, 0.5);
+          gainsRef.current.left.gain.setTargetAtTime(Math.min(1.0, gainPink + chaosBoost), curTime, 0.1);
+          gainsRef.current.right.gain.setTargetAtTime(Math.min(1.0, gainWhite + chaosBoost), curTime, 0.1);
           const panPink = Math.max(-1, Math.min(1, (avgXPink - 0.25) * 5));
           const panWhite = Math.max(-1, Math.min(1, (avgXWhite - 0.75) * 5));
           pannersRef.current.left.pan.setTargetAtTime(panPink, curTime, 0.15);
@@ -308,11 +336,10 @@ export function Starfield2D({ handData, isAudioActive, onMusicReady, activePrese
         }
       }
 
-      ctx.globalAlpha = 1.0;
-      if (handData) {
-        const hX = (1 - handData.x) * width;
-        const hY = handData.y * height;
-        const hScaling = (handData.scale || 0.5) * 450;
+      hands.forEach(h => {
+        const hX = (1 - h.x) * width;
+        const hY = h.y * height;
+        const hScaling = (h.scale || 0.5) * 450;
         const gradient = ctx.createRadialGradient(hX, hY, 0, hX, hY, hScaling);
         gradient.addColorStop(0, 'rgba(255, 255, 255, 0.3)');
         gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
@@ -320,7 +347,8 @@ export function Starfield2D({ handData, isAudioActive, onMusicReady, activePrese
         ctx.fillStyle = gradient;
         ctx.beginPath(); ctx.arc(hX, hY, hScaling, 0, Math.PI * 2); ctx.fill();
         ctx.globalCompositeOperation = 'source-over';
-      }
+      });
+
       animationFrameId = requestAnimationFrame(render);
     };
     render();
