@@ -57,18 +57,21 @@ export function useHandTracking(videoRef) {
             Math.pow(wrist.y - middleMCP.y, 2)
           ) * 4;
 
-          // Calculate average curl amount (0.0 = open, 1.0 = closed)
+          // Calculate average curl amount (More sensitive range)
           const tips = [8, 12, 16, 20]; 
           let totalCurl = 0;
           tips.forEach(tipIdx => {
             const tip = landmarks[tipIdx];
             const dist = Math.sqrt(Math.pow(tip.x - wrist.x, 2) + Math.pow(tip.y - wrist.y, 2));
-            const curl = Math.max(0, Math.min(1, (0.35 - dist) / 0.25));
+            // Tighter range: 0.12 (closed) to 0.28 (open)
+            // This makes subtle movements trigger larger changes
+            const curl = Math.max(0, Math.min(1, (0.28 - dist) / 0.16));
             totalCurl += curl;
           });
           const avgCurl = totalCurl / tips.length;
 
-          const isFist = avgCurl > 0.85;
+          // Slightly lower threshold for fist detection to feel more responsive
+          const isFist = avgCurl > 0.75;
 
           // Advanced Snap Detection
           const thumbTip = landmarks[4];

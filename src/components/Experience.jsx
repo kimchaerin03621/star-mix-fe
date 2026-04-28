@@ -329,7 +329,8 @@ export function Starfield2D({
 
         hands.forEach(h => {
           const hX = (1 - h.x) * width;
-          const factor = Math.max(0, 1 - (h.curlAmount || 0)); // Open (0) -> 1.0, Closed (1.0) -> 0.0
+          // Apply a square power to make the volume drop more noticeably (Exponential curve)
+          const factor = Math.pow(Math.max(0, 1 - (h.curlAmount || 0)), 2.0);
           
           if (hX < width / 2) {
             leftVolFactor = Math.min(leftVolFactor, factor);
