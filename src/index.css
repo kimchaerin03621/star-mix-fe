@@ -1059,25 +1059,29 @@ body {
   position: absolute;
   top: 20px;
   left: 20px;
-  background: rgba(10, 10, 22, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.8);
-  padding: 9px 18px;
-  border-radius: 20px;
+  background: rgba(10, 10, 22, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.9);
+  padding: 10px 22px;
+  border-radius: 9999px;
+  font-family: var(--sf-font-body);
+  font-size: 0.88rem;
   font-weight: 600;
+  letter-spacing: 0.04em;
   cursor: pointer;
-  z-index: 150;
+  z-index: 2000;
   transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-  backdrop-filter: blur(10px);
-  font-size: 0.85rem;
+  backdrop-filter: blur(14px);
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.4);
+  text-transform: none;
 }
 
 .home-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
-  border-color: rgba(255, 255, 255, 0.4);
-  box-shadow: 0 0 15px rgba(255, 255, 255, 0.15);
-  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  border-color: #ff5c9d;
+  box-shadow: 0 0 20px rgba(255, 92, 157, 0.6);
+  transform: translateY(-2px);
 }
 
 .ui-overlay.active-hud {
@@ -1925,11 +1929,11 @@ body {
   top: 36px;
   left: 42px;
   font-family: 'Share Tech Mono', 'Courier New', monospace;
-  font-size: 1.6rem;
+  font-size: 1.5rem;
   font-weight: 500;
   color: #ffffff;
-  letter-spacing: 0.85em;
-  text-transform: lowercase;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
   opacity: 0.95;
   z-index: 20;
 }
@@ -1961,10 +1965,12 @@ body {
 }
 
 .pill-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
-  border-color: #ffffff;
-  box-shadow: 0 0 15px rgba(255, 255, 255, 0.4);
-  transform: translateY(-1px);
+  background: rgba(255, 92, 157, 0.2);
+  border-color: #ff5c9d;
+  color: #ffffff;
+  box-shadow: 0 0 20px rgba(255, 92, 157, 0.7), 0 0 35px rgba(248, 200, 220, 0.4);
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.8);
+  transform: translateY(-2px);
 }
 
 .orbit-stage {
@@ -1996,30 +2002,83 @@ body {
   pointer-events: auto;
 }
 
-.orbit-orb {
-  width: 70px;
-  height: 70px;
+.orbit-orb-container {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+/* Amorphous Volumetric Light Cloud Background */
+.orbit-cloud-layer {
+  position: absolute;
+  width: 110px;
+  height: 110px;
   border-radius: 50%;
-  background: radial-gradient(circle at 35% 35%, #ffffff 0%, rgba(255, 255, 255, 0.9) 35%, rgba(255, 255, 255, 0.3) 70%, rgba(255, 255, 255, 0) 100%);
-  box-shadow: 0 0 35px rgba(255, 255, 255, 0.8), 0 0 70px rgba(255, 255, 255, 0.4);
-  transition: all 0.3s ease;
+  pointer-events: none;
+  filter: blur(14px);
+  mix-blend-mode: screen;
+  animation: celestialPulse 4s ease-in-out infinite alternate;
+  transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.4s ease, box-shadow 0.4s ease;
+}
+
+/* Core Volumetric Soft-Glow Sphere (Gaussian Blurred Edge-free Boundary) */
+.orbit-orb {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  border: none;
+  outline: none;
+  pointer-events: auto;
+  filter: blur(6px);
+  transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1), filter 0.35s ease;
 }
 
 .orbit-node-wrapper:hover .orbit-orb {
-  transform: scale(1.2);
-  box-shadow: 0 0 50px rgba(255, 255, 255, 1.0), 0 0 100px rgba(255, 255, 255, 0.8);
+  transform: scale(1.18);
+}
+
+@keyframes celestialPulse {
+  0% {
+    border-radius: 50% 48% 52% 49%;
+    transform: scale(1.0) rotate(0deg);
+  }
+  50% {
+    border-radius: 48% 52% 49% 51%;
+    transform: scale(1.06) rotate(4deg);
+  }
+  100% {
+    border-radius: 51% 49% 50% 52%;
+    transform: scale(1.0) rotate(0deg);
+  }
 }
 
 .orbit-label {
-  margin-top: 18px;
+  margin-top: 16px;
   font-family: var(--sf-font-body);
-  font-size: 0.95rem;
-  font-weight: 500;
+  font-size: 1.05rem;
+  font-weight: 700;
   color: #ffffff;
   letter-spacing: 0.05em;
   text-shadow: 0 0 10px rgba(255, 255, 255, 0.6);
   white-space: nowrap;
   text-transform: none;
+}
+
+.orbit-desc {
+  margin-top: 5px;
+  font-family: var(--sf-font-body);
+  font-size: 0.8rem;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  text-transform: none;
+  pointer-events: none;
+  transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 /* Voice Cloud Placeholder Styling */
@@ -2090,5 +2149,165 @@ body {
 @keyframes wavePulse {
   0% { transform: scaleY(0.3); opacity: 0.4; }
   100% { transform: scaleY(1.0); opacity: 1.0; }
+}
+
+
+
+/* ==========================================================================
+   Bottom Center Music Player & Sound Wave Morphing Widget (Image 1 Style)
+   ========================================================================== */
+
+.bottom-player-widget {
+  position: absolute;
+  bottom: 38px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  user-select: none;
+}
+
+/* State 1: Play Button (Image 1 Style) */
+.music-play-btn {
+  background: transparent;
+  border: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  outline: none;
+  transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.3s ease;
+}
+
+.music-play-btn:hover {
+  transform: scale(1.1);
+}
+
+.play-icon-box {
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 0 14px rgba(255, 255, 255, 0.7));
+}
+
+.play-label {
+  font-family: var(--sf-font-body);
+  font-size: 1.1rem;
+  font-weight: 300;
+  color: #ffffff;
+  letter-spacing: 0.06em;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+  text-transform: none;
+}
+
+/* State 2: Active Playing Bar & Pause Button Container (Morphing State) */
+.music-playing-morph-container {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: rgba(10, 12, 20, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(16px);
+  padding: 10px 24px;
+  border-radius: 9999px;
+  box-shadow: 0 0 30px rgba(255, 92, 157, 0.3), inset 0 0 15px rgba(255, 255, 255, 0.05);
+  animation: morphExpand 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes morphExpand {
+  0% { transform: scale(0.7); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.pause-btn {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  outline: none;
+}
+
+.pause-btn:hover {
+  background: rgba(255, 92, 157, 0.35);
+  border-color: #ff5c9d;
+  box-shadow: 0 0 15px rgba(255, 92, 157, 0.8);
+  transform: scale(1.1);
+}
+
+.sound-wave-container {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.sound-wave-bars {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+}
+
+.sw-bar {
+  width: 4px;
+  background: #ffffff;
+  border-radius: 4px;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+}
+
+.sw-bar.b1 { background: #f8c8dc; }
+.sw-bar.b2 { background: #ffffff; }
+.sw-bar.b3 { background: #ff5c9d; }
+.sw-bar.b4 { background: #ffffff; }
+.sw-bar.b5 { background: #f8c8dc; }
+
+/* ==========================================================================
+   Minimal Pitch-Black Intro Screen (WOOJOO PLAY? -> YES.)
+   ========================================================================== */
+
+.minimal-intro-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: #000000;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+}
+
+.intro-interactive-text {
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  font-family: var(--sf-font-body);
+  font-size: 1.65rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  cursor: pointer;
+  outline: none;
+  padding: 30px 60px;
+  transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.25s ease, text-shadow 0.25s ease;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.4);
+}
+
+.intro-interactive-text:hover {
+  transform: scale(1.08);
+  text-shadow: 0 0 25px rgba(255, 255, 255, 0.9), 0 0 45px rgba(255, 92, 157, 0.6);
+  color: #ffffff;
 }
 

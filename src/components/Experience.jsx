@@ -12,7 +12,9 @@ export function Starfield2D({
   warpProgress = 0,
   audioCtx,
   audioElements,
-  isWhiteOnly = false
+  isWhiteOnly = false,
+  isDimmed = false,
+  onAnalyserReady
 }) {
   const canvasRef = useRef(null);
   const textureRef = useRef(null);
@@ -65,6 +67,7 @@ export function Starfield2D({
   const audioElementsRef = useRef({ left: null, right: null });
   const pannersRef = useRef({ left: null, right: null });
   const gainsRef = useRef({ left: null, right: null });
+  const matrixGainsRef = useRef({ vocalToLeft: null, vocalToRight: null, drumToRight: null, drumToLeft: null });
   const eqFiltersRef = useRef({ low: null, mid: null, high: null });
   const masterFilterRef = useRef(null);
   const isConnectedRef = useRef(false);
@@ -147,7 +150,7 @@ export function Starfield2D({
         return newImg;
       };
 
-      pinkTextureRef.current = processTexture(starColors?.left || '#ff007f');
+      pinkTextureRef.current = processTexture(starColors?.left || '#ff5c9d');
       textureRef.current = processTexture(starColors?.right || '#ffffff');
     };
   }, [customTexture, starColors]);
@@ -157,31 +160,9 @@ export function Starfield2D({
     onMusicReadyRef.current = onMusicReady;
   }, [onMusicReady]);
 
-  // 3. Initialize Audio & Manage Playback (Prevents double connection via isConnectedRef, handles song files playback smoothly)
+  // 3. Initialize Audio (Connect Web Audio nodes without hijacking play/pause state)
   useEffect(() => {
     if (!isAudioActive || !audioCtx || !audioElements) return;
-
-    const resumeAudio = async () => {
-      try {
-        if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
-          await audioCtxRef.current.resume();
-        }
-        if (audioElementsRef.current.left && audioElementsRef.current.left.paused) {
-          await Promise.all([
-            audioElementsRef.current.left.play().catch(err => {
-              if (err.name !== 'AbortError') console.warn("Resume left failed:", err);
-            }),
-            audioElementsRef.current.right.play().catch(err => {
-              if (err.name !== 'AbortError') console.warn("Resume right failed:", err);
-            }),
-          ]);
-        }
-      } catch (err) {
-        console.warn("Manual resume play failed:", err);
-      }
-    };
-    window.addEventListener('click', resumeAudio);
-    window.addEventListener('touchstart', resumeAudio);
 
     const initAudio = async () => {
       const ctx = audioCtx;
@@ -200,6 +181,7 @@ export function Starfield2D({
         masterFilter.connect(analyser);
         analyser.connect(ctx.destination);
         analyserRef.current = analyser;
+        if (onAnalyserReady) onAnalyserReady(analyser);
 
         const lowShelf = ctx.createBiquadFilter();
         lowShelf.type = 'lowshelf';
@@ -222,54 +204,59 @@ export function Starfield2D({
         highShelf.connect(masterFilter);
         eqFiltersRef.current = { low: lowShelf, mid: midPeaking, high: highShelf };
 
-        const leftGain = ctx.createGain();
-        const rightGain = ctx.createGain();
-        leftGain.gain.value = leftVolume;
-        rightGain.gain.value = rightVolume;
-        leftGain.connect(lowShelf);
-        rightGain.connect(lowShelf);
-        gainsRef.current = { left: leftGain, right: rightGain };
+        // 2x2 Stereo Matrix Routing Nodes
+        const vocalToLeftGain = ctx.createGain();   // Vocal -> L Speaker
+        const vocalToRightGain = ctx.createGain();  // Vocal -> R Speaker
+        const drumToRightGain = ctx.createGain();   // Drum -> R Speaker
+        const drumToLeftGain = ctx.createGain();    // Drum -> L Speaker
 
-        const leftAudio = audioElements.left;
-        const rightAudio = audioElements.right;
+        vocalToLeftGain.gain.value = 1.0;
+        vocalToRightGain.gain.value = 0.0;
+        drumToRightGain.gain.value = 1.0;
+        drumToLeftGain.gain.value = 0.0;
+
+        const merger = ctx.createChannelMerger(2); // Channel 0: Left, Channel 1: Right
+
+        // Route Vocal (Pink) -> L (ch 0) & R (ch 1)
+        vocalToLeftGain.connect(merger, 0, 0);
+        vocalToRightGain.connect(merger, 0, 1);
+
+        // Route Drum (White) -> R (ch 1) & L (ch 0)
+        drumToRightGain.connect(merger, 0, 1);
+        drumToLeftGain.connect(merger, 0, 0);
+
+        merger.connect(lowShelf);
+
+        matrixGainsRef.current = {
+          vocalToLeft: vocalToLeftGain,
+          vocalToRight: vocalToRightGain,
+          drumToRight: drumToRightGain,
+          drumToLeft: drumToLeftGain,
+        };
+
+        const leftAudio = audioElements.left;   // Vocal
+        const rightAudio = audioElements.right; // Drum
         
         if (leftAudio && !leftAudio._sourceConnected) {
           leftAudio._sourceConnected = true;
           const leftSource = ctx.createMediaElementSource(leftAudio);
-          leftSource.connect(leftGain);
+          leftSource.connect(vocalToLeftGain);
+          leftSource.connect(vocalToRightGain);
         }
         if (rightAudio && !rightAudio._sourceConnected) {
           rightAudio._sourceConnected = true;
           const rightSource = ctx.createMediaElementSource(rightAudio);
-          rightSource.connect(rightGain);
+          rightSource.connect(drumToRightGain);
+          rightSource.connect(drumToLeftGain);
         }
 
         audioElementsRef.current = { left: leftAudio, right: rightAudio };
       }
 
-      const startPlayback = async () => {
-        try {
-          if (audioElementsRef.current.left) {
-            await audioElementsRef.current.left.play().catch(e => console.warn("Left direct play:", e));
-          }
-          if (audioElementsRef.current.right) {
-            await audioElementsRef.current.right.play().catch(e => console.warn("Right direct play:", e));
-          }
-          if (onMusicReadyRef.current) onMusicReadyRef.current();
-        } catch (err) {
-          console.warn("Direct play error:", err);
-        }
-      };
-
-      startPlayback();
+      if (onMusicReadyRef.current) onMusicReadyRef.current();
     };
 
     initAudio();
-
-    return () => {
-      window.removeEventListener('click', resumeAudio);
-      window.removeEventListener('touchstart', resumeAudio);
-    };
   }, [isAudioActive, activeSong, songTrigger, audioCtx, audioElements]);
 
   // 4. Render Loop
@@ -344,6 +331,8 @@ export function Starfield2D({
         hands.push({
           x: h.x,
           y: h.y,
+          screenX: 1 - h.x,
+          screenY: h.y,
           scale: h.scale || 0.5,
           isFist: h.isFist,
           isMouse: false,
@@ -369,6 +358,8 @@ export function Starfield2D({
         hands.push({
           x: mousePos.x,
           y: mousePos.y,
+          screenX: mousePos.x,
+          screenY: mousePos.y,
           scale: mousePos.isDown ? 0.75 : 0.45,
           isFist: false,
           isMouse: true,
@@ -458,7 +449,46 @@ export function Starfield2D({
         }
       });
 
-      // Energy Level Calculation for Intro (tuned to take ~4-5 seconds of active mixing, no decay when stopped)
+      // 2. Real-time Crossover Ratio & Equal Power Logarithmic Crossfade Calculation (60 FPS)
+      if (matrixGainsRef.current && starsRef.current) {
+        let pinkCrossed = 0;
+        let whiteCrossed = 0;
+        let pinkTotal = 0;
+        let whiteTotal = 0;
+
+        starsRef.current.forEach(star => {
+          if (star.colorType === 'pink') {
+            pinkTotal++;
+            if (star.x > 0.52) pinkCrossed++; // Pink star crossed center line to Right zone
+          } else {
+            whiteTotal++;
+            if (star.x < 0.48) whiteCrossed++; // White star crossed center line to Left zone
+          }
+        });
+
+        // Ratio of stars crossed over (0.0 to 1.0)
+        // 20% displacement = 100% full crossfade
+        const pinkRatio = Math.min(1.0, (pinkCrossed / ((pinkTotal * 0.20) || 1)));
+        const whiteRatio = Math.min(1.0, (whiteCrossed / ((whiteTotal * 0.20) || 1)));
+
+        // Equal Power Logarithmic Crossfade Curve (cos / sin angle)
+        // Guarantees constant perceived volume without clipping or volume dips
+        const anglePink = pinkRatio * (Math.PI / 4);   // 0 to 45 deg
+        const angleWhite = whiteRatio * (Math.PI / 4); // 0 to 45 deg
+
+        const vToL = Math.cos(anglePink) * leftVolume;
+        const vToR = Math.sin(anglePink) * leftVolume;
+
+        const dToR = Math.cos(angleWhite) * rightVolume;
+        const dToL = Math.sin(angleWhite) * rightVolume;
+
+        const mg = matrixGainsRef.current;
+        if (mg.vocalToLeft) mg.vocalToLeft.gain.value = vToL;
+        if (mg.vocalToRight) mg.vocalToRight.gain.value = vToR;
+        if (mg.drumToRight) mg.drumToRight.gain.value = dToR;
+        if (mg.drumToLeft) mg.drumToLeft.gain.value = dToL;
+      }
+
       if (onMixingProgressRef.current && !isWarpingRef.current) {
         if (activePushes > 0) {
           // Max increment of 0.4% per frame (approx 4.2 seconds minimum to fill)
@@ -489,44 +519,47 @@ export function Starfield2D({
           lastPreset.current = activePreset;
         }
 
-        const primaryHand = hands[0];
-        const isMuted = hands.some(h => h.isFist);
-
-
+        // 4-Quadrant EQ & NDS Presets are exclusively triggered by real webcam hand tracking (ignoring mouse movement)
+        const primaryHand = hands.find(h => !h.isMouse);
 
         if (primaryHand) {
-          const hX = (1 - primaryHand.x);
-          const hY = primaryHand.y;
+          const normX = primaryHand.screenX;
+          const normY = primaryHand.screenY;
           if (activePreset === 1) {
-            const wMid = (1 - hX) * (1 - hY);
-            const wHigh = hX * (1 - hY);
-            const wLow = (1 - hX) * hY;
+            const wMid = (1 - normX) * (1 - normY);      // Upper-Left: Mid Boost
+            const wHigh = normX * (1 - normY);          // Upper-Right: High Boost
+            const wLow = (1 - normX) * normY;           // Lower-Left: Low Sub-Bass Boost
+            const wMuffled = normX * normY;             // Lower-Right: Deep Muffled Lowpass Filter!
+
+            // Bold EQ Transformation (+26 dB max boost, -20 dB cut for non-selected bands)
+            const lowGain = wLow * 26.0 - (wMid + wHigh) * 20.0;
+            const midGain = wMid * 26.0 - (wLow + wHigh) * 20.0;
+            const highGain = wHigh * 26.0 - (wLow + wMid) * 20.0;
+
+            // Master Filter Frequency: Plunges down to 350 Hz in Lower-Right for deep underwater muffled sound!
+            const targetFreq = Math.max(350, 20000 * (1 - wMuffled * 0.98));
+
             const eq = eqFiltersRef.current;
-            eq.low.gain.setTargetAtTime(safeVal(wLow * 15, 0), curTime, 0.2);
-            eq.mid.gain.setTargetAtTime(safeVal(wMid * 15, 0), curTime, 0.2);
-            eq.high.gain.setTargetAtTime(safeVal(wHigh * 15, 0), curTime, 0.2);
-            masterFilterRef.current.frequency.setTargetAtTime(20000, curTime, 0.2);
+            eq.low.gain.setTargetAtTime(safeVal(lowGain, 0), curTime, 0.05);
+            eq.mid.gain.setTargetAtTime(safeVal(midGain, 0), curTime, 0.05);
+            eq.high.gain.setTargetAtTime(safeVal(highGain, 0), curTime, 0.05);
+            masterFilterRef.current.frequency.setTargetAtTime(safeVal(targetFreq, 20000), curTime, 0.05);
           } else if (activePreset === 2) {
-            const handSpeedMod = 0.8 + safeVal(hX, 0) * 0.4;
+            const handSpeedMod = 0.8 + safeVal(normX, 0) * 0.4;
             audioElementsRef.current.left.playbackRate = safeVal(leftRate * handSpeedMod, 1.0);
             audioElementsRef.current.right.playbackRate = safeVal(rightRate * handSpeedMod, 1.0);
             masterFilterRef.current.frequency.setTargetAtTime(20000, curTime, 0.1);
           }
         } else {
-          masterFilterRef.current.frequency.setTargetAtTime(20000, curTime, 0.2);
+          eqFiltersRef.current.low.gain.setTargetAtTime(0, curTime, 0.1);
+          eqFiltersRef.current.mid.gain.setTargetAtTime(0, curTime, 0.1);
+          eqFiltersRef.current.high.gain.setTargetAtTime(0, curTime, 0.1);
+          masterFilterRef.current.frequency.setTargetAtTime(20000, curTime, 0.1);
         }
 
-        // Simple Mute logic based on Fist gesture
-        let isAnyFist = false;
-        hands.forEach(h => {
-          if (h.isFist) isAnyFist = true;
-        });
-
         if (gainsRef.current.left && gainsRef.current.right) {
-          const targetGainLeft = isAnyFist ? 0 : safeVal(leftVolume, 1.0);
-          const targetGainRight = isAnyFist ? 0 : safeVal(rightVolume, 1.0);
-          gainsRef.current.left.gain.setTargetAtTime(targetGainLeft, curTime, 0.05);
-          gainsRef.current.right.gain.setTargetAtTime(targetGainRight, curTime, 0.05);
+          gainsRef.current.left.gain.setTargetAtTime(safeVal(leftVolume, 1.0), curTime, 0.05);
+          gainsRef.current.right.gain.setTargetAtTime(safeVal(rightVolume, 1.0), curTime, 0.05);
         }
       }
 
@@ -586,6 +619,18 @@ export function Starfield2D({
   }, [activePreset, leftRate, rightRate]);
 
   return (
-    <canvas ref={canvasRef} style={{ position: 'absolute', top: 0, left: 0, width: '100vw', height: '100vh', display: 'block' }} />
+    <canvas 
+      ref={canvasRef} 
+      style={{ 
+        position: 'absolute', 
+        top: 0, 
+        left: 0, 
+        width: '100vw', 
+        height: '100vh', 
+        display: 'block',
+        opacity: isDimmed ? 0.35 : 1.0,
+        transition: 'opacity 0.5s ease-in-out'
+      }} 
+    />
   );
 }

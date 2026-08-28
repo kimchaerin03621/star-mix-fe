@@ -2,9 +2,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useHandTracking } from './hooks/useHandTracking';
 import { Starfield2D } from './components/Experience';
 import './index.css';
+import { ControllerPanel } from './components/ControllerPanel';
 import { createXRStore } from '@react-three/xr';
 import { VRScene } from './components/VRScene';
-import { ControllerPanel } from './components/ControllerPanel';
 import { OrbitalMainMenu } from './components/OrbitalMainMenu';
 
 const xrStore = createXRStore({ 
@@ -603,17 +603,20 @@ function App() {
     return () => cancelAnimationFrame(animId);
   }, []);
 
-  const [viewMode, setViewMode] = useState('menu'); // Start directly on main orbital menu!
-  const [prevViewMode, setPrevViewMode] = useState('menu');
-  const [interactionEnergy, setInteractionEnergy] = useState(0);
+  const [viewMode, setViewMode] = useState('intro'); // Start on minimal pitch-black intro screen!
+  const [prevViewMode, setPrevViewMode] = useState('intro');
+  const [introHovered, setIntroHovered] = useState(false);
   const [isWarping, setIsWarping] = useState(false);
   const [warpProgress, setWarpProgress] = useState(0);
 
   // Custom Star States
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [customTexture, setCustomTexture] = useState(null);
-  const [starColors, setStarColors] = useState({ left: '#ff007f', right: '#ffffff' });
+  const [starColors, setStarColors] = useState({ left: '#ff5c9d', right: '#ffffff' });
   const [vrModeType, setVrModeType] = useState(1); // 1 for VR 1 (Classic), 2 for VR 2 (Spatial)
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [mainMenuPlayState, setMainMenuPlayState] = useState(false);
+  const [analyserNode, setAnalyserNode] = useState(null);
   const [audioCtx, setAudioCtx] = useState(null);
   const [audioElements, setAudioElements] = useState(null);
   const audioElementsRef = useRef({ left: null, right: null });
@@ -624,27 +627,30 @@ function App() {
 
   useEffect(() => {
     leftVolumeRef.current = leftVolume;
-    if (audioElementsRef.current.left) {
-      audioElementsRef.current.left.volume = Math.max(0, Math.min(1, currentVolumeRef.current * leftVolume));
+    const left = audioElementsRef.current?.left || audioElements?.left;
+    if (left) {
+      left.volume = Math.max(0, Math.min(1, currentVolumeRef.current * leftVolume));
     }
-  }, [leftVolume]);
+  }, [leftVolume, audioElements]);
 
   useEffect(() => {
     rightVolumeRef.current = rightVolume;
-    if (audioElementsRef.current.right) {
-      audioElementsRef.current.right.volume = Math.max(0, Math.min(1, currentVolumeRef.current * rightVolume));
+    const right = audioElementsRef.current?.right || audioElements?.right;
+    if (right) {
+      right.volume = Math.max(0, Math.min(1, currentVolumeRef.current * rightVolume));
     }
-  }, [rightVolume]);
+  }, [rightVolume, audioElements]);
 
   // VR 2 (Spatial Audio Mode) active check: pause 2D background audio in VR 2, resume when exiting VR 2
   const isVR2Active = (isInVR || isDesktopVR) && vrModeType === 2;
 
   // Dynamic Volume Control & Audio Balancing:
-  // - If VR 2 is active: 0 (completely muted)
-  // - If Main Menu: 0.35 (softer)
+  // - If VR 2 is active or on Intro screen: 0 (muted)
+  // - If Main Menu: 0.35 (softer ambience)
   // - If Controller Mode: 0.40 (ducks background music so performance drum pads pop out with punch)
-  // - Else (Intro, DJ, VR 1): 0.75 (balanced headroom for live drum triggers)
-  const targetVolume = isVR2Active 
+  // - Else (DJ, VR 1, Spatial): 0.75 (balanced headroom for live drum triggers)
+  const isAudioPausedInView = isVR2Active || viewMode === 'intro';
+  const targetVolume = isAudioPausedInView 
     ? 0 
     : (viewMode === 'menu' && !isInVR && !isDesktopVR) 
       ? 0.35 
@@ -656,11 +662,19 @@ function App() {
     let animationFrameId;
 
     const applyVolumes = (baseVol) => {
-      if (audioElementsRef.current.left) {
-        audioElementsRef.current.left.volume = Math.max(0, Math.min(1, baseVol * leftVolumeRef.current));
+      const isPaused = isVR2Active || viewMode === 'intro';
+      const effectiveVol = isPaused ? 0 : baseVol;
+      
+      const left = audioElementsRef.current?.left || audioElements?.left;
+      const right = audioElementsRef.current?.right || audioElements?.right;
+
+      if (left) {
+        left.volume = Math.max(0, Math.min(1, effectiveVol * leftVolumeRef.current));
+        if (isPaused && !left.paused) left.pause();
       }
-      if (audioElementsRef.current.right) {
-        audioElementsRef.current.right.volume = Math.max(0, Math.min(1, baseVol * rightVolumeRef.current));
+      if (right) {
+        right.volume = Math.max(0, Math.min(1, effectiveVol * rightVolumeRef.current));
+        if (isPaused && !right.paused) right.pause();
       }
     };
 
@@ -684,29 +698,29 @@ function App() {
     return () => {
       if (animationFrameId) cancelAnimationFrame(animationFrameId);
     };
-  }, [targetVolume, audioElements]);
+  }, [targetVolume, audioElements, viewMode, isVR2Active, isInVR, isDesktopVR]);
 
   useEffect(() => {
-    if (isVR2Active) {
-      if (audioElementsRef.current.left) {
-        audioElementsRef.current.left.pause();
-        audioElementsRef.current.left.currentTime = 0;
-        audioElementsRef.current.left.volume = 0;
-      }
-      if (audioElementsRef.current.right) {
-        audioElementsRef.current.right.pause();
-        audioElementsRef.current.right.currentTime = 0;
-        audioElementsRef.current.right.volume = 0;
-      }
+    const left = audioElementsRef.current?.left || audioElements?.left;
+    const right = audioElementsRef.current?.right || audioElements?.right;
+
+    if (!left || !right) return;
+
+    if (isAudioPausedInView) {
+      left.pause();
+      right.pause();
+      left.volume = 0;
+      right.volume = 0;
+      currentVolumeRef.current = 0;
     } else {
-      if (isAudioInitialized && audioElementsRef.current.left && audioElementsRef.current.right) {
-        audioElementsRef.current.left.volume = Math.max(0, Math.min(1, currentVolumeRef.current * leftVolumeRef.current));
-        audioElementsRef.current.right.volume = Math.max(0, Math.min(1, currentVolumeRef.current * rightVolumeRef.current));
-        audioElementsRef.current.left.play().catch(() => {});
-        audioElementsRef.current.right.play().catch(() => {});
+      if (isAudioInitialized) {
+        left.volume = Math.max(0, Math.min(1, currentVolumeRef.current * leftVolumeRef.current));
+        right.volume = Math.max(0, Math.min(1, currentVolumeRef.current * rightVolumeRef.current));
+        left.play().catch(() => {});
+        right.play().catch(() => {});
       }
     }
-  }, [isVR2Active, isAudioInitialized]);
+  }, [isAudioPausedInView, isAudioInitialized, audioElements, targetVolume]);
 
   const [monitorTick, setMonitorTick] = useState(0);
   useEffect(() => {
@@ -717,7 +731,14 @@ function App() {
     return () => clearInterval(interval);
   }, [isAudioInitialized]);
 
-  const handData = useHandTracking(videoRef);
+  // Auto-start webcam camera when entering any active sub-mode (e.g. Sound Mixer)
+  useEffect(() => {
+    if (viewMode !== 'menu' && viewMode !== 'intro' && !cameraActive && !isInVR && !isDesktopVR) {
+      startCamera();
+    }
+  }, [viewMode, cameraActive, isInVR, isDesktopVR]);
+
+  const handData = useHandTracking(videoRef, viewMode !== 'menu' && viewMode !== 'intro');
 
   const playPerformancePadSample = async (note) => {
     const config = performancePadSampleMap[note];
@@ -1274,21 +1295,7 @@ function App() {
     }
   };
 
-  useEffect(() => {
-    if (viewMode !== 'intro' || isInVR || isDesktopVR) return;
 
-    const handleFirstInteraction = () => {
-      void unlockIntroExperience();
-    };
-
-    window.addEventListener('pointerdown', handleFirstInteraction);
-    window.addEventListener('keydown', handleFirstInteraction);
-
-    return () => {
-      window.removeEventListener('pointerdown', handleFirstInteraction);
-      window.removeEventListener('keydown', handleFirstInteraction);
-    };
-  }, [viewMode, isInVR, isDesktopVR, cameraActive, audioCtx, isAudioInitialized]);
 
   const handleMixingProgress = (energy) => {
     setInteractionEnergy(energy);
@@ -1377,7 +1384,7 @@ function App() {
 
       {isDesktopVR && (
         <>
-          <button className="vr-exit-btn" onClick={async () => {
+          <button className="home-btn" onClick={async () => {
             setIsDesktopVR(false);
             setViewMode(prevViewMode);
             await startCamera();
@@ -1401,33 +1408,6 @@ function App() {
             </div>
           )}
 
-          {/* 🧭 3D Navigation Guide Compass HUD */}
-          <div className="vr-nav-compass-hud">
-            <div className="compass-title">🎯 VR CAMERA COMPASS</div>
-            <div className="compass-axis-grid">
-              <div className={`axis-item ${Math.abs(midiVelocityRef.current?.x || 0) > 0.01 ? 'moving' : ''}`}>
-                <span className="axis-name">EQ HIGH (X축)</span>
-                <span className="axis-val">
-                  {(midiVelocityRef.current?.x || 0) > 0.01 ? '➡️ 우측 이동' : (midiVelocityRef.current?.x || 0) < -0.01 ? '⬅️ 좌측 이동' : '⏸️ 정지 (12시)'}
-                </span>
-              </div>
-              <div className={`axis-item ${Math.abs(midiVelocityRef.current?.y || 0) > 0.01 ? 'moving' : ''}`}>
-                <span className="axis-name">EQ MID (Y축)</span>
-                <span className="axis-val">
-                  {(midiVelocityRef.current?.y || 0) > 0.01 ? '⬆️ 위로 상승' : (midiVelocityRef.current?.y || 0) < -0.01 ? '⬇️ 아래 하강' : '⏸️ 정지 (12시)'}
-                </span>
-              </div>
-              <div className={`axis-item ${Math.abs(midiVelocityRef.current?.z || 0) > 0.01 ? 'moving' : ''}`}>
-                <span className="axis-name">EQ LOW (Z축)</span>
-                <span className="axis-val">
-                  {(midiVelocityRef.current?.z || 0) < -0.01 ? '⏩ 앞으로 전진' : (midiVelocityRef.current?.z || 0) > 0.01 ? '⏪ 뒤로 후진' : '⏸️ 정지 (12시)'}
-                </span>
-              </div>
-            </div>
-            <div className="compass-coord">
-              POS: X({vrCameraPos.x.toFixed(1)}) Y({vrCameraPos.y.toFixed(1)}) Z({vrCameraPos.z.toFixed(1)})
-            </div>
-          </div>
         </>
       )}
 
@@ -1448,14 +1428,10 @@ function App() {
             Back to Menu
           </button>
 
-          <button className="editor-open-btn" onClick={() => setIsEditorOpen(true)}>
-            My Star
-          </button>
-
 
 
           <div className="ui-overlay active-hud">
-            <div className="ui-title">CHANNEL</div>
+            <div className="ui-title">WOOJOO PLAY</div>
             <div className="ui-status">
               {isMusicLoading && <div style={{ color: '#ff007f', fontWeight: 'bold' }}>새로운 음원 로딩 중...</div>}
               {!isMusicLoading && (cameraActive ? (handData.length > 0 ? `손 인식 중 (${handData.length}개)` : "손을 기다리는 중...") : "카메라를 켜주세요.")}
@@ -1543,42 +1519,20 @@ function App() {
         </>
       )}
 
-      {/* Intro Screen View (viewMode === 'intro') */}
+      {/* Pitch-Black Minimal Intro Screen (viewMode === 'intro') */}
       {!isInVR && !isDesktopVR && viewMode === 'intro' && (
-        <div className="intro-hud-overlay" onClick={unlockIntroExperience} style={{ cursor: 'pointer' }}>
-          <div className="intro-glass-panel">
-            <div className="intro-header">
-              <h1 className="intro-glow-title">CHANNEL</h1>
-              <p className="intro-glow-subtitle">SPACE & SOUND CONTROLLER</p>
-            </div>
-            
-            <div className="intro-tutorial-prompt">
-              <div className="mouse-pulse-icon">
-                <span className="dot"></span>
-              </div>
-              <span className="prompt-text">
-                {isAudioInitialized ? '마우스나 손을 움직여 별을 깨워보세요' : '🔊 화면을 클릭하여 사운드 시작하기'}
-              </span>
-            </div>
-
-            {!isAudioInitialized && (
-              <button className="start-button" onClick={(e) => { e.stopPropagation(); unlockIntroExperience(); }} style={{ marginTop: '15px', position: 'relative', top: '0', left: '0', transform: 'none' }}>
-                사운드 시작하기
-              </button>
-            )}
-
-            <div className="progress-bar-container">
-              <div className="progress-bar-track">
-                <div className="progress-bar-fill" style={{ width: `${interactionEnergy}%` }}>
-                  <div className="progress-glow-tip" />
-                </div>
-              </div>
-              <div className="progress-bar-label">
-                <span className="label-title">SYNERGY HARMONY</span>
-                <span className="label-value">{interactionEnergy}%</span>
-              </div>
-            </div>
-          </div>
+        <div className="minimal-intro-overlay">
+          <button 
+            className="intro-interactive-text"
+            onMouseEnter={() => setIntroHovered(true)}
+            onMouseLeave={() => setIntroHovered(false)}
+            onClick={async () => {
+              await unlockIntroExperience();
+              setViewMode('menu');
+            }}
+          >
+            {introHovered ? "YES." : "WOOJOO PLAY?"}
+          </button>
         </div>
       )}
 
@@ -1655,7 +1609,7 @@ function App() {
 
       {!isInVR && !isDesktopVR && (
         <Starfield2D
-          handData={isEditorOpen ? [] : handData}
+          handData={(isEditorOpen || viewMode === 'menu') ? [] : handData}
           isAudioActive={isAudioInitialized}
           audioCtx={audioCtx}
           audioElements={audioElements}
@@ -1670,10 +1624,10 @@ function App() {
           customTexture={customTexture}
           starColors={starColors}
           onCanvasReady={setSourceCanvas}
-          onMixingProgress={viewMode === 'intro' ? handleMixingProgress : null}
+          onMixingProgress={null}
           isWarping={isWarping}
           warpProgress={warpProgress}
-          isWhiteOnly={viewMode === 'menu'}
+          onAnalyserReady={setAnalyserNode}
         />
       )}
 
@@ -1691,7 +1645,13 @@ function App() {
         onNextSong={handleNextSong}
         vrCameraPos={vrCameraPos}
         vrCameraRot={vrCameraRot}
+        onStarMixVolumeChange={(lVol, rVol) => {
+          setLeftVolume(lVol);
+          setRightVolume(rVol);
+        }}
       />
+
+
 
       {/* Webcam element is always mounted at the bottom of the DOM to render on top of the absolute canvas */}
       <video 

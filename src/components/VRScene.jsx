@@ -41,7 +41,7 @@ function LoggerComponent() {
   return null;
 }
 
-function Stars3D({ starColors }) {
+function Stars3D({ starColors, onStarMixVolumeChange, isVRActive }) {
   const count = 3000;
   const meshRef = useRef();
   
@@ -1040,7 +1040,8 @@ function VRAudioExperience({ starColors, activeSong, leftRate, rightRate, active
 function CameraRig({ vrCameraPos, vrCameraRot }) {
   const { camera, controls } = useThree();
   useFrame(() => {
-    if (vrCameraPos) {
+    // Only override camera if MIDI controller position is actively offset
+    if (vrCameraPos && (vrCameraPos.x !== 0 || vrCameraPos.y !== 0 || vrCameraPos.z !== 0)) {
       const yaw = vrCameraRot?.yaw || 0;
       const pitch = vrCameraRot?.pitch || 0;
 
@@ -1062,7 +1063,7 @@ function CameraRig({ vrCameraPos, vrCameraRot }) {
   return null;
 }
 
-export function VRScene({ store, starColors, isVRTest, isInVR, isDesktopVR, activeSong, leftRate, rightRate, activePreset, isAudioActive, vrModeType, onNextSong, vrCameraPos, vrCameraRot }) {
+export function VRScene({ store, starColors, isVRTest, isInVR, isDesktopVR, activeSong, leftRate, rightRate, activePreset, isAudioActive, vrModeType, onNextSong, vrCameraPos, vrCameraRot, onStarMixVolumeChange }) {
   const isVRActive = isInVR || isDesktopVR;
   const [isDraggingOrb, setIsDraggingOrb] = useState(false);
 
@@ -1096,7 +1097,7 @@ export function VRScene({ store, starColors, isVRTest, isInVR, isDesktopVR, acti
             </mesh>
             
             <Suspense fallback={<mesh position={[0, 1.6, -2]}><boxGeometry args={[0.2, 0.2, 0.2]} /><meshBasicMaterial color="red" /></mesh>}>
-              <Stars3D starColors={starColors} />
+              <Stars3D starColors={starColors} onStarMixVolumeChange={onStarMixVolumeChange} isVRActive={isVRActive} />
             </Suspense>
             
             <ControllerHelpers />

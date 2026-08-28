@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision';
 
-export function useHandTracking(videoRef) {
+export function useHandTracking(videoRef, enabled = true) {
   const [handData, setHandData] = useState([]); 
   const [isReady, setIsReady] = useState(false);
   const landmarkerRef = useRef(null);
@@ -57,6 +57,10 @@ export function useHandTracking(videoRef) {
   }, []);
 
   const detect = () => {
+    if (!enabled) {
+      setHandData([]);
+      return;
+    }
     if (
       videoRef.current &&
       videoRef.current.readyState >= 2 &&
@@ -171,10 +175,13 @@ export function useHandTracking(videoRef) {
   };
 
   useEffect(() => {
-    if (isReady) {
+    if (isReady && enabled) {
       detect();
     }
-  }, [isReady]);
+    return () => {
+      if (requestRef.current) cancelAnimationFrame(requestRef.current);
+    };
+  }, [isReady, enabled]);
 
   return handData;
 }
