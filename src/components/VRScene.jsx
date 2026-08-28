@@ -10,25 +10,631 @@ import * as THREE from 'three';
 // 음원 로딩 없이 독립적으로 물리적 드래그 조작만 가능하도록 다이내믹 셋팅을 하였습니다.
 const songStemsMap = {
   1: [
-    { key: 'vocal', name: '🎤 Vocal', color: '#e07a9e', url: '/Bohemian Rhapsody/Bohemian Rhapsody_vocal.mp3', initialPos: [-2.2, 1.6, -2.5] },
-    { key: 'drum', name: '🥁 Drums', color: '#e6e6e6', url: '/Bohemian Rhapsody/Bohemian Rhapsody_drum.mp3', initialPos: [2.2, 1.6, -2.5] },
-    { key: 'bass', name: '🎸 Bass', color: '#d4a843', url: '/Bohemian Rhapsody/Bohemian Rhapsody_bass.mp3', initialPos: [-1.5, 1.8, -3.8] },
-    { key: 'piano', name: '🎹 Piano', color: '#58b5b5', url: '/Bohemian Rhapsody/Bohemian Rhapsody_piano.mp3', initialPos: [1.5, 1.4, -3.8] },
-    { key: 'guitar1', name: '🎸 Guitar 1', color: '#8d6fb3', url: '/Bohemian Rhapsody/Bohemian Rhapsody_electric guitar1.mp3', initialPos: [-2.5, 1.3, -4.5] },
-    { key: 'guitar2', name: '🎸 Guitar 2', color: '#58ab75', url: '/Bohemian Rhapsody/Bohemian Rhapsody_electric guitar2.mp3', initialPos: [2.5, 1.3, -4.5] }
+    { key: 'vocal', name: '🎤 Vocal', color: '#e07a9e', url: '/Bohemian Rhapsody/Bohemian Rhapsody_vocal.mp3', initialPos: [0.0, 1.6, -3.2] },
+    { key: 'drum', name: '🥁 Drums', color: '#e6e6e6', url: '/Bohemian Rhapsody/Bohemian Rhapsody_drum.mp3', initialPos: [0.0, 1.6, -6.5] },
+    { key: 'bass', name: '🎸 Bass', color: '#d4a843', url: '/Bohemian Rhapsody/Bohemian Rhapsody_bass.mp3', initialPos: [-5.2, 1.6, -4.8] },
+    { key: 'piano', name: '🎹 Piano', color: '#58b5b5', url: '/Bohemian Rhapsody/Bohemian Rhapsody_piano.mp3', initialPos: [5.2, 1.6, -4.8] },
+    { key: 'guitar1', name: '🎸 Guitar 1', color: '#8d6fb3', url: '/Bohemian Rhapsody/Bohemian Rhapsody_electric guitar1.mp3', initialPos: [-9.2, 1.6, -5.8] },
+    { key: 'guitar2', name: '🎸 Guitar 2', color: '#58ab75', url: '/Bohemian Rhapsody/Bohemian Rhapsody_electric guitar2.mp3', initialPos: [9.2, 1.6, -5.8] }
   ],
   2: [
-    { key: 'lead_vocal', name: '🎤 Vocal', color: '#e07a9e', url: '/Hype Boy/Hype Boy_vocal.mp3', initialPos: [-2.5, 1.6, -2.0] },
-    { key: 'drums', name: '🥁 Drums', color: '#e6e6e6', url: '/Hype Boy/Hype Boy_drum.mp3', initialPos: [2.5, 1.6, -2.0] },
-    { key: 'bass', name: '🎸 Bass', color: '#599ec7', url: '/Hype Boy/Hype Boy_bass.mp3', initialPos: [-1.8, 1.4, -3.8] },
-    { key: 'piano', name: '🎹 Piano', color: '#c99344', url: '/Hype Boy/Hype Boy_piano.mp3', initialPos: [1.8, 1.8, -3.8] }
+    { key: 'lead_vocal', name: '🎤 Vocal', color: '#e07a9e', url: '/Hype Boy/Hype Boy_vocal.mp3', initialPos: [0.0, 1.6, -3.2] },
+    { key: 'drums', name: '🥁 Drums', color: '#e6e6e6', url: '/Hype Boy/Hype Boy_drum.mp3', initialPos: [0.0, 1.6, -6.5] },
+    { key: 'bass', name: '🎸 Bass', color: '#599ec7', url: '/Hype Boy/Hype Boy_bass.mp3', initialPos: [-5.2, 1.6, -4.8] },
+    { key: 'piano', name: '🎹 Piano', color: '#c99344', url: '/Hype Boy/Hype Boy_piano.mp3', initialPos: [5.2, 1.6, -4.8] }
   ],
   3: [
-    { key: 'melody', name: '🎹 Piano', color: '#e07a9e', url: '/Kerning City/Kerning City_piano.mp3', initialPos: [-2.0, 1.6, -2.5] },
-    { key: 'drum', name: '🥁 Drums', color: '#e6e6e6', url: '/Kerning City/Kerning City_drum.mp3', initialPos: [2.0, 1.6, -2.5] },
-    { key: 'bass', name: '🎸 Bass', color: '#9662c4', url: '/Kerning City/Kerning City_bass.mp3', initialPos: [-1.2, 1.5, -3.2] }
+    { key: 'melody', name: '🎹 Piano', color: '#e07a9e', url: '/Kerning City/Kerning City_piano.mp3', initialPos: [5.2, 1.6, -4.8] },
+    { key: 'drum', name: '🥁 Drums', color: '#e6e6e6', url: '/Kerning City/Kerning City_drum.mp3', initialPos: [0.0, 1.6, -6.5] },
+    { key: 'bass', name: '🎸 Bass', color: '#9662c4', url: '/Kerning City/Kerning City_bass.mp3', initialPos: [-5.2, 1.6, -4.8] }
   ]
 };
+
+// --- 3D COSMIC CONCERT HALL STAGE & INSTRUMENT MODELS ---
+
+// 1. 3D Drum Kit Model (Placed on elevated drum riser back center)
+function DrumKitModel({ position = [0, 0.4, -6.5] }) {
+  return (
+    <group position={position} raycast={() => null}>
+      {/* Bass Drum (Kick) */}
+      <group position={[0, 0.55, 0]}>
+        <mesh rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.55, 0.55, 0.65, 32]} />
+          <meshStandardMaterial color="#1a1a24" roughness={0.3} metalness={0.8} />
+        </mesh>
+        {/* Front & Back Drum Hoops */}
+        <mesh position={[0, 0, 0.33]} rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[0.56, 0.03, 16, 32]} />
+          <meshStandardMaterial color="#ff007f" emissive="#ff007f" emissiveIntensity={0.6} />
+        </mesh>
+        <mesh position={[0, 0, -0.33]} rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[0.56, 0.03, 16, 32]} />
+          <meshStandardMaterial color="#00ffcc" emissive="#00ffcc" emissiveIntensity={0.6} />
+        </mesh>
+        {/* Glowing Logo Front Drumhead */}
+        <mesh position={[0, 0, 0.33]}>
+          <circleGeometry args={[0.54, 32]} />
+          <meshStandardMaterial color="#0a0a14" roughness={0.5} />
+        </mesh>
+        <mesh position={[0, 0, 0.34]}>
+          <ringGeometry args={[0.2, 0.25, 32]} />
+          <meshBasicMaterial color="#00ffcc" />
+        </mesh>
+      </group>
+
+      {/* Snare Drum & Stand */}
+      <group position={[-0.55, 0.5, 0.3]}>
+        {/* Stand Leg */}
+        <mesh position={[0, -0.25, 0]}>
+          <cylinderGeometry args={[0.015, 0.015, 0.5, 8]} />
+          <meshStandardMaterial color="#cccccc" metalness={0.9} roughness={0.1} />
+        </mesh>
+        {/* Snare Body */}
+        <mesh>
+          <cylinderGeometry args={[0.3, 0.3, 0.2, 24]} />
+          <meshStandardMaterial color="#e6e6e6" metalness={0.8} roughness={0.2} />
+        </mesh>
+        <mesh position={[0, 0.105, 0]}>
+          <circleGeometry args={[0.3, 24]} />
+          <meshStandardMaterial color="#ffffff" roughness={0.6} />
+        </mesh>
+      </group>
+
+      {/* Mounted Tom-Toms */}
+      <group position={[-0.3, 1.15, -0.1]} rotation={[0.2, 0, -0.15]}>
+        <mesh>
+          <cylinderGeometry args={[0.26, 0.26, 0.24, 24]} />
+          <meshStandardMaterial color="#222233" metalness={0.7} roughness={0.3} />
+        </mesh>
+        <mesh position={[0, 0, 0]}>
+          <torusGeometry args={[0.265, 0.015, 12, 24]} />
+          <meshStandardMaterial color="#ff007f" emissive="#ff007f" emissiveIntensity={0.5} />
+        </mesh>
+      </group>
+      <group position={[0.3, 1.15, -0.1]} rotation={[0.2, 0, 0.15]}>
+        <mesh>
+          <cylinderGeometry args={[0.28, 0.28, 0.26, 24]} />
+          <meshStandardMaterial color="#222233" metalness={0.7} roughness={0.3} />
+        </mesh>
+        <mesh position={[0, 0, 0]}>
+          <torusGeometry args={[0.285, 0.015, 12, 24]} />
+          <meshStandardMaterial color="#00ffcc" emissive="#00ffcc" emissiveIntensity={0.5} />
+        </mesh>
+      </group>
+
+      {/* Floor Tom */}
+      <group position={[0.75, 0.45, 0.2]}>
+        <mesh>
+          <cylinderGeometry args={[0.36, 0.36, 0.45, 24]} />
+          <meshStandardMaterial color="#1a1a24" metalness={0.8} roughness={0.2} />
+        </mesh>
+      </group>
+
+      {/* Hi-Hat Cymbal & Stand */}
+      <group position={[-0.9, 0.85, 0.4]}>
+        {/* Chrome Shaft */}
+        <mesh position={[0, -0.3, 0]}>
+          <cylinderGeometry args={[0.015, 0.015, 1.1, 8]} />
+          <meshStandardMaterial color="#dddddd" metalness={0.95} roughness={0.1} />
+        </mesh>
+        {/* Top Cymbal */}
+        <mesh position={[0, 0.25, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <coneGeometry args={[0.28, 0.04, 32]} />
+          <meshStandardMaterial color="#ffd700" metalness={0.9} roughness={0.2} emissive="#ffaa00" emissiveIntensity={0.2} />
+        </mesh>
+        {/* Bottom Cymbal */}
+        <mesh position={[0, 0.22, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          <coneGeometry args={[0.28, 0.04, 32]} />
+          <meshStandardMaterial color="#cca000" metalness={0.9} roughness={0.2} />
+        </mesh>
+      </group>
+
+      {/* Crash Cymbal Left */}
+      <group position={[-1.15, 1.25, -0.2]}>
+        <mesh position={[0, -0.5, 0]}>
+          <cylinderGeometry args={[0.015, 0.015, 1.5, 8]} />
+          <meshStandardMaterial color="#dddddd" metalness={0.95} roughness={0.1} />
+        </mesh>
+        <mesh rotation={[-Math.PI / 2 + 0.15, 0, 0]}>
+          <coneGeometry args={[0.42, 0.05, 32]} />
+          <meshStandardMaterial color="#ffe066" metalness={0.9} roughness={0.2} emissive="#ffaa00" emissiveIntensity={0.3} />
+        </mesh>
+      </group>
+
+      {/* Ride Cymbal Right */}
+      <group position={[1.15, 1.3, -0.2]}>
+        <mesh position={[0, -0.5, 0]}>
+          <cylinderGeometry args={[0.015, 0.015, 1.6, 8]} />
+          <meshStandardMaterial color="#dddddd" metalness={0.95} roughness={0.1} />
+        </mesh>
+        <mesh rotation={[-Math.PI / 2 - 0.15, 0, 0]}>
+          <coneGeometry args={[0.48, 0.05, 32]} />
+          <meshStandardMaterial color="#ffe066" metalness={0.9} roughness={0.2} emissive="#00ffcc" emissiveIntensity={0.3} />
+        </mesh>
+      </group>
+
+      {/* Drum Stool (Throne) */}
+      <group position={[0, 0.45, 0.8]}>
+        <mesh position={[0, -0.2, 0]}>
+          <cylinderGeometry args={[0.02, 0.02, 0.4, 8]} />
+          <meshStandardMaterial color="#888888" metalness={0.9} />
+        </mesh>
+        <mesh>
+          <cylinderGeometry args={[0.26, 0.26, 0.08, 24]} />
+          <meshStandardMaterial color="#ff0055" roughness={0.4} />
+        </mesh>
+      </group>
+    </group>
+  );
+}
+
+// 2. 3D Piano & Synthesizer Model
+function PianoModel({ position = [2.8, 0.2, -4.8], rotation = [0, -0.4, 0] }) {
+  return (
+    <group position={position} rotation={rotation} raycast={() => null}>
+      {/* Keyboard Main Body */}
+      <mesh position={[0, 0.85, 0]}>
+        <boxGeometry args={[1.8, 0.18, 0.65]} />
+        <meshStandardMaterial color="#12121c" metalness={0.8} roughness={0.2} />
+      </mesh>
+
+      {/* Neon Trim Lines around Body */}
+      <mesh position={[0, 0.85, 0.33]}>
+        <boxGeometry args={[1.82, 0.03, 0.02]} />
+        <meshBasicMaterial color="#58b5b5" />
+      </mesh>
+
+      {/* Keyboard Keys (White & Black Key Beds) */}
+      <group position={[0, 0.95, 0.18]}>
+        <mesh>
+          <boxGeometry args={[1.6, 0.02, 0.24]} />
+          <meshStandardMaterial color="#ffffff" roughness={0.2} />
+        </mesh>
+        {/* Black Keys Row overlay */}
+        <mesh position={[0, 0.02, -0.05]}>
+          <boxGeometry args={[1.5, 0.025, 0.12]} />
+          <meshStandardMaterial color="#111111" roughness={0.3} />
+        </mesh>
+      </group>
+
+      {/* Synthesizer Display Screen & Knobs */}
+      <group position={[0, 0.98, -0.15]}>
+        <mesh rotation={[-0.2, 0, 0]}>
+          <boxGeometry args={[0.5, 0.02, 0.18]} />
+          <meshBasicMaterial color="#00ffcc" />
+        </mesh>
+      </group>
+
+      {/* Sleek Metallic X-Stand */}
+      <group position={[0, 0.42, 0]}>
+        <mesh rotation={[0, 0, 0.4]}>
+          <cylinderGeometry args={[0.02, 0.02, 1.1, 12]} />
+          <meshStandardMaterial color="#666677" metalness={0.9} />
+        </mesh>
+        <mesh rotation={[0, 0, -0.4]}>
+          <cylinderGeometry args={[0.02, 0.02, 1.1, 12]} />
+          <meshStandardMaterial color="#666677" metalness={0.9} />
+        </mesh>
+      </group>
+
+      {/* Piano Bench Stool */}
+      <group position={[0, 0.4, 0.65]}>
+        <mesh>
+          <boxGeometry args={[0.9, 0.08, 0.38]} />
+          <meshStandardMaterial color="#1a1a26" roughness={0.4} />
+        </mesh>
+        <mesh position={[-0.38, -0.2, -0.14]}>
+          <cylinderGeometry args={[0.02, 0.02, 0.4, 8]} />
+          <meshStandardMaterial color="#444" metalness={0.8} />
+        </mesh>
+        <mesh position={[0.38, -0.2, -0.14]}>
+          <cylinderGeometry args={[0.02, 0.02, 0.4, 8]} />
+          <meshStandardMaterial color="#444" metalness={0.8} />
+        </mesh>
+        <mesh position={[-0.38, -0.2, 0.14]}>
+          <cylinderGeometry args={[0.02, 0.02, 0.4, 8]} />
+          <meshStandardMaterial color="#444" metalness={0.8} />
+        </mesh>
+        <mesh position={[0.38, -0.2, 0.14]}>
+          <cylinderGeometry args={[0.02, 0.02, 0.4, 8]} />
+          <meshStandardMaterial color="#444" metalness={0.8} />
+        </mesh>
+      </group>
+    </group>
+  );
+}
+
+// 3. 3D Vocal Mic & Stand Model
+function VocalMicModel({ position = [0, 0.2, -3.2] }) {
+  return (
+    <group position={position} raycast={() => null}>
+      {/* Heavy Base Plate */}
+      <mesh position={[0, 0.02, 0]}>
+        <cylinderGeometry args={[0.22, 0.25, 0.04, 32]} />
+        <meshStandardMaterial color="#1c1c28" metalness={0.9} roughness={0.2} />
+      </mesh>
+      <mesh position={[0, 0.04, 0]}>
+        <torusGeometry args={[0.23, 0.015, 12, 32]} />
+        <meshBasicMaterial color="#ff007f" />
+      </mesh>
+
+      {/* Chrome Vertical Shaft */}
+      <mesh position={[0, 0.65, 0]}>
+        <cylinderGeometry args={[0.015, 0.018, 1.25, 16]} />
+        <meshStandardMaterial color="#e0e0e0" metalness={0.95} roughness={0.1} />
+      </mesh>
+
+      {/* Boom Joint & Mic Head */}
+      <group position={[0, 1.3, 0]}>
+        {/* Shock Mount Ring */}
+        <mesh rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[0.08, 0.01, 12, 24]} />
+          <meshStandardMaterial color="#ff007f" metalness={0.7} />
+        </mesh>
+        {/* Studio Condenser Mic Body */}
+        <mesh position={[0, 0.05, 0]}>
+          <cylinderGeometry args={[0.035, 0.035, 0.16, 20]} />
+          <meshStandardMaterial color="#222233" metalness={0.8} roughness={0.2} />
+        </mesh>
+        {/* Metallic Mesh Capsule Top */}
+        <mesh position={[0, 0.16, 0]}>
+          <sphereGeometry args={[0.038, 20, 20]} />
+          <meshStandardMaterial color="#dddddd" metalness={0.95} roughness={0.1} emissive="#e07a9e" emissiveIntensity={0.4} />
+        </mesh>
+        {/* Pop Filter Disc */}
+        <mesh position={[0, 0.12, 0.1]} rotation={[0, 0, 0]}>
+          <ringGeometry args={[0.06, 0.075, 24]} />
+          <meshStandardMaterial color="#111" side={THREE.DoubleSide} />
+        </mesh>
+      </group>
+    </group>
+  );
+}
+
+// 4. 3D Bass & Electric Guitar + Amplifier Stack Model
+function GuitarAmpModel({ position, rotation = [0, 0, 0], accentColor = "#d4a843", isBass = false }) {
+  return (
+    <group position={position} rotation={rotation} raycast={() => null}>
+      {/* Bass / Guitar Amplifier Cabinet */}
+      <group position={[0.6, 0.5, -0.2]}>
+        <mesh>
+          <boxGeometry args={[0.75, 0.95, 0.45]} />
+          <meshStandardMaterial color="#14141e" roughness={0.4} metalness={0.6} />
+        </mesh>
+        {/* Front Grille Cloth */}
+        <mesh position={[0, 0.02, 0.23]}>
+          <planeGeometry args={[0.66, 0.72]} />
+          <meshStandardMaterial color="#282836" roughness={0.8} />
+        </mesh>
+        {/* Speaker Cones inside Grille */}
+        <mesh position={[-0.16, 0.18, 0.235]}>
+          <circleGeometry args={[0.13, 24]} />
+          <meshBasicMaterial color="#0a0a0f" />
+        </mesh>
+        <mesh position={[0.16, 0.18, 0.235]}>
+          <circleGeometry args={[0.13, 24]} />
+          <meshBasicMaterial color="#0a0a0f" />
+        </mesh>
+        <mesh position={[-0.16, -0.18, 0.235]}>
+          <circleGeometry args={[0.13, 24]} />
+          <meshBasicMaterial color="#0a0a0f" />
+        </mesh>
+        <mesh position={[0.16, -0.18, 0.235]}>
+          <circleGeometry args={[0.13, 24]} />
+          <meshBasicMaterial color="#0a0a0f" />
+        </mesh>
+        {/* Control Panel LED Line */}
+        <mesh position={[0, 0.42, 0.23]}>
+          <planeGeometry args={[0.66, 0.06]} />
+          <meshBasicMaterial color={accentColor} />
+        </mesh>
+      </group>
+
+      {/* Guitar Floor Stand */}
+      <group position={[-0.3, 0.25, 0]}>
+        <mesh position={[0, 0, 0]}>
+          <cylinderGeometry args={[0.015, 0.015, 0.5, 8]} />
+          <meshStandardMaterial color="#444" metalness={0.8} />
+        </mesh>
+        {/* Instrument Body on Stand */}
+        <group position={[0, 0.5, 0]} rotation={[0.15, 0.2, -0.1]}>
+          {/* Guitar Body */}
+          <mesh position={[0, 0, 0]}>
+            <boxGeometry args={[0.34, 0.52, 0.08]} />
+            <meshStandardMaterial color={accentColor} metalness={0.5} roughness={0.2} />
+          </mesh>
+          {/* Pickguard */}
+          <mesh position={[0.02, -0.02, 0.042]}>
+            <planeGeometry args={[0.22, 0.32]} />
+            <meshStandardMaterial color="#ffffff" roughness={0.3} />
+          </mesh>
+          {/* Neck */}
+          <mesh position={[0, 0.55, 0]}>
+            <boxGeometry args={[0.06, 0.65, 0.04]} />
+            <meshStandardMaterial color="#d2b48c" roughness={0.4} />
+          </mesh>
+          {/* Fretboard */}
+          <mesh position={[0, 0.55, 0.022]}>
+            <planeGeometry args={[0.055, 0.64]} />
+            <meshStandardMaterial color="#2b1d0c" roughness={0.6} />
+          </mesh>
+          {/* Headstock */}
+          <mesh position={[0, 0.92, 0]}>
+            <boxGeometry args={[0.09, 0.16, 0.04]} />
+            <meshStandardMaterial color={accentColor} metalness={0.5} />
+          </mesh>
+        </group>
+      </group>
+    </group>
+  );
+}
+
+// 5. All Stage 3D Instruments Container
+function CosmicInstruments() {
+  return (
+    <group>
+      <DrumKitModel position={[0, 0.4, -6.5]} />
+      <PianoModel position={[5.2, 0.2, -4.8]} rotation={[0, -0.4, 0]} />
+      <VocalMicModel position={[0, 0.2, -3.2]} />
+      <GuitarAmpModel position={[-5.2, 0.2, -4.8]} rotation={[0, 0.45, 0]} accentColor="#d4a843" isBass={true} />
+      <GuitarAmpModel position={[-9.2, 0.2, -5.8]} rotation={[0, 0.65, 0]} accentColor="#8d6fb3" />
+      <GuitarAmpModel position={[9.2, 0.2, -5.8]} rotation={[0, -0.65, 0]} accentColor="#58ab75" />
+    </group>
+  );
+}
+
+// 6. 3D Cosmic Stage Platform Component (Doubled Stage Width)
+function CosmicStage() {
+  return (
+    <group raycast={() => null}>
+      {/* Main Stage Floor Platform (Wide Octagonal / Elliptical 2x Stage) */}
+      <group position={[0, -0.15, -5.2]}>
+        <mesh position={[0, 0, 0]}>
+          <cylinderGeometry args={[11.5, 12.2, 0.3, 48]} />
+          <meshStandardMaterial color="#0f0f18" roughness={0.4} metalness={0.8} />
+        </mesh>
+        {/* Stage Edge Neon Glow Rings */}
+        <mesh position={[0, 0.16, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[11.35, 11.48, 64]} />
+          <meshBasicMaterial color="#00ffcc" side={THREE.DoubleSide} />
+        </mesh>
+        <mesh position={[0, 0.16, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[11.15, 11.22, 64]} />
+          <meshBasicMaterial color="#ff007f" side={THREE.DoubleSide} />
+        </mesh>
+      </group>
+
+      {/* Elevated Drum Riser Platform in Back Center */}
+      <group position={[0, 0.15, -6.5]}>
+        <mesh>
+          <cylinderGeometry args={[2.5, 2.7, 0.35, 32]} />
+          <meshStandardMaterial color="#161622" roughness={0.3} metalness={0.8} />
+        </mesh>
+        <mesh position={[0, 0.18, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[2.45, 2.52, 32]} />
+          <meshBasicMaterial color="#ff007f" side={THREE.DoubleSide} />
+        </mesh>
+      </group>
+
+      {/* Holographic Stage Background Arch / Portal (Widened Arch) */}
+      <group position={[0, 3.2, -8.2]}>
+        <mesh rotation={[0, 0, 0]}>
+          <torusGeometry args={[10.5, 0.12, 16, 64, Math.PI]} />
+          <meshBasicMaterial color="#00ffcc" />
+        </mesh>
+        <mesh rotation={[0, 0, 0]}>
+          <torusGeometry args={[10.2, 0.06, 16, 64, Math.PI]} />
+          <meshBasicMaterial color="#ff007f" />
+        </mesh>
+      </group>
+
+      {/* Overhead Stage Lighting Beam Spotlights (5 Beam Array across wide stage) */}
+      <group position={[-8.5, 5.2, -5.5]}>
+        <spotLight color="#ff007f" intensity={4.5} distance={14} angle={0.45} penumbra={0.5} />
+      </group>
+      <group position={[-4.5, 5.0, -5.5]}>
+        <spotLight color="#9900ff" intensity={4.0} distance={13} angle={0.4} penumbra={0.5} />
+      </group>
+      <group position={[0, 5.5, -4.5]}>
+        <spotLight color="#ffffff" intensity={5.5} distance={15} angle={0.5} penumbra={0.6} />
+      </group>
+      <group position={[4.5, 5.0, -5.5]}>
+        <spotLight color="#00ff7f" intensity={4.0} distance={13} angle={0.4} penumbra={0.5} />
+      </group>
+      <group position={[8.5, 5.2, -5.5]}>
+        <spotLight color="#00ffcc" intensity={4.5} distance={14} angle={0.45} penumbra={0.5} />
+      </group>
+    </group>
+  );
+}
+
+// 7. Single 3D Auditorium / Concert Hall Chair Component (Interactive Hover & Subtle Ambient Glow)
+function ChairModel({ chairId, position, rotation = [0, 0, 0] }) {
+  const [hovered, setHovered] = useState(false);
+
+  const handlePointerOver = (e) => {
+    e.stopPropagation();
+    setHovered(true);
+    if (typeof document !== 'undefined') {
+      document.body.style.cursor = 'pointer';
+    }
+  };
+
+  const handlePointerOut = (e) => {
+    e.stopPropagation();
+    setHovered(false);
+    if (typeof document !== 'undefined') {
+      document.body.style.cursor = 'auto';
+    }
+  };
+
+  const handleClick = (e) => {
+    e.stopPropagation();
+    if (window.__sitInChair) {
+      window.__sitInChair({ x: position[0], y: position[1], z: position[2] });
+    }
+  };
+
+  return (
+    <group
+      position={position}
+      rotation={rotation}
+      onPointerOver={handlePointerOver}
+      onPointerOut={handlePointerOut}
+      onClick={handleClick}
+    >
+      {/* Invisible Hitbox Box for 100% Easy Clicking */}
+      <mesh visible={false} position={[0, 0.4, 0]}>
+        <boxGeometry args={[0.6, 0.8, 0.6]} />
+        <meshBasicMaterial />
+      </mesh>
+
+      {/* Chair Base Legs */}
+      <mesh position={[0, 0.2, 0]}>
+        <boxGeometry args={[0.42, 0.03, 0.42]} />
+        <meshStandardMaterial color={hovered ? "#ff007f" : "#2a2a3c"} metalness={0.8} />
+      </mesh>
+      <mesh position={[0, 0.09, 0]}>
+        <cylinderGeometry args={[0.02, 0.02, 0.18, 8]} />
+        <meshStandardMaterial color="#444455" metalness={0.9} />
+      </mesh>
+
+      {/* Cushioned Seat Pad - Subtle Emissive Ambient Glow */}
+      <mesh position={[0, 0.25, 0]}>
+        <boxGeometry args={[0.46, 0.08, 0.44]} />
+        <meshStandardMaterial
+          color={hovered ? "#ff007f" : "#2a1538"}
+          emissive={hovered ? "#00ffcc" : "#660044"}
+          emissiveIntensity={hovered ? 0.9 : 0.25}
+          roughness={0.4}
+        />
+      </mesh>
+      {/* Neon Edge Light under Seat Cushion */}
+      <mesh position={[0, 0.21, 0.22]}>
+        <boxGeometry args={[0.46, 0.015, 0.015]} />
+        <meshBasicMaterial color={hovered ? "#00ffcc" : "#ff007f"} />
+      </mesh>
+
+      {/* Cushioned Ergonomic Backrest - Subtle Emissive Ambient Glow */}
+      <group position={[0, 0.55, -0.18]} rotation={[-0.1, 0, 0]}>
+        <mesh>
+          <boxGeometry args={[0.45, 0.55, 0.07]} />
+          <meshStandardMaterial
+            color={hovered ? "#3a0055" : "#1e102d"}
+            emissive={hovered ? "#ff007f" : "#440033"}
+            emissiveIntensity={hovered ? 0.7 : 0.20}
+            roughness={0.5}
+          />
+        </mesh>
+        {/* Headrest Accent Trim */}
+        <mesh position={[0, 0.24, 0.038]}>
+          <boxGeometry args={[0.3, 0.02, 0.01]} />
+          <meshBasicMaterial color={hovered ? "#ffffff" : "#00ffcc"} />
+        </mesh>
+      </group>
+
+      {/* Ambient Floor Ring under Chair (Subtle Ambient Glow when unhovered, bright cyan when hovered) */}
+      <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.30, 0.42, 24]} />
+        <meshBasicMaterial
+          color={hovered ? "#00ffcc" : "#ff007f"}
+          transparent={true}
+          opacity={hovered ? 0.9 : 0.28}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+
+      {/* Twin Armrests */}
+      <group position={[-0.25, 0.38, 0]}>
+        <mesh>
+          <boxGeometry args={[0.05, 0.04, 0.36]} />
+          <meshStandardMaterial color={hovered ? "#ff007f" : "#1c1c28"} roughness={0.3} />
+        </mesh>
+      </group>
+      <group position={[0.25, 0.38, 0]}>
+        <mesh>
+          <boxGeometry args={[0.05, 0.04, 0.36]} />
+          <meshStandardMaterial color={hovered ? "#ff007f" : "#1c1c28"} roughness={0.3} />
+        </mesh>
+      </group>
+    </group>
+  );
+}
+
+// 8. Auditorium / Concert Hall Seating Layout Component (360-Degree Radial Concentric Seating with Distinct Tiered Step Heights)
+function ConcertHallSeating() {
+  const stageCenter = { x: 0, z: -5.2 };
+  const rows = [
+    { r: 13.5, count: 24, height: 0.0 },
+    { r: 15.2, count: 30, height: 0.65 },
+    { r: 16.9, count: 36, height: 1.30 },
+    { r: 18.6, count: 42, height: 1.95 },
+  ];
+
+  return (
+    <group raycast={() => null}>
+      {/* 360-Degree Concentric Stepped Floor Risers (Hollow Annular Rings) */}
+      {rows.map((row, idx) => (
+        <group key={`floor-${idx}`} position={[stageCenter.x, row.height - 0.02, stageCenter.z]}>
+          {/* Annular Floor Ring Step Surface */}
+          <mesh rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[row.r - 0.75, row.r + 0.75, 64]} />
+            <meshStandardMaterial color="#0c0c14" roughness={0.6} metalness={0.5} side={THREE.DoubleSide} />
+          </mesh>
+          {/* Outer Edge Glowing LED Strip */}
+          <mesh position={[0, 0.005, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[row.r + 0.70, row.r + 0.75, 64]} />
+            <meshBasicMaterial color="#00ffcc" side={THREE.DoubleSide} />
+          </mesh>
+          {/* Inner Edge Glowing LED Strip */}
+          <mesh position={[0, 0.005, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[row.r - 0.75, row.r - 0.70, 64]} />
+            <meshBasicMaterial color="#ff007f" side={THREE.DoubleSide} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* 360-Degree Radial Concentric Rows of Auditorium Chairs */}
+      {rows.map((row, rowIdx) => {
+        const chairs = [];
+        const totalAngle = Math.PI * 2;
+        const stepAngle = totalAngle / row.count;
+
+        for (let i = 0; i < row.count; i++) {
+          // Leave 4 radial aisles at 0°, 90°, 180°, 270° for walkways
+          const aisleIndices = [
+            0,
+            Math.floor(row.count / 4),
+            Math.floor(row.count / 2),
+            Math.floor((3 * row.count) / 4)
+          ];
+          if (aisleIndices.includes(i)) {
+            continue;
+          }
+
+          const angle = i * stepAngle;
+          const x = stageCenter.x + row.r * Math.sin(angle);
+          const z = stageCenter.z + row.r * Math.cos(angle);
+
+          // Vector pointing from chair (x, z) to stage center (0, -5.2)
+          const dx = stageCenter.x - x;
+          const dz = stageCenter.z - z;
+          const rotY = Math.atan2(dx, dz);
+
+          chairs.push(
+            <ChairModel
+              key={`chair-${rowIdx}-${i}`}
+              chairId={`chair-${rowIdx}-${i}`}
+              position={[x, row.height, z]}
+              rotation={[0, rotY, 0]}
+            />
+          );
+        }
+        return chairs;
+      })}
+    </group>
+  );
+}
 
 function LoggerComponent() {
   const mode = useXR((state) => state.mode);
@@ -1071,6 +1677,15 @@ function VRAudioExperience({ starColors, activeSong, leftRate, rightRate, active
 
   return (
     <>
+      {/* 3D Cosmic Concert Hall Environment: Stage Platform & Lighting */}
+      <CosmicStage />
+
+      {/* 3D Procedural Musical Instrument Models placed on Stage */}
+      <CosmicInstruments />
+
+      {/* 3D Auditorium / Concert Hall Seating Rows */}
+      <ConcertHallSeating />
+
       {/* 5개든 6개든 배열 리스트만큼 3D 사운드 오브를 무제한 자동 스폰 */}
       {stems.map((stem) => (
         <InteractiveOrb
@@ -1247,9 +1862,186 @@ function SleekAxes3D({ length = 6.5, segments = 24 }) {
   );
 }
 
+// --- 170cm PERSON FIRST-PERSON NAVIGATION ENGINE ---
+const STANDING_EYE_HEIGHT = 1.65; // 170cm height person standing eye height
+const SEATED_EYE_HEIGHT = 1.15;   // 170cm height person sitting eye height
+
+function FirstPersonNavigationManager({ isDesktopVR, isDraggingOrb, onSitStateChange }) {
+  const { camera, gl } = useThree();
+  const keysRef = useRef({ w: false, a: false, s: false, d: false });
+  const playerPosRef = useRef(new THREE.Vector3(0, STANDING_EYE_HEIGHT, 4.0));
+  const yawRef = useRef(0);
+  const pitchRef = useRef(0);
+  const isSeatedRef = useRef(false);
+  const seatedTargetPosRef = useRef(new THREE.Vector3());
+
+  const isPointerDownRef = useRef(false);
+  const lastMousePosRef = useRef({ x: 0, y: 0 });
+  const walkTimeRef = useRef(0);
+
+  useEffect(() => {
+    window.__sitInChair = (chairPos) => {
+      isSeatedRef.current = true;
+      seatedTargetPosRef.current.set(chairPos.x, chairPos.y + SEATED_EYE_HEIGHT, chairPos.z);
+      // Face towards main stage center
+      const dir = new THREE.Vector3(0, 1.4, -4.5).sub(seatedTargetPosRef.current).normalize();
+      yawRef.current = Math.atan2(-dir.x, -dir.z);
+      pitchRef.current = Math.asin(dir.y);
+      if (onSitStateChange) onSitStateChange(true);
+    };
+
+    window.__standUp = () => {
+      if (isSeatedRef.current) {
+        isSeatedRef.current = false;
+        playerPosRef.current.y = STANDING_EYE_HEIGHT;
+        if (onSitStateChange) onSitStateChange(false);
+      }
+    };
+
+    return () => {
+      delete window.__sitInChair;
+      delete window.__standUp;
+    };
+  }, [onSitStateChange]);
+
+  useEffect(() => {
+    if (!isDesktopVR) return;
+
+    const handleKeyDown = (e) => {
+      const code = e.code;
+      if (code === 'KeyW' || code === 'ArrowUp') keysRef.current.w = true;
+      if (code === 'KeyA' || code === 'ArrowLeft') keysRef.current.a = true;
+      if (code === 'KeyS' || code === 'ArrowDown') keysRef.current.s = true;
+      if (code === 'KeyD' || code === 'ArrowRight') keysRef.current.d = true;
+
+      if (code === 'Space') {
+        if (isSeatedRef.current) {
+          e.preventDefault();
+          window.__standUp();
+        }
+      }
+    };
+
+    const handleKeyUp = (e) => {
+      const code = e.code;
+      if (code === 'KeyW' || code === 'ArrowUp') keysRef.current.w = false;
+      if (code === 'KeyA' || code === 'ArrowLeft') keysRef.current.a = false;
+      if (code === 'KeyS' || code === 'ArrowDown') keysRef.current.s = false;
+      if (code === 'KeyD' || code === 'ArrowRight') keysRef.current.d = false;
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [isDesktopVR]);
+
+  useEffect(() => {
+    if (!isDesktopVR) return;
+    const domElement = gl.domElement;
+
+    const handleMouseDown = (e) => {
+      if (e.button === 0 && !isDraggingOrb) {
+        isPointerDownRef.current = true;
+        lastMousePosRef.current = { x: e.clientX, y: e.clientY };
+      }
+    };
+
+    const handleMouseMove = (e) => {
+      if (isPointerDownRef.current && !isDraggingOrb) {
+        const dx = e.clientX - lastMousePosRef.current.x;
+        const dy = e.clientY - lastMousePosRef.current.y;
+        lastMousePosRef.current = { x: e.clientX, y: e.clientY };
+
+        const sensitivity = 0.0035;
+        yawRef.current -= dx * sensitivity;
+        pitchRef.current -= dy * sensitivity;
+
+        const maxPitch = Math.PI / 2.2;
+        pitchRef.current = Math.max(-maxPitch, Math.min(maxPitch, pitchRef.current));
+      }
+    };
+
+    const handleMouseUp = () => {
+      isPointerDownRef.current = false;
+    };
+
+    domElement.addEventListener('mousedown', handleMouseDown);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      domElement.removeEventListener('mousedown', handleMouseDown);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDesktopVR, gl.domElement, isDraggingOrb]);
+
+  useFrame((state, delta) => {
+    if (!isDesktopVR) return;
+
+    if (isSeatedRef.current) {
+      camera.position.lerp(seatedTargetPosRef.current, Math.min(1.0, delta * 8.0));
+      playerPosRef.current.copy(camera.position);
+    } else {
+      const speed = 3.6 * delta;
+      const moveVector = new THREE.Vector3();
+
+      if (keysRef.current.w) moveVector.z -= 1;
+      if (keysRef.current.s) moveVector.z += 1;
+      if (keysRef.current.a) moveVector.x -= 1;
+      if (keysRef.current.d) moveVector.x += 1;
+
+      let headBob = 0;
+      if (moveVector.lengthSq() > 0) {
+        moveVector.normalize();
+        moveVector.applyAxisAngle(new THREE.Vector3(0, 1, 0), yawRef.current);
+        playerPosRef.current.addScaledVector(moveVector, speed);
+
+        playerPosRef.current.x = Math.max(-24, Math.min(24, playerPosRef.current.x));
+        playerPosRef.current.z = Math.max(-28, Math.min(18, playerPosRef.current.z));
+
+        // Rhythmic human walking gait head-bobbing oscillation
+        walkTimeRef.current += delta * 11.0;
+        headBob = Math.sin(walkTimeRef.current) * 0.045;
+      } else {
+        walkTimeRef.current = 0;
+      }
+
+      // Calculate dynamic floor step height based on current (x, z) location (+0.65m step risers)
+      const stageCenter = { x: 0, z: -5.2 };
+      const dx = playerPosRef.current.x - stageCenter.x;
+      const dz = playerPosRef.current.z - stageCenter.z;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+
+      let floorHeight = 0.0;
+      if (dist >= 17.75) floorHeight = 1.95;
+      else if (dist >= 16.05) floorHeight = 1.30;
+      else if (dist >= 14.35) floorHeight = 0.65;
+      else floorHeight = 0.0;
+
+      playerPosRef.current.y = floorHeight + STANDING_EYE_HEIGHT + headBob;
+
+      camera.position.lerp(playerPosRef.current, Math.min(1.0, delta * 12.0));
+    }
+
+    const lookTarget = new THREE.Vector3(
+      camera.position.x + Math.sin(-yawRef.current) * Math.cos(pitchRef.current),
+      camera.position.y + Math.sin(pitchRef.current),
+      camera.position.z - Math.cos(-yawRef.current) * Math.cos(pitchRef.current)
+    );
+    camera.lookAt(lookTarget);
+  });
+
+  return null;
+}
+
 export function VRScene({ store, starColors, isVRTest, isInVR, isDesktopVR, activeSong, leftRate, rightRate, activePreset, isAudioActive, vrModeType, onNextSong, vrCameraPos, vrCameraRot, onStarMixVolumeChange }) {
   const isVRActive = isInVR || isDesktopVR;
   const [isDraggingOrb, setIsDraggingOrb] = useState(false);
+  const [isSeated, setIsSeated] = useState(false);
 
   return (
     <div style={{ 
@@ -1264,14 +2056,54 @@ export function VRScene({ store, starColors, isVRTest, isInVR, isDesktopVR, acti
       visibility: isVRActive ? 'visible' : 'hidden',
       transition: 'opacity 0.3s ease, visibility 0.3s ease'
     }}>
+      {/* 1인칭 관람 & 착석 안내 HUD Overlay */}
+      {isDesktopVR && vrModeType === 2 && (
+        <div style={{
+          position: 'absolute',
+          bottom: '24px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 100,
+          pointerEvents: 'none',
+          background: isSeated ? 'rgba(255, 0, 127, 0.25)' : 'rgba(5, 5, 20, 0.75)',
+          border: `1px solid ${isSeated ? '#ff007f' : '#00ffcc'}`,
+          boxShadow: `0 0 20px ${isSeated ? 'rgba(255, 0, 127, 0.4)' : 'rgba(0, 255, 204, 0.3)'}`,
+          backdropFilter: 'blur(8px)',
+          borderRadius: '24px',
+          padding: '10px 24px',
+          color: '#ffffff',
+          fontSize: '13px',
+          fontWeight: 'bold',
+          letterSpacing: '0.5px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px'
+        }}>
+          {isSeated ? (
+            <>
+              <span style={{ color: '#ff007f', fontSize: '15px' }}>🪑</span>
+              <span>의자에 착석했습니다 </span>
+              <span style={{ color: '#00ffcc', background: 'rgba(0, 255, 204, 0.15)', padding: '2px 8px', borderRadius: '6px' }}>[Spacebar] 자리에서 일어나기</span>
+              <span style={{ color: '#aaa' }}>| 마우스 드래그: 시점 둘러보기</span>
+            </>
+          ) : (
+            <>
+              <span style={{ color: '#00ffcc', fontSize: '15px' }}>🚶</span>
+              <span>공연장 1인칭 보행 (키 170cm 시선)</span>
+              <span style={{ color: '#ff007f', background: 'rgba(255, 0, 127, 0.15)', padding: '2px 8px', borderRadius: '6px' }}>[WASD] 자유 이동</span>
+              <span style={{ color: '#00ffcc' }}>[마우스 드래그] 시점 변경</span>
+              <span style={{ color: '#aaa' }}>| 의자 클릭: 착석</span>
+            </>
+          )}
+        </div>
+      )}
+
       <Canvas>
         <XR store={store}>
           <LoggerComponent />
             <CameraRig vrCameraPos={vrCameraPos} vrCameraRot={vrCameraRot} />
             <color attach="background" args={['#111111']} />
             
-            {/* Sleek Custom 3D Origin Axes Indicator (X: Pink, Y: White, Z: Soft Pink) */}
-            <SleekAxes3D length={6} />
             {isVRActive && vrModeType === 2 && <ambientLight intensity={0.5} />}
             
             {/* Giant black sphere to block WebXR passthrough - Raycast disabled */}
@@ -1285,7 +2117,15 @@ export function VRScene({ store, starColors, isVRTest, isInVR, isDesktopVR, acti
             </Suspense>
             
             <ControllerHelpers />
-            {isDesktopVR && <OrbitControls enabled={!isDraggingOrb} enableZoom={true} enablePan={false} maxDistance={25} minDistance={1} />}
+
+            {/* 170cm WASD 1인칭 관람 & 마우스 시점 & 의자 착석 컨트롤러 */}
+            {isDesktopVR && (
+              <FirstPersonNavigationManager
+                isDesktopVR={isDesktopVR}
+                isDraggingOrb={isDraggingOrb}
+                onSitStateChange={setIsSeated}
+              />
+            )}
 
             {/* Premium 3D VR Spatial Audio Experience - ONLY in VR 2 */}
             {isVRActive && vrModeType === 2 && (

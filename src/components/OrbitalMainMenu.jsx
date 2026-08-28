@@ -38,8 +38,8 @@ export function OrbitalMainMenu({ onSelectMode, onOpenEditor, onOpenController }
     },
     { 
       id: 'vr2', 
-      label: 'Spatial Stems', 
-      description: '음악을 분해하고 조립하기',
+      label: 'Concert Hall', 
+      description: '우주 공연장에서 음악 감상하기',
       color: '#f8c8dc', 
       glow: 'rgba(248, 200, 220, 0.6)',
       action: () => onSelectMode('vr2') 
