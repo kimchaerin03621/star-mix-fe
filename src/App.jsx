@@ -1377,21 +1377,53 @@ function App() {
     }
   };
 
-
+  const handleBackToMenu = async () => {
+    if (isDesktopVR) {
+      setIsDesktopVR(false);
+      setViewMode(prevViewMode || 'menu');
+      await startCamera();
+    } else {
+      setViewMode('menu');
+    }
+  };
 
   return (
     <div className="app-container">
+      {/* Permanent Fixed Top Header (WOOJOO PLAY Title & Action Buttons) */}
+      {viewMode !== 'intro' && (
+        <header className="global-header">
+          <div className="global-header-left">
+            {(viewMode !== 'menu' || isDesktopVR) && (
+              <button 
+                className="back-arrow-btn" 
+                onClick={handleBackToMenu}
+                title="Back to Menu"
+              >
+                ←
+              </button>
+            )}
+            <div 
+              className="global-header-title"
+              onClick={handleBackToMenu}
+              title="Go to Main Menu"
+            >
+              WOOJOO PLAY
+            </div>
+          </div>
+
+          <div className="global-header-actions">
+            <button className="pill-btn" onClick={() => setIsEditorOpen(true)}>
+              Star Edit
+            </button>
+            <button className="pill-btn" onClick={() => setViewMode('controller')}>
+              Control Room
+            </button>
+          </div>
+        </header>
+      )}
 
       {isDesktopVR && (
         <>
-          <button className="home-btn" onClick={async () => {
-            setIsDesktopVR(false);
-            setViewMode(prevViewMode);
-            await startCamera();
-          }}>
-            Back to Menu
-          </button>
-
           {/* Spatial VR 2 Real-time Song Selection HUD */}
           {vrModeType === 2 && (
             <div className="vr-overlay-hud">
@@ -1424,14 +1456,7 @@ function App() {
       {/* Main DJ HUD (viewMode === 'dj') */}
       {!isInVR && !isDesktopVR && viewMode === 'dj' && (
         <>
-          <button className="home-btn" onClick={() => setViewMode('menu')}>
-            Back to Menu
-          </button>
-
-
-
           <div className="ui-overlay active-hud">
-            <div className="ui-title">WOOJOO PLAY</div>
             <div className="ui-status">
               {isMusicLoading && <div style={{ color: '#ff007f', fontWeight: 'bold' }}>새로운 음원 로딩 중...</div>}
               {!isMusicLoading && (cameraActive ? (handData.length > 0 ? `손 인식 중 (${handData.length}개)` : "손을 기다리는 중...") : "카메라를 켜주세요.")}
@@ -1553,9 +1578,6 @@ function App() {
       {/* Voice Cloud Placeholder View (viewMode === 'voicecloud') */}
       {!isInVR && !isDesktopVR && viewMode === 'voicecloud' && (
         <div className="voice-cloud-overlay">
-          <button className="home-btn" onClick={() => setViewMode('menu')}>
-            Back to Menu
-          </button>
           
           <div className="voice-cloud-content">
             <div className="voice-cloud-icon">☁️</div>

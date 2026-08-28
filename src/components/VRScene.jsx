@@ -10,23 +10,23 @@ import * as THREE from 'three';
 // 음원 로딩 없이 독립적으로 물리적 드래그 조작만 가능하도록 다이내믹 셋팅을 하였습니다.
 const songStemsMap = {
   1: [
-    { key: 'vocal', name: '🎤 Vocal', color: '#ff007f', url: '/Bohemian Rhapsody/Bohemian Rhapsody_vocal.mp3', initialPos: [-2.2, 1.6, -2.5] },
-    { key: 'drum', name: '🥁 Drums', color: '#ffffff', url: '/Bohemian Rhapsody/Bohemian Rhapsody_drum.mp3', initialPos: [2.2, 1.6, -2.5] },
-    { key: 'bass', name: '🎸 Bass', color: '#ffcc00', url: '/Bohemian Rhapsody/Bohemian Rhapsody_bass.mp3', initialPos: [-1.5, 1.8, -3.8] },
-    { key: 'piano', name: '🎹 Piano', color: '#00ffff', url: '/Bohemian Rhapsody/Bohemian Rhapsody_piano.mp3', initialPos: [1.5, 1.4, -3.8] },
-    { key: 'guitar1', name: '🎸 Guitar 1', color: '#7f00ff', url: '/Bohemian Rhapsody/Bohemian Rhapsody_electric guitar1.mp3', initialPos: [-2.5, 1.3, -4.5] },
-    { key: 'guitar2', name: '🎸 Guitar 2', color: '#00ff66', url: '/Bohemian Rhapsody/Bohemian Rhapsody_electric guitar2.mp3', initialPos: [2.5, 1.3, -4.5] }
+    { key: 'vocal', name: '🎤 Vocal', color: '#e07a9e', url: '/Bohemian Rhapsody/Bohemian Rhapsody_vocal.mp3', initialPos: [-2.2, 1.6, -2.5] },
+    { key: 'drum', name: '🥁 Drums', color: '#e6e6e6', url: '/Bohemian Rhapsody/Bohemian Rhapsody_drum.mp3', initialPos: [2.2, 1.6, -2.5] },
+    { key: 'bass', name: '🎸 Bass', color: '#d4a843', url: '/Bohemian Rhapsody/Bohemian Rhapsody_bass.mp3', initialPos: [-1.5, 1.8, -3.8] },
+    { key: 'piano', name: '🎹 Piano', color: '#58b5b5', url: '/Bohemian Rhapsody/Bohemian Rhapsody_piano.mp3', initialPos: [1.5, 1.4, -3.8] },
+    { key: 'guitar1', name: '🎸 Guitar 1', color: '#8d6fb3', url: '/Bohemian Rhapsody/Bohemian Rhapsody_electric guitar1.mp3', initialPos: [-2.5, 1.3, -4.5] },
+    { key: 'guitar2', name: '🎸 Guitar 2', color: '#58ab75', url: '/Bohemian Rhapsody/Bohemian Rhapsody_electric guitar2.mp3', initialPos: [2.5, 1.3, -4.5] }
   ],
   2: [
-    { key: 'lead_vocal', name: '🎤 Vocal', color: '#ff007f', url: '/Hype Boy/Hype Boy_vocal.mp3', initialPos: [-2.5, 1.6, -2.0] },
-    { key: 'drums', name: '🥁 Drums', color: '#ffffff', url: '/Hype Boy/Hype Boy_drum.mp3', initialPos: [2.5, 1.6, -2.0] },
-    { key: 'bass', name: '🎸 Bass', color: '#00aaff', url: '/Hype Boy/Hype Boy_bass.mp3', initialPos: [-1.8, 1.4, -3.8] },
-    { key: 'piano', name: '🎹 Piano', color: '#ffaa00', url: '/Hype Boy/Hype Boy_piano.mp3', initialPos: [1.8, 1.8, -3.8] }
+    { key: 'lead_vocal', name: '🎤 Vocal', color: '#e07a9e', url: '/Hype Boy/Hype Boy_vocal.mp3', initialPos: [-2.5, 1.6, -2.0] },
+    { key: 'drums', name: '🥁 Drums', color: '#e6e6e6', url: '/Hype Boy/Hype Boy_drum.mp3', initialPos: [2.5, 1.6, -2.0] },
+    { key: 'bass', name: '🎸 Bass', color: '#599ec7', url: '/Hype Boy/Hype Boy_bass.mp3', initialPos: [-1.8, 1.4, -3.8] },
+    { key: 'piano', name: '🎹 Piano', color: '#c99344', url: '/Hype Boy/Hype Boy_piano.mp3', initialPos: [1.8, 1.8, -3.8] }
   ],
   3: [
-    { key: 'melody', name: '🎹 Piano', color: '#ff007f', url: '/Kerning City/Kerning City_piano.mp3', initialPos: [-2.0, 1.6, -2.5] },
-    { key: 'drum', name: '🥁 Drums', color: '#ffffff', url: '/Kerning City/Kerning City_drum.mp3', initialPos: [2.0, 1.6, -2.5] },
-    { key: 'bass', name: '🎸 Bass', color: '#a855f7', url: '/Kerning City/Kerning City_bass.mp3', initialPos: [-1.2, 1.5, -3.2] }
+    { key: 'melody', name: '🎹 Piano', color: '#e07a9e', url: '/Kerning City/Kerning City_piano.mp3', initialPos: [-2.0, 1.6, -2.5] },
+    { key: 'drum', name: '🥁 Drums', color: '#e6e6e6', url: '/Kerning City/Kerning City_drum.mp3', initialPos: [2.0, 1.6, -2.5] },
+    { key: 'bass', name: '🎸 Bass', color: '#9662c4', url: '/Kerning City/Kerning City_bass.mp3', initialPos: [-1.2, 1.5, -3.2] }
   ]
 };
 
@@ -324,14 +324,54 @@ function ControllerHelpers() {
   );
 }
 
-// 3D Interactive Audio Orb
+const starTextureCache = {};
+
+function getMenuStarTexture(colorHex) {
+  if (typeof document === 'undefined') return null;
+  if (starTextureCache[colorHex]) return starTextureCache[colorHex];
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+
+  const centerX = 128;
+  const centerY = 128;
+  const radius = 128;
+
+  // Compact, crisp volumetric star radial gradient:
+  // 0% -> Pure White Core (#ffffff)
+  // 18% -> Soft White Center
+  // 42% -> Toned-down Pastel Stem Color
+  // 68% -> Compact Aura Glow (33% opacity)
+  // 88% -> Clean Edge Fade-out (Zero wide blur spread)
+  const grad = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
+  grad.addColorStop(0.0, '#ffffff');
+  grad.addColorStop(0.18, 'rgba(255, 255, 255, 0.92)');
+  grad.addColorStop(0.42, colorHex);
+  grad.addColorStop(0.68, colorHex + '33');
+  grad.addColorStop(0.88, 'rgba(0, 0, 0, 0)');
+
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 256, 256);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  starTextureCache[colorHex] = texture;
+  return texture;
+}
+
+// 3D Interactive Audio Orb (Main Menu Volumetric Celestial Star Style)
 function InteractiveOrb({ color, initialPos, orbKey, coordsRef, setIsDraggingOrb, analysersRef, draggingOrbsRef }) {
   const meshRef = useRef();
+  const auraRef = useRef();
   const waveRef1 = useRef();
   const waveRef2 = useRef();
   const waveRef3 = useRef();
   const waveTimeRef = useRef(0);
   
+  const starTexture = useMemo(() => getMenuStarTexture(color), [color]);
+
   const [isDragging, setIsDragging] = useState(false);
   const [hovered, setHovered] = useState(false);
   const { camera, raycaster, gl } = useThree();
@@ -422,6 +462,11 @@ function InteractiveOrb({ color, initialPos, orbKey, coordsRef, setIsDraggingOrb
   useFrame((state) => {
     const xr = state.gl.xr;
 
+    // Billboard camera alignment for borderless volumetric light cloud quad
+    if (auraRef.current) {
+      auraRef.current.quaternion.copy(state.camera.quaternion);
+    }
+
     // 0. Audio Analyser Pulse Effect
     let currentVol = 0;
 
@@ -441,16 +486,9 @@ function InteractiveOrb({ color, initialPos, orbKey, coordsRef, setIsDraggingOrb
       const baseScale = hovered ? 1.25 : 1.0;
       const pulseScale = baseScale + currentVol * 0.95;
       meshRef.current.scale.set(pulseScale, pulseScale, pulseScale);
-
-      if (meshRef.current.material) {
-        meshRef.current.material.emissiveIntensity = hovered ? 2.5 : 1.2;
-      }
     } else if (meshRef.current) {
       const baseScale = hovered ? 1.25 : 1.0;
       meshRef.current.scale.set(baseScale, baseScale, baseScale);
-      if (meshRef.current.material) {
-        meshRef.current.material.emissiveIntensity = hovered ? 2.5 : 1.2;
-      }
     }
 
     // Concentric Ripple Wave animation
@@ -502,16 +540,16 @@ function InteractiveOrb({ color, initialPos, orbKey, coordsRef, setIsDraggingOrb
             const nearestPointOnRay = rayOrigin.clone().add(rayDir.clone().multiplyScalar(t));
             const perpDist = orbPos.distanceTo(nearestPointOnRay);
             
-            // Distance-Adaptive Ray Cone (#1): rayTolerance expands with distance t for easy targeting at any range
-            const rayTolerance = Math.max(0.65, t * 0.15 + 0.5);
+            // Tight, precise Ray Cone targeting tolerance
+            const rayTolerance = Math.max(0.28, t * 0.05 + 0.18);
             if (perpDist < rayTolerance) {
               isTargeted = true;
               grabDistance = Math.max(0.4, t);
             }
           }
 
-          // Physical touch proximity: within 0.6m of controller position
-          if (distToCtrl < 0.6) {
+          // Physical touch proximity: within 0.3m of controller position
+          if (distToCtrl < 0.3) {
             isTargeted = true;
             grabDistance = Math.max(0.3, distToCtrl);
           }
@@ -639,9 +677,9 @@ function InteractiveOrb({ color, initialPos, orbKey, coordsRef, setIsDraggingOrb
 
   return (
     <group>
-      {/* Concentric Billboarded Ripple Wave Rings (3 layers with rich thickness) */}
+      {/* Concentric Ripple Wave Rings */}
       <mesh ref={waveRef1} position={initialPos}>
-        <ringGeometry args={[0.25, 0.28, 48]} />
+        <ringGeometry args={[0.3, 0.34, 48]} />
         <meshBasicMaterial
           color={color}
           transparent={true}
@@ -651,7 +689,7 @@ function InteractiveOrb({ color, initialPos, orbKey, coordsRef, setIsDraggingOrb
         />
       </mesh>
       <mesh ref={waveRef2} position={initialPos}>
-        <ringGeometry args={[0.25, 0.28, 48]} />
+        <ringGeometry args={[0.3, 0.34, 48]} />
         <meshBasicMaterial
           color={color}
           transparent={true}
@@ -661,7 +699,7 @@ function InteractiveOrb({ color, initialPos, orbKey, coordsRef, setIsDraggingOrb
         />
       </mesh>
       <mesh ref={waveRef3} position={initialPos}>
-        <ringGeometry args={[0.25, 0.28, 48]} />
+        <ringGeometry args={[0.3, 0.34, 48]} />
         <meshBasicMaterial
           color={color}
           transparent={true}
@@ -671,7 +709,8 @@ function InteractiveOrb({ color, initialPos, orbKey, coordsRef, setIsDraggingOrb
         />
       </mesh>
 
-      <mesh
+      {/* Main Interactive Celestial Star Group (Borderless Volumetric Glowing Light Cloud) */}
+      <group
         ref={meshRef}
         position={initialPos}
         onPointerDown={handlePointerDown}
@@ -679,16 +718,28 @@ function InteractiveOrb({ color, initialPos, orbKey, coordsRef, setIsDraggingOrb
         onPointerOver={(e) => { e.stopPropagation(); setHovered(true); }}
         onPointerOut={(e) => { e.stopPropagation(); setHovered(false); }}
       >
-        <sphereGeometry args={[0.25, 32, 32]} />
-        <meshStandardMaterial
-          color={color}
-          emissive={color}
-          roughness={0.1}
-          metalness={0.9}
-        />
-      </mesh>
-      {/* Dynamic point light to illuminate surrounding stars */}
-      <pointLight position={initialPos} color={color} intensity={hovered ? 4.0 : 2.5} distance={8} decay={1.5} />
+        {/* Invisible Hit-Test Proxy Sphere for 100% Precise Mouse/Raycast Drag Interaction */}
+        <mesh visible={false}>
+          <sphereGeometry args={[0.22, 16, 16]} />
+          <meshBasicMaterial />
+        </mesh>
+
+        {/* Volumetric Soft-Glow Celestial Star Sprite (Compact Toned-Down Pastel Glow) */}
+        {starTexture && (
+          <sprite scale={hovered ? [1.45, 1.45, 1.45] : [1.15, 1.15, 1.15]}>
+            <spriteMaterial
+              map={starTexture}
+              transparent={true}
+              opacity={hovered ? 0.95 : 0.82}
+              blending={THREE.AdditiveBlending}
+              depthWrite={false}
+            />
+          </sprite>
+        )}
+
+        {/* Dynamic point light to illuminate surrounding space stars */}
+        <pointLight position={[0, 0, 0]} color={color} intensity={hovered ? 2.0 : 1.2} distance={6} decay={1.5} />
+      </group>
     </group>
   );
 }
@@ -1063,6 +1114,139 @@ function CameraRig({ vrCameraPos, vrCameraRot }) {
   return null;
 }
 
+// Sleek Custom 3D Axis Indicator (Arrowless, Smooth Gradient Fade-out at Tips)
+// X Axis: Vivid Pink (#ff007f)
+// Y Axis: Milky Soft Pastel Pink (#ffa4c4)
+// Z Axis: Pure White (#ffffff)
+function SleekAxes3D({ length = 6.5, segments = 24 }) {
+  const xAxisData = useMemo(() => {
+    const pos = new Float32Array((segments + 1) * 3);
+    const col = new Float32Array((segments + 1) * 3);
+    const base = new THREE.Color('#ff007f');
+
+    for (let i = 0; i <= segments; i++) {
+      const t = i / segments;
+      const i3 = i * 3;
+      pos[i3] = length * t;
+      pos[i3 + 1] = 0;
+      pos[i3 + 2] = 0;
+
+      const fade = Math.pow(1 - t, 1.3);
+      col[i3] = base.r * fade;
+      col[i3 + 1] = base.g * fade;
+      col[i3 + 2] = base.b * fade;
+    }
+    return { pos, col };
+  }, [length, segments]);
+
+  const yAxisData = useMemo(() => {
+    const pos = new Float32Array((segments + 1) * 3);
+    const col = new Float32Array((segments + 1) * 3);
+    const base = new THREE.Color('#ffa4c4');
+
+    for (let i = 0; i <= segments; i++) {
+      const t = i / segments;
+      const i3 = i * 3;
+      pos[i3] = 0;
+      pos[i3 + 1] = length * t;
+      pos[i3 + 2] = 0;
+
+      const fade = Math.pow(1 - t, 1.3);
+      col[i3] = base.r * fade;
+      col[i3 + 1] = base.g * fade;
+      col[i3 + 2] = base.b * fade;
+    }
+    return { pos, col };
+  }, [length, segments]);
+
+  const zAxisData = useMemo(() => {
+    const pos = new Float32Array((segments + 1) * 3);
+    const col = new Float32Array((segments + 1) * 3);
+    const base = new THREE.Color('#ffffff');
+
+    for (let i = 0; i <= segments; i++) {
+      const t = i / segments;
+      const i3 = i * 3;
+      pos[i3] = 0;
+      pos[i3 + 1] = 0;
+      pos[i3 + 2] = length * t;
+
+      const fade = Math.pow(1 - t, 1.3);
+      col[i3] = base.r * fade;
+      col[i3 + 1] = base.g * fade;
+      col[i3 + 2] = base.b * fade;
+    }
+    return { pos, col };
+  }, [length, segments]);
+
+  return (
+    <group raycast={() => null}>
+      {/* Sleek Origin Center Node */}
+      <mesh position={[0, 0, 0]}>
+        <sphereGeometry args={[0.045, 16, 16]} />
+        <meshBasicMaterial color="#ffffff" transparent opacity={0.95} />
+      </mesh>
+
+      {/* X Axis - Pink (#ff007f) Smooth Fade-Out Line */}
+      <line>
+        <bufferGeometry>
+          <bufferAttribute
+            attach="attributes-position"
+            count={segments + 1}
+            array={xAxisData.pos}
+            itemSize={3}
+          />
+          <bufferAttribute
+            attach="attributes-color"
+            count={segments + 1}
+            array={xAxisData.col}
+            itemSize={3}
+          />
+        </bufferGeometry>
+        <lineBasicMaterial vertexColors={true} transparent opacity={0.9} blending={THREE.AdditiveBlending} />
+      </line>
+
+      {/* Y Axis - Milky Soft Pastel Pink (#ffa4c4) Smooth Fade-Out Line */}
+      <line>
+        <bufferGeometry>
+          <bufferAttribute
+            attach="attributes-position"
+            count={segments + 1}
+            array={yAxisData.pos}
+            itemSize={3}
+          />
+          <bufferAttribute
+            attach="attributes-color"
+            count={segments + 1}
+            array={yAxisData.col}
+            itemSize={3}
+          />
+        </bufferGeometry>
+        <lineBasicMaterial vertexColors={true} transparent opacity={0.9} blending={THREE.AdditiveBlending} />
+      </line>
+
+      {/* Z Axis - Pure White (#ffffff) Smooth Fade-Out Line */}
+      <line>
+        <bufferGeometry>
+          <bufferAttribute
+            attach="attributes-position"
+            count={segments + 1}
+            array={zAxisData.pos}
+            itemSize={3}
+          />
+          <bufferAttribute
+            attach="attributes-color"
+            count={segments + 1}
+            array={zAxisData.col}
+            itemSize={3}
+          />
+        </bufferGeometry>
+        <lineBasicMaterial vertexColors={true} transparent opacity={0.9} blending={THREE.AdditiveBlending} />
+      </line>
+    </group>
+  );
+}
+
 export function VRScene({ store, starColors, isVRTest, isInVR, isDesktopVR, activeSong, leftRate, rightRate, activePreset, isAudioActive, vrModeType, onNextSong, vrCameraPos, vrCameraRot, onStarMixVolumeChange }) {
   const isVRActive = isInVR || isDesktopVR;
   const [isDraggingOrb, setIsDraggingOrb] = useState(false);
@@ -1086,8 +1270,8 @@ export function VRScene({ store, starColors, isVRTest, isInVR, isDesktopVR, acti
             <CameraRig vrCameraPos={vrCameraPos} vrCameraRot={vrCameraRot} />
             <color attach="background" args={['#111111']} />
             
-            {/* 3D Origin Axes Helper (Red: X, Green: Y, Blue: Z) */}
-            <axesHelper args={[6]} />
+            {/* Sleek Custom 3D Origin Axes Indicator (X: Pink, Y: White, Z: Soft Pink) */}
+            <SleekAxes3D length={6} />
             {isVRActive && vrModeType === 2 && <ambientLight intensity={0.5} />}
             
             {/* Giant black sphere to block WebXR passthrough - Raycast disabled */}

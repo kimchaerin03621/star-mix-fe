@@ -55,10 +55,6 @@ export function ControllerPanel({
 
   return (
     <div className="controller-overlay">
-      <button className="home-btn" onClick={onBack}>
-        Back to Menu
-      </button>
-
       <div className="controller-shell">
         <div className="controller-hero">
           <p className="controller-eyebrow">MIDI CONTROLLER LAB</p>

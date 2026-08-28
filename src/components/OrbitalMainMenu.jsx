@@ -61,21 +61,6 @@ export function OrbitalMainMenu({ onSelectMode, onOpenEditor, onOpenController }
 
   return (
     <div className="orbital-menu-overlay">
-      {/* Top Left Logo */}
-      <div className="channel-logo">
-        WOOJOO PLAY
-      </div>
-
-      {/* Top Right Action Buttons (Star Edit & Control Room) */}
-      <div className="top-right-actions">
-        <button className="pill-btn" onClick={onOpenEditor}>
-          Star Edit
-        </button>
-        <button className="pill-btn" onClick={onOpenController}>
-          Control Room
-        </button>
-      </div>
-
       {/* Central Orbital Menu Container */}
       <div className="orbit-stage">
         {/* Tilted Ellipse Track Line */}
