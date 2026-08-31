@@ -33,9 +33,36 @@ const songStemsMap = {
 // --- 3D COSMIC CONCERT HALL STAGE & INSTRUMENT MODELS ---
 
 // 1. 3D Drum Kit Model (Placed on elevated drum riser back center)
-function DrumKitModel({ position = [0, 0.4, -6.5] }) {
+function DrumKitModel({ position = [0, 0.4, -6.5], rotation = [0, 0, 0], stemKey = 'drum', name = '🥁 Drums', performerPos = [0.0, 1.6, -5.7] }) {
+  const handlePointerOver = (e) => {
+    e.stopPropagation();
+    if (typeof document !== 'undefined') document.body.style.cursor = 'pointer';
+  };
+  const handlePointerOut = (e) => {
+    e.stopPropagation();
+    if (typeof document !== 'undefined') document.body.style.cursor = 'auto';
+  };
+  const handleDoubleClick = (e) => {
+    e.stopPropagation();
+    if (window.__becomePerformer) {
+      window.__becomePerformer({ stemKey, performerPos, name });
+    }
+  };
+
   return (
-    <group position={position} raycast={() => null}>
+    <group
+      position={position}
+      rotation={rotation}
+      onPointerOver={handlePointerOver}
+      onPointerOut={handlePointerOut}
+      onDoubleClick={handleDoubleClick}
+    >
+      {/* Invisible Hitbox Box for easy double-clicking */}
+      <mesh visible={false} position={[0, 0.8, 0]}>
+        <boxGeometry args={[2.4, 1.8, 2.2]} />
+        <meshBasicMaterial />
+      </mesh>
+
       {/* Bass Drum (Kick) */}
       <group position={[0, 0.55, 0]}>
         <mesh rotation={[Math.PI / 2, 0, 0]}>
@@ -169,9 +196,36 @@ function DrumKitModel({ position = [0, 0.4, -6.5] }) {
 }
 
 // 2. 3D Piano & Synthesizer Model
-function PianoModel({ position = [2.8, 0.2, -4.8], rotation = [0, -0.4, 0] }) {
+function PianoModel({ position = [2.8, 0.2, -4.8], rotation = [0, -0.4, 0], stemKey = 'piano', name = '🎹 Piano', performerPos = [5.2, 1.6, -4.15] }) {
+  const handlePointerOver = (e) => {
+    e.stopPropagation();
+    if (typeof document !== 'undefined') document.body.style.cursor = 'pointer';
+  };
+  const handlePointerOut = (e) => {
+    e.stopPropagation();
+    if (typeof document !== 'undefined') document.body.style.cursor = 'auto';
+  };
+  const handleDoubleClick = (e) => {
+    e.stopPropagation();
+    if (window.__becomePerformer) {
+      window.__becomePerformer({ stemKey, performerPos, name });
+    }
+  };
+
   return (
-    <group position={position} rotation={rotation} raycast={() => null}>
+    <group
+      position={position}
+      rotation={rotation}
+      onPointerOver={handlePointerOver}
+      onPointerOut={handlePointerOut}
+      onDoubleClick={handleDoubleClick}
+    >
+      {/* Invisible Hitbox Box */}
+      <mesh visible={false} position={[0, 0.8, 0]}>
+        <boxGeometry args={[2.0, 1.8, 1.5]} />
+        <meshBasicMaterial />
+      </mesh>
+
       {/* Keyboard Main Body */}
       <mesh position={[0, 0.85, 0]}>
         <boxGeometry args={[1.8, 0.18, 0.65]} />
@@ -245,9 +299,36 @@ function PianoModel({ position = [2.8, 0.2, -4.8], rotation = [0, -0.4, 0] }) {
 }
 
 // 3. 3D Vocal Mic & Stand Model
-function VocalMicModel({ position = [0, 0.2, -3.2] }) {
+function VocalMicModel({ position = [0, 0.2, -3.2], rotation = [0, 0, 0], stemKey = 'vocal', name = '🎤 Vocal', performerPos = [0.0, 1.6, -2.7] }) {
+  const handlePointerOver = (e) => {
+    e.stopPropagation();
+    if (typeof document !== 'undefined') document.body.style.cursor = 'pointer';
+  };
+  const handlePointerOut = (e) => {
+    e.stopPropagation();
+    if (typeof document !== 'undefined') document.body.style.cursor = 'auto';
+  };
+  const handleDoubleClick = (e) => {
+    e.stopPropagation();
+    if (window.__becomePerformer) {
+      window.__becomePerformer({ stemKey, performerPos, name });
+    }
+  };
+
   return (
-    <group position={position} raycast={() => null}>
+    <group
+      position={position}
+      rotation={rotation}
+      onPointerOver={handlePointerOver}
+      onPointerOut={handlePointerOut}
+      onDoubleClick={handleDoubleClick}
+    >
+      {/* Invisible Hitbox Cylinder */}
+      <mesh visible={false} position={[0, 0.8, 0]}>
+        <cylinderGeometry args={[0.5, 0.5, 1.6, 16]} />
+        <meshBasicMaterial />
+      </mesh>
+
       {/* Heavy Base Plate */}
       <mesh position={[0, 0.02, 0]}>
         <cylinderGeometry args={[0.22, 0.25, 0.04, 32]} />
@@ -292,9 +373,36 @@ function VocalMicModel({ position = [0, 0.2, -3.2] }) {
 }
 
 // 4. 3D Bass & Electric Guitar + Amplifier Stack Model
-function GuitarAmpModel({ position, rotation = [0, 0, 0], accentColor = "#d4a843", isBass = false }) {
+function GuitarAmpModel({ position, rotation = [0, 0, 0], accentColor = "#d4a843", isBass = false, stemKey, name, performerPos }) {
+  const handlePointerOver = (e) => {
+    e.stopPropagation();
+    if (typeof document !== 'undefined') document.body.style.cursor = 'pointer';
+  };
+  const handlePointerOut = (e) => {
+    e.stopPropagation();
+    if (typeof document !== 'undefined') document.body.style.cursor = 'auto';
+  };
+  const handleDoubleClick = (e) => {
+    e.stopPropagation();
+    if (window.__becomePerformer) {
+      window.__becomePerformer({ stemKey, performerPos, name });
+    }
+  };
+
   return (
-    <group position={position} rotation={rotation} raycast={() => null}>
+    <group
+      position={position}
+      rotation={rotation}
+      onPointerOver={handlePointerOver}
+      onPointerOut={handlePointerOut}
+      onDoubleClick={handleDoubleClick}
+    >
+      {/* Invisible Hitbox Box */}
+      <mesh visible={false} position={[0, 0.8, 0]}>
+        <boxGeometry args={[1.8, 1.8, 1.2]} />
+        <meshBasicMaterial />
+      </mesh>
+
       {/* Bass / Guitar Amplifier Cabinet */}
       <group position={[0.6, 0.5, -0.2]}>
         <mesh>
@@ -370,15 +478,19 @@ function GuitarAmpModel({ position, rotation = [0, 0, 0], accentColor = "#d4a843
 }
 
 // 5. All Stage 3D Instruments Container
-function CosmicInstruments() {
+function CosmicInstruments({ activeSong }) {
+  const vocalKey = activeSong === 2 ? 'lead_vocal' : (activeSong === 3 ? 'melody' : 'vocal');
+  const drumKey = activeSong === 2 ? 'drums' : 'drum';
+  const pianoKey = activeSong === 3 ? 'melody' : 'piano';
+
   return (
     <group>
-      <DrumKitModel position={[0, 0.4, -6.5]} />
-      <PianoModel position={[5.2, 0.2, -4.8]} rotation={[0, -0.4, 0]} />
-      <VocalMicModel position={[0, 0.2, -3.2]} />
-      <GuitarAmpModel position={[-5.2, 0.2, -4.8]} rotation={[0, 0.45, 0]} accentColor="#d4a843" isBass={true} />
-      <GuitarAmpModel position={[-9.2, 0.2, -5.8]} rotation={[0, 0.65, 0]} accentColor="#8d6fb3" />
-      <GuitarAmpModel position={[9.2, 0.2, -5.8]} rotation={[0, -0.65, 0]} accentColor="#58ab75" />
+      <DrumKitModel position={[0, 0.4, -6.5]} rotation={[0, Math.PI, 0]} stemKey={drumKey} name="🥁 Drums" performerPos={[0.0, 1.6, -7.3]} />
+      <PianoModel position={[5.2, 0.2, -4.8]} rotation={[0, Math.PI - 0.4, 0]} stemKey={pianoKey} name="🎹 Piano" performerPos={[5.0, 1.6, -5.5]} />
+      <VocalMicModel position={[0, 0.2, -3.2]} rotation={[0, Math.PI, 0]} stemKey={vocalKey} name="🎤 Vocal" performerPos={[0.0, 1.65, -3.8]} />
+      <GuitarAmpModel position={[-5.2, 0.2, -4.8]} rotation={[0, Math.PI + 0.45, 0]} accentColor="#d4a843" isBass={true} stemKey="bass" name="🎸 Bass" performerPos={[-5.0, 1.65, -5.4]} />
+      <GuitarAmpModel position={[-9.2, 0.2, -5.8]} rotation={[0, Math.PI + 0.65, 0]} accentColor="#8d6fb3" stemKey="guitar1" name="🎸 Guitar 1" performerPos={[-9.0, 1.65, -6.4]} />
+      <GuitarAmpModel position={[9.2, 0.2, -5.8]} rotation={[0, Math.PI - 0.65, 0]} accentColor="#58ab75" stemKey="guitar2" name="🎸 Guitar 2" performerPos={[9.0, 1.65, -6.4]} />
     </group>
   );
 }
@@ -968,7 +1080,11 @@ function getMenuStarTexture(colorHex) {
 }
 
 // 3D Interactive Audio Orb (Main Menu Volumetric Celestial Star Style)
-function InteractiveOrb({ color, initialPos, orbKey, coordsRef, setIsDraggingOrb, analysersRef, draggingOrbsRef }) {
+function InteractiveOrb({ color, initialPos, orbKey, coordsRef, setIsDraggingOrb, analysersRef, draggingOrbsRef, isPerformerActive }) {
+  if (isPerformerActive) {
+    return <group visible={false} raycast={() => null} />;
+  }
+
   const meshRef = useRef();
   const auraRef = useRef();
   const waveRef1 = useRef();
@@ -1321,12 +1437,40 @@ function InteractiveOrb({ color, initialPos, orbKey, coordsRef, setIsDraggingOrb
         position={initialPos}
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
+        onClick={(e) => { e.stopPropagation(); }}
         onPointerOver={(e) => { e.stopPropagation(); setHovered(true); }}
         onPointerOut={(e) => { e.stopPropagation(); setHovered(false); }}
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          const performerPosMap = {
+            drum: [0.0, 1.6, -7.3],
+            drums: [0.0, 1.6, -7.3],
+            vocal: [0.0, 1.65, -3.8],
+            lead_vocal: [0.0, 1.65, -3.8],
+            piano: [5.0, 1.6, -5.5],
+            melody: [5.0, 1.6, -5.5],
+            bass: [-5.0, 1.65, -5.4],
+            guitar1: [-9.0, 1.65, -6.4],
+            guitar2: [9.0, 1.65, -6.4]
+          };
+          const nameMap = {
+            drum: '🥁 Drums', drums: '🥁 Drums',
+            vocal: '🎤 Vocal', lead_vocal: '🎤 Vocal',
+            piano: '🎹 Piano', melody: '🎹 Piano',
+            bass: '🎸 Bass',
+            guitar1: '🎸 Guitar 1',
+            guitar2: '🎸 Guitar 2'
+          };
+          const performerPos = performerPosMap[orbKey] || [0, 1.6, -3.0];
+          const name = nameMap[orbKey] || orbKey;
+          if (window.__becomePerformer) {
+            window.__becomePerformer({ stemKey: orbKey, performerPos, name });
+          }
+        }}
       >
         {/* Invisible Hit-Test Proxy Sphere for 100% Precise Mouse/Raycast Drag Interaction */}
         <mesh visible={false}>
-          <sphereGeometry args={[0.22, 16, 16]} />
+          <sphereGeometry args={[0.65, 24, 24]} />
           <meshBasicMaterial />
         </mesh>
 
@@ -1359,6 +1503,18 @@ function VRAudioExperience({ starColors, activeSong, leftRate, rightRate, active
   const analysersRef = useRef({});
   const eqFiltersRef = useRef({ low: null, mid: null, high: null });
   const masterFilterRef = useRef(null);
+
+  const activePerformerStemRef = useRef(null);
+  const [activePerformerStem, setActivePerformerStem] = useState(null);
+  useEffect(() => {
+    window.__setActivePerformerStem = (stemKey) => {
+      activePerformerStemRef.current = stemKey;
+      setActivePerformerStem(stemKey);
+    };
+    return () => {
+      delete window.__setActivePerformerStem;
+    };
+  }, []);
 
   // Keyboard 'N' shortcut for fast desktop testing & fallback
   useEffect(() => {
@@ -1653,6 +1809,11 @@ function VRAudioExperience({ starColors, activeSong, leftRate, rightRate, active
     stems.forEach(stem => {
       if (!stem.url) return;
 
+      // If user is currently performing as this instrument, attach sound position to camera!
+      if (activePerformerStemRef.current === stem.key && orbCoordsRef.current[stem.key]) {
+        orbCoordsRef.current[stem.key].copy(camera.position);
+      }
+
       const panner = pannersRef.current[stem.key];
       const pos = orbCoordsRef.current[stem.key];
       const audio = audioElementsRef.current[stem.key];
@@ -1681,7 +1842,7 @@ function VRAudioExperience({ starColors, activeSong, leftRate, rightRate, active
       <CosmicStage />
 
       {/* 3D Procedural Musical Instrument Models placed on Stage */}
-      <CosmicInstruments />
+      <CosmicInstruments activeSong={activeSong} />
 
       {/* 3D Auditorium / Concert Hall Seating Rows */}
       <ConcertHallSeating />
@@ -1697,6 +1858,7 @@ function VRAudioExperience({ starColors, activeSong, leftRate, rightRate, active
           setIsDraggingOrb={setIsDraggingOrb}
           analysersRef={analysersRef}
           draggingOrbsRef={draggingOrbsRef}
+          isPerformerActive={activePerformerStem === stem.key}
         />
       ))}
     </>
@@ -1866,7 +2028,7 @@ function SleekAxes3D({ length = 6.5, segments = 24 }) {
 const STANDING_EYE_HEIGHT = 1.65; // 170cm height person standing eye height
 const SEATED_EYE_HEIGHT = 1.15;   // 170cm height person sitting eye height
 
-function FirstPersonNavigationManager({ isDesktopVR, isDraggingOrb, onSitStateChange }) {
+function FirstPersonNavigationManager({ isDesktopVR, isDraggingOrb, onSitStateChange, onPerformerStateChange }) {
   const { camera, gl } = useThree();
   const keysRef = useRef({ w: false, a: false, s: false, d: false });
   const playerPosRef = useRef(new THREE.Vector3(0, STANDING_EYE_HEIGHT, 4.0));
@@ -1882,6 +2044,8 @@ function FirstPersonNavigationManager({ isDesktopVR, isDraggingOrb, onSitStateCh
   useEffect(() => {
     window.__sitInChair = (chairPos) => {
       isSeatedRef.current = true;
+      if (onPerformerStateChange) onPerformerStateChange(null);
+      if (window.__setActivePerformerStem) window.__setActivePerformerStem(null);
       seatedTargetPosRef.current.set(chairPos.x, chairPos.y + SEATED_EYE_HEIGHT, chairPos.z);
       // Face towards main stage center
       const dir = new THREE.Vector3(0, 1.4, -4.5).sub(seatedTargetPosRef.current).normalize();
@@ -1898,11 +2062,29 @@ function FirstPersonNavigationManager({ isDesktopVR, isDraggingOrb, onSitStateCh
       }
     };
 
+    window.__becomePerformer = ({ stemKey, performerPos, name }) => {
+      isSeatedRef.current = false;
+      playerPosRef.current.set(performerPos[0], performerPos[1], performerPos[2]);
+      // Face opposite direction (180 deg rotation towards audience / auditorium)
+      yawRef.current = Math.PI;
+      pitchRef.current = 0;
+      if (onSitStateChange) onSitStateChange(false);
+      if (onPerformerStateChange) onPerformerStateChange({ stemKey, name });
+      if (window.__setActivePerformerStem) window.__setActivePerformerStem(stemKey);
+    };
+
+    window.__exitPerformer = () => {
+      if (onPerformerStateChange) onPerformerStateChange(null);
+      if (window.__setActivePerformerStem) window.__setActivePerformerStem(null);
+    };
+
     return () => {
       delete window.__sitInChair;
       delete window.__standUp;
+      delete window.__becomePerformer;
+      delete window.__exitPerformer;
     };
-  }, [onSitStateChange]);
+  }, [onSitStateChange, onPerformerStateChange]);
 
   useEffect(() => {
     if (!isDesktopVR) return;
@@ -1956,8 +2138,8 @@ function FirstPersonNavigationManager({ isDesktopVR, isDraggingOrb, onSitStateCh
         lastMousePosRef.current = { x: e.clientX, y: e.clientY };
 
         const sensitivity = 0.0035;
-        yawRef.current -= dx * sensitivity;
-        pitchRef.current -= dy * sensitivity;
+        yawRef.current += dx * sensitivity;
+        pitchRef.current += dy * sensitivity;
 
         const maxPitch = Math.PI / 2.2;
         pitchRef.current = Math.max(-maxPitch, Math.min(maxPitch, pitchRef.current));
@@ -2042,6 +2224,7 @@ export function VRScene({ store, starColors, isVRTest, isInVR, isDesktopVR, acti
   const isVRActive = isInVR || isDesktopVR;
   const [isDraggingOrb, setIsDraggingOrb] = useState(false);
   const [isSeated, setIsSeated] = useState(false);
+  const [activePerformer, setActivePerformer] = useState(null);
 
   return (
     <div style={{ 
@@ -2064,10 +2247,10 @@ export function VRScene({ store, starColors, isVRTest, isInVR, isDesktopVR, acti
           left: '50%',
           transform: 'translateX(-50%)',
           zIndex: 100,
-          pointerEvents: 'none',
-          background: isSeated ? 'rgba(255, 0, 127, 0.25)' : 'rgba(5, 5, 20, 0.75)',
-          border: `1px solid ${isSeated ? '#ff007f' : '#00ffcc'}`,
-          boxShadow: `0 0 20px ${isSeated ? 'rgba(255, 0, 127, 0.4)' : 'rgba(0, 255, 204, 0.3)'}`,
+          pointerEvents: 'auto',
+          background: activePerformer ? 'rgba(0, 255, 204, 0.25)' : (isSeated ? 'rgba(255, 0, 127, 0.25)' : 'rgba(5, 5, 20, 0.75)'),
+          border: `1px solid ${activePerformer ? '#00ffcc' : (isSeated ? '#ff007f' : '#00ffcc')}`,
+          boxShadow: `0 0 20px ${activePerformer ? 'rgba(0, 255, 204, 0.4)' : (isSeated ? 'rgba(255, 0, 127, 0.4)' : 'rgba(0, 255, 204, 0.3)')}`,
           backdropFilter: 'blur(8px)',
           borderRadius: '24px',
           padding: '10px 24px',
@@ -2079,7 +2262,28 @@ export function VRScene({ store, starColors, isVRTest, isInVR, isDesktopVR, acti
           alignItems: 'center',
           gap: '12px'
         }}>
-          {isSeated ? (
+          {activePerformer ? (
+            <>
+              <span style={{ color: '#00ffcc', fontSize: '15px' }}>🎵</span>
+              <span>[{activePerformer.name} 연주자 모드] 3D 사운드가 나를 따라 이동합니다!</span>
+              <button
+                onClick={() => {
+                  if (window.__exitPerformer) window.__exitPerformer();
+                }}
+                style={{
+                  background: 'rgba(255, 0, 127, 0.3)',
+                  border: '1px solid #ff007f',
+                  color: '#fff',
+                  borderRadius: '12px',
+                  padding: '3px 10px',
+                  fontSize: '11px',
+                  cursor: 'pointer'
+                }}
+              >
+                ✕ 연주 종료
+              </button>
+            </>
+          ) : isSeated ? (
             <>
               <span style={{ color: '#ff007f', fontSize: '15px' }}>🪑</span>
               <span>의자에 착석했습니다 </span>
@@ -2089,10 +2293,10 @@ export function VRScene({ store, starColors, isVRTest, isInVR, isDesktopVR, acti
           ) : (
             <>
               <span style={{ color: '#00ffcc', fontSize: '15px' }}>🚶</span>
-              <span>공연장 1인칭 보행 (키 170cm 시선)</span>
-              <span style={{ color: '#ff007f', background: 'rgba(255, 0, 127, 0.15)', padding: '2px 8px', borderRadius: '6px' }}>[WASD] 자유 이동</span>
-              <span style={{ color: '#00ffcc' }}>[마우스 드래그] 시점 변경</span>
-              <span style={{ color: '#aaa' }}>| 의자 클릭: 착석</span>
+              <span>공연장 1인칭 관람</span>
+              <span style={{ color: '#ff007f', background: 'rgba(255, 0, 127, 0.15)', padding: '2px 8px', borderRadius: '6px' }}>[WASD] 이동</span>
+              <span style={{ color: '#00ffcc' }}>[마우스 드래그] 시점</span>
+              <span style={{ color: '#ff007f', fontWeight: 'bold' }}>⚡ [악기 더블클릭] 해당 연주자 되기</span>
             </>
           )}
         </div>
@@ -2124,6 +2328,7 @@ export function VRScene({ store, starColors, isVRTest, isInVR, isDesktopVR, acti
                 isDesktopVR={isDesktopVR}
                 isDraggingOrb={isDraggingOrb}
                 onSitStateChange={setIsSeated}
+                onPerformerStateChange={setActivePerformer}
               />
             )}
 

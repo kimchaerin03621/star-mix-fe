@@ -324,7 +324,7 @@ export function SpatialExperiment({ onBack }) {
       )}
 
       <div className="ui-overlay">
-        <div className="ui-title experiment-title">WOOJOO PLAY EXPERIMENT</div>
+        <div className="ui-title experiment-title">WOOJOO BAND EXPERIMENT</div>
         <div className="ui-status">
           <span style={{ color: '#00ffcc', fontWeight: 'bold', marginRight: '8px' }}>[공간음향 실험실]</span>
           {isMusicLoading && <span style={{ color: '#00ffcc', fontWeight: 'bold' }}>새로운 파동 로딩 중...</span>}

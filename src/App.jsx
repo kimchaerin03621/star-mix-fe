@@ -1407,7 +1407,7 @@ function App() {
               onClick={handleBackToMenu}
               title="Go to Main Menu"
             >
-              WOOJOO PLAY
+              WOOJOO BAND
             </div>
           </div>
 
@@ -1556,7 +1556,7 @@ function App() {
               setViewMode('menu');
             }}
           >
-            {introHovered ? "YES." : "WOOJOO PLAY?"}
+            {introHovered ? "YES." : "WOOJOO BAND?"}
           </button>
         </div>
       )}

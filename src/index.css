@@ -2065,8 +2065,8 @@ body {
 
 .orbit-svg {
   position: absolute;
-  width: 90%;
-  max-width: 1000px;
+  width: 95%;
+  max-width: 1400px;
   height: auto;
   pointer-events: none;
   overflow: visible;
@@ -2085,8 +2085,6 @@ body {
 
 .orbit-orb-container {
   position: relative;
-  width: 80px;
-  height: 80px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2096,8 +2094,8 @@ body {
 /* Amorphous Volumetric Light Cloud Background */
 .orbit-cloud-layer {
   position: absolute;
-  width: 110px;
-  height: 110px;
+  width: 135%;
+  height: 135%;
   border-radius: 50%;
   pointer-events: none;
   filter: blur(14px);
@@ -2109,8 +2107,8 @@ body {
 /* Core Volumetric Soft-Glow Sphere (Gaussian Blurred Edge-free Boundary) */
 .orbit-orb {
   position: relative;
-  width: 80px;
-  height: 80px;
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
   border: none;
   outline: none;
@@ -2120,7 +2118,7 @@ body {
 }
 
 .orbit-node-wrapper:hover .orbit-orb {
-  transform: scale(1.18);
+  transform: scale(1.05);
 }
 
 @keyframes celestialPulse {
