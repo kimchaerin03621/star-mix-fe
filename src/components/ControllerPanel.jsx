@@ -12,8 +12,6 @@ export function ControllerPanel({
   onRequestAccess,
   onSelectInput,
   lastMidiMessage,
-  activeSong,
-  activePreset,
   leftRate,
   rightRate,
   leftVolume = 1.0,
@@ -21,7 +19,6 @@ export function ControllerPanel({
   drumPads = [],
   activePads = {},
   onTriggerPad,
-  onBack,
   onOpenDj,
   mappingGroup = 'group1',
   onSelectMappingGroup = () => {},
@@ -200,15 +197,15 @@ export function ControllerPanel({
               {lastMidiMessage ? (
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                    <span className="controller-badge active" style={{ background: '#ff007f', color: '#ffffff', fontSize: '0.82rem', padding: '3px 10px', borderRadius: '6px', fontWeight: '800' }}>
+                    <span className="controller-badge active" style={{ background: 'var(--color-primary)', color: 'var(--text-primary)', fontSize: 'var(--font-xs)', padding: '3px 10px', borderRadius: 'var(--radius-sm)', fontWeight: '800' }}>
                       {lastMidiMessage.controlTag || 'SIGNAL'}
                     </span>
-                    <strong style={{ color: '#00ffcc', fontSize: '0.92rem' }}>
+                    <strong style={{ color: 'var(--color-secondary)', fontSize: 'var(--font-sm)' }}>
                       {lastMidiMessage.type} | ch {lastMidiMessage.channel} | note/cc: {lastMidiMessage.data1}, val: {lastMidiMessage.data2}
                     </strong>
                   </div>
-                  <p style={{ color: '#ffffff', fontSize: '0.88rem', margin: 0, fontWeight: '700' }}>
-                    ⚡ 실행 기능: <span style={{ color: '#ff007f' }}>{lastMidiMessage.actionDesc}</span>
+                  <p style={{ color: 'var(--text-primary)', fontSize: 'var(--font-sm)', margin: 0, fontWeight: '700' }}>
+                    ⚡ 실행 기능: <span style={{ color: 'var(--color-primary)' }}>{lastMidiMessage.actionDesc}</span>
                   </p>
                 </div>
               ) : (

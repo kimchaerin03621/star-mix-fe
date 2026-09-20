@@ -30,7 +30,6 @@ export function useHandTracking(videoRef, enabled = true) {
             runningMode: "VIDEO",
             numHands: 2
           });
-          console.log("MediaPipe HandLandmarker initialized with GPU delegate.");
         } catch (gpuError) {
           console.warn("MediaPipe GPU delegate failed. Falling back to CPU delegate:", gpuError);
           handLandmarker = await HandLandmarker.createFromOptions(vision, {
@@ -41,7 +40,6 @@ export function useHandTracking(videoRef, enabled = true) {
             runningMode: "VIDEO",
             numHands: 2
           });
-          console.log("MediaPipe HandLandmarker initialized with CPU delegate fallback.");
         }
         landmarkerRef.current = handLandmarker;
         setIsReady(true);

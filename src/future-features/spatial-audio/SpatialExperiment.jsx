@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useHandTracking } from '../hooks/useHandTracking';
+import { useHandTracking } from '../../hooks/useHandTracking';
 import { SpatialExperience } from './SpatialExperience';
 
 function StarEditor({ onApply, onCancel, previousTexture, previousColors }) {
@@ -227,7 +227,7 @@ function StarEditor({ onApply, onCancel, previousTexture, previousColors }) {
 
 export function SpatialExperiment({ onBack }) {
   const videoRef = useRef(null);
-  const [sourceCanvas, setSourceCanvas] = useState(null);
+  const [, setSourceCanvas] = useState(null);
   const [cameraActive, setCameraActive] = useState(false);
   const [isAudioInitialized, setIsAudioInitialized] = useState(false);
   const [isMusicLoading, setIsMusicLoading] = useState(false);
@@ -324,10 +324,10 @@ export function SpatialExperiment({ onBack }) {
       )}
 
       <div className="ui-overlay">
-        <div className="ui-title experiment-title">WOOJOO PLAY EXPERIMENT</div>
+        <div className="ui-title experiment-title">channel EXPERIMENT</div>
         <div className="ui-status">
-          <span style={{ color: '#00ffcc', fontWeight: 'bold', marginRight: '8px' }}>[공간음향 실험실]</span>
-          {isMusicLoading && <span style={{ color: '#00ffcc', fontWeight: 'bold' }}>새로운 파동 로딩 중...</span>}
+          <span style={{ color: 'var(--color-secondary)', fontWeight: 'bold', marginRight: '8px' }}>[공간음향 실험실]</span>
+          {isMusicLoading && <span style={{ color: 'var(--color-secondary)', fontWeight: 'bold' }}>새로운 파동 로딩 중...</span>}
           {!isMusicLoading && (cameraActive ? (handData.length > 0 ? `손 인식 중 (${handData.length}개)` : "손을 기다리는 중...") : "카메라를 켜주세요.")}
         </div>
 
@@ -340,8 +340,8 @@ export function SpatialExperiment({ onBack }) {
 
         {/* Control Mode Switch Buttons */}
         <div className="control-mode-container" style={{ display: 'flex', gap: '10px', marginTop: '12px', justifyContent: 'center', pointerEvents: 'auto' }}>
-          <button 
-            className={`preset-button ${controlMode === 'hand' ? 'active' : ''}`} 
+          <button
+            className={`preset-button ${controlMode === 'hand' ? 'active' : ''}`}
             onClick={() => setControlMode('hand')}
             style={{
               borderColor: controlMode === 'hand' ? '#00ffcc' : 'rgba(0, 255, 204, 0.2)',
@@ -355,8 +355,8 @@ export function SpatialExperiment({ onBack }) {
           >
             👋 핸드트래킹 (Hand)
           </button>
-          <button 
-            className={`preset-button ${controlMode === 'keyboard' ? 'active' : ''}`} 
+          <button
+            className={`preset-button ${controlMode === 'keyboard' ? 'active' : ''}`}
             onClick={() => setControlMode('keyboard')}
             style={{
               borderColor: controlMode === 'keyboard' ? '#ff007f' : 'rgba(255, 0, 127, 0.2)',

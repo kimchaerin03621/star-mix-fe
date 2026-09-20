@@ -18,8 +18,8 @@
 - **HRTF 360도 입체 음향**: 3D 공간을 단순화한 2D 캔버스에서 음원 오브를 손(Tether) 또는 키보드(WASD / 방향키)로 조작하며 Web Audio HRTF Panner를 제어합니다.
 - **Z-Sorting & 파동 이펙트**: 중앙의 리스너(Listener) 기준 깊이감 있는 Z-인덱스 렌더링 및 음원 진폭(Amplitude) 연동 시각 파동을 출력합니다.
 
-### 3. 🕶️ WebXR 3D VR 모드 (`VRScene`)
-- **WebXR / Three.js 3D 공간**: React Three Fiber 및 `@react-three/xr` 기반 3,000개의 3D 별 무리와 멀티 스템(Stems) 오디오 3D 오브 렌더링.
+### 3. 🕶️ 3D Sound Space 모드 (`VRScene`)
+- **WebXR / Three.js 3D 공간**: React Three Fiber 및 `@react-three/xr` 기반 3,000개의 3D 별 무리와 3D 오디오 오브를 3D 공간에서 조립하며 믹싱.
 - **90fps 헤드셋 리스너 동기화**: VR 헤드셋의 Position과 Quaternion을 Web Audio Listener와 실시간 동기화하여 고개 회전에 따른 완벽한 3D 입체 음향 연출.
 - **안전 구역 클램핑 (0.5m ~ 10m)**: 음원 오브가 경계를 벗어나거나 왜곡되는 것을 방지하는 구형 바운더리 인터랙션.
 

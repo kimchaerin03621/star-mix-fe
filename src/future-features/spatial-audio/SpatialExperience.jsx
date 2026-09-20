@@ -276,7 +276,7 @@ export function SpatialExperience({
           if (ctx.state === 'suspended') await ctx.resume();
           await Promise.all([left.audio.play(), right.audio.play()]);
           if (onMusicReady) onMusicReady();
-        } catch (err) {
+        } catch {
           if (onMusicReady) onMusicReady();
         }
       };

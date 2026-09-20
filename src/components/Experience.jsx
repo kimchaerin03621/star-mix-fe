@@ -65,12 +65,10 @@ export function Starfield2D({
   // Audio Refs
   const audioCtxRef = useRef(null);
   const audioElementsRef = useRef({ left: null, right: null });
-  const pannersRef = useRef({ left: null, right: null });
   const gainsRef = useRef({ left: null, right: null });
   const matrixGainsRef = useRef({ vocalToLeft: null, vocalToRight: null, drumToRight: null, drumToLeft: null });
   const eqFiltersRef = useRef({ low: null, mid: null, high: null });
   const masterFilterRef = useRef(null);
-  const isConnectedRef = useRef(false);
   const analyserRef = useRef(null);
 
   // Helper: Hex to RGB
@@ -373,7 +371,6 @@ export function Starfield2D({
       }
 
       const stars = starsRef.current;
-      let totalDisplacement = 0;
       let activePushes = 0;
 
       stars.forEach(star => {
@@ -421,8 +418,6 @@ export function Starfield2D({
         const damping = isWarpingRef.current ? 0.95 : (isPushed ? 0.90 : 0.75);
         star.vx *= damping;
         star.vy *= damping;
-        totalDisplacement += Math.sqrt(Math.pow(star.x - star.ox, 2) + Math.pow(star.y - star.oy, 2));
-
         const sx = star.x * width;
         const sy = star.y * height;
         const twinkle = Math.sin(Date.now() * star.twinkleSpeed + star.phase * 10);
@@ -502,8 +497,6 @@ export function Starfield2D({
           onMixingProgressRef.current(integerEnergy);
         }
       }
-
-      const avgDisplacement = totalDisplacement / stars.length;
 
       if (audioCtxRef.current && masterFilterRef.current && eqFiltersRef.current.low && audioElementsRef.current.left && audioElementsRef.current.right) {
         const curTime = audioCtxRef.current.currentTime;

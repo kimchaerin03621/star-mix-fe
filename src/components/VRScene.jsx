@@ -1,53 +1,18 @@
 import React, { useRef, useMemo, useEffect, Suspense, useState } from 'react';
 import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber';
-import { XR, IfInSessionMode, useXR } from '@react-three/xr';
+import { XR, IfInSessionMode } from '@react-three/xr';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
+import { SONG_STEMS } from '../audio/songStems';
 
-// 곡별 멀티트랙 스템 메타데이터 정의
-// 보컬(핑크, #ff007f)과 드럼(화이트, #ffffff)만 실제 오디오 파일을 매핑하고,
-// 나머지 기타/신스/베이스 등의 테스트 오브들은 회색(#888888) 컬러와 url: null로 셋팅하여
-// 음원 로딩 없이 독립적으로 물리적 드래그 조작만 가능하도록 다이내믹 셋팅을 하였습니다.
-const songStemsMap = {
-  1: [
-    { key: 'vocal', name: '🎤 Vocal', color: '#e07a9e', url: '/Bohemian Rhapsody/Bohemian Rhapsody_vocal.mp3', initialPos: [-2.2, 1.6, -2.5] },
-    { key: 'drum', name: '🥁 Drums', color: '#e6e6e6', url: '/Bohemian Rhapsody/Bohemian Rhapsody_drum.mp3', initialPos: [2.2, 1.6, -2.5] },
-    { key: 'bass', name: '🎸 Bass', color: '#d4a843', url: '/Bohemian Rhapsody/Bohemian Rhapsody_bass.mp3', initialPos: [-1.5, 1.8, -3.8] },
-    { key: 'piano', name: '🎹 Piano', color: '#58b5b5', url: '/Bohemian Rhapsody/Bohemian Rhapsody_piano.mp3', initialPos: [1.5, 1.4, -3.8] },
-    { key: 'guitar1', name: '🎸 Guitar 1', color: '#8d6fb3', url: '/Bohemian Rhapsody/Bohemian Rhapsody_electric guitar1.mp3', initialPos: [-2.5, 1.3, -4.5] },
-    { key: 'guitar2', name: '🎸 Guitar 2', color: '#58ab75', url: '/Bohemian Rhapsody/Bohemian Rhapsody_electric guitar2.mp3', initialPos: [2.5, 1.3, -4.5] }
-  ],
-  2: [
-    { key: 'lead_vocal', name: '🎤 Vocal', color: '#e07a9e', url: '/Hype Boy/Hype Boy_vocal.mp3', initialPos: [-2.5, 1.6, -2.0] },
-    { key: 'drums', name: '🥁 Drums', color: '#e6e6e6', url: '/Hype Boy/Hype Boy_drum.mp3', initialPos: [2.5, 1.6, -2.0] },
-    { key: 'bass', name: '🎸 Bass', color: '#599ec7', url: '/Hype Boy/Hype Boy_bass.mp3', initialPos: [-1.8, 1.4, -3.8] },
-    { key: 'piano', name: '🎹 Piano', color: '#c99344', url: '/Hype Boy/Hype Boy_piano.mp3', initialPos: [1.8, 1.8, -3.8] }
-  ],
-  3: [
-    { key: 'melody', name: '🎹 Piano', color: '#e07a9e', url: '/Kerning City/Kerning City_piano.mp3', initialPos: [-2.0, 1.6, -2.5] },
-    { key: 'drum', name: '🥁 Drums', color: '#e6e6e6', url: '/Kerning City/Kerning City_drum.mp3', initialPos: [2.0, 1.6, -2.5] },
-    { key: 'bass', name: '🎸 Bass', color: '#9662c4', url: '/Kerning City/Kerning City_bass.mp3', initialPos: [-1.2, 1.5, -3.2] }
-  ]
-};
 
-function LoggerComponent() {
-  const mode = useXR((state) => state.mode);
-  const session = useXR((state) => state.session);
-  
-  useEffect(() => {
-    console.log("XR Mode:", mode, "Session active:", !!session);
-  }, [mode, session]);
-  
-  return null;
-}
-
-function Stars3D({ starColors, onStarMixVolumeChange, isVRActive }) {
+function Stars3D({ soundMode }) {
   const count = 3000;
   const meshRef = useRef();
   
   const texture = useLoader(THREE.TextureLoader, '/star.png');
   
-  const [positions, velocities, originals, sides] = useMemo(() => {
+  const [positions, velocities, originals] = useMemo(() => {
     const pos = new Float32Array(count * 3);
     const vel = new Float32Array(count * 3);
     const orig = new Float32Array(count * 3);
@@ -78,22 +43,39 @@ function Stars3D({ starColors, onStarMixVolumeChange, isVRActive }) {
 
   const colors = useMemo(() => {
     const col = new Float32Array(count * 3);
-    const leftColor = new THREE.Color(starColors?.left || '#ff007f');
-    const rightColor = new THREE.Color(starColors?.right || '#ffffff');
+    const whiteColor = new THREE.Color('#ffffff');
+
+    // 6 desaturated Silver, Pink, Purple shades for Stereo mode space stars
+    const stereoPalette = [
+      new THREE.Color('#f8fafc'), // Silver 1 (Platinum)
+      new THREE.Color('#94a3b8'), // Silver 2 (Slate Steel)
+      new THREE.Color('#f4d7e4'), // Pink 1 (Powder Rose)
+      new THREE.Color('#c95c8e'), // Pink 2 (Antique Rose)
+      new THREE.Color('#dcd0f0'), // Purple 1 (Pale Lavender)
+      new THREE.Color('#7c5c99')  // Purple 2 (Velvet Violet)
+    ];
     
     for (let i = 0; i < count; i++) {
       const i3 = i * 3;
-      const color = sides[i] === 0 ? leftColor : rightColor;
-      col[i3] = color.r;
-      col[i3 + 1] = color.g;
-      col[i3 + 2] = color.b;
+      if (soundMode === 'stereo') {
+        const pickedColor = stereoPalette[i % stereoPalette.length];
+        col[i3] = pickedColor.r;
+        col[i3 + 1] = pickedColor.g;
+        col[i3 + 2] = pickedColor.b;
+      } else {
+        col[i3] = whiteColor.r;
+        col[i3 + 1] = whiteColor.g;
+        col[i3 + 2] = whiteColor.b;
+      }
     }
     return col;
-  }, [starColors, sides]);
+  }, [soundMode]);
 
   useEffect(() => {
-    if (meshRef.current) {
-      meshRef.current.geometry.attributes.color.needsUpdate = true;
+    if (meshRef.current && meshRef.current.geometry && meshRef.current.geometry.attributes.color) {
+      const attr = meshRef.current.geometry.attributes.color;
+      attr.array = colors;
+      attr.needsUpdate = true;
     }
   }, [colors]);
   
@@ -324,6 +306,184 @@ function ControllerHelpers() {
   );
 }
 
+const sparkleTextureCache = {};
+
+function getSparkleStarTexture(colorHex) {
+  if (typeof document === 'undefined') return null;
+  if (sparkleTextureCache[colorHex]) return sparkleTextureCache[colorHex];
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+
+  const cx = 64;
+  const cy = 64;
+
+  ctx.clearRect(0, 0, 128, 128);
+
+  // Soft Outer Glow
+  const glowGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 50);
+  glowGrad.addColorStop(0.0, colorHex);
+  glowGrad.addColorStop(0.4, colorHex + '66');
+  glowGrad.addColorStop(1.0, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = glowGrad;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 50, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 4-point Diamond Sparkle shape (vertical & horizontal needle spikes)
+  const drawSpike = (angle, length, width) => {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(angle);
+    ctx.beginPath();
+    ctx.moveTo(0, -length);
+    ctx.quadraticCurveTo(width, 0, 0, length);
+    ctx.quadraticCurveTo(-width, 0, 0, -length);
+    ctx.closePath();
+
+    const spikeGrad = ctx.createLinearGradient(0, -length, 0, length);
+    spikeGrad.addColorStop(0.0, 'rgba(255, 255, 255, 0)');
+    spikeGrad.addColorStop(0.2, colorHex);
+    spikeGrad.addColorStop(0.5, '#ffffff');
+    spikeGrad.addColorStop(0.8, colorHex);
+    spikeGrad.addColorStop(1.0, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = spikeGrad;
+    ctx.fill();
+    ctx.restore();
+  };
+
+  // Primary vertical and horizontal long spikes
+  drawSpike(0, 48, 5);
+  drawSpike(Math.PI / 2, 48, 5);
+
+  // Secondary subtle diagonal inner spikes
+  drawSpike(Math.PI / 4, 22, 3);
+  drawSpike(-Math.PI / 4, 22, 3);
+
+  // Bright White Core Center
+  const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 8);
+  coreGrad.addColorStop(0.0, '#ffffff');
+  coreGrad.addColorStop(0.6, '#ffffff');
+  coreGrad.addColorStop(1.0, 'rgba(255, 255, 255, 0)');
+  ctx.fillStyle = coreGrad;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+  ctx.fill();
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  sparkleTextureCache[colorHex] = texture;
+  return texture;
+}
+
+// Organic Satellite Star Swarm & Nebula Cloud Component
+// Surrounds each audio stem orb with small 4-pointed sparkle stars and micro-stardust particles
+// tightly clustered within a 0.85m radius around the instrument orb.
+function OrbSwarmSatellites({ color, isDragging }) {
+  const groupRef = useRef();
+  const sparkleTexture = useMemo(() => getSparkleStarTexture(color), [color]);
+
+  const satelliteCount = 75; // Clean, elegant star count per orb
+
+  // Initialize individual satellite star dynamic physics state
+  const satellites = useMemo(() => {
+    const arr = [];
+    for (let i = 0; i < satelliteCount; i++) {
+      // Tight spread radius tightly clustered between 0.15m and 0.85m around the core orb
+      const phi = Math.acos(-1 + (2 * i) / satelliteCount);
+      const theta = Math.sqrt(satelliteCount * Math.PI) * phi;
+      const radius = 0.15 + Math.pow(Math.random(), 0.8) * 0.70; // Max 0.85m radius
+
+      const baseRelPos = new THREE.Vector3(
+        radius * Math.sin(phi) * Math.cos(theta),
+        radius * Math.sin(phi) * Math.sin(theta),
+        radius * Math.cos(phi)
+      );
+
+      // Fine, delicate star sizes (0.03~0.15)
+      const isCoreTiny = Math.random() < 0.70;
+      const scale = isCoreTiny ? (0.03 + Math.random() * 0.05) : (0.08 + Math.random() * 0.07);
+
+      arr.push({
+        baseRelPos,
+        currentPos: baseRelPos.clone(),
+        speed: 0.5 + Math.random() * 1.8,
+        phase: Math.random() * Math.PI * 2,
+        scale,
+        rotationSpeed: (Math.random() - 0.5) * 2.2,
+        opacityPhase: Math.random() * Math.PI * 2,
+        orbitSpeed: (Math.random() - 0.5) * 0.5
+      });
+    }
+    return arr;
+  }, []);
+
+  const spriteRefs = useRef([]);
+
+  useFrame((state, delta) => {
+    if (!groupRef.current) return;
+
+    const time = state.clock.getElapsedTime();
+    const lerpFactor = isDragging ? 0.05 : 0.12;
+
+    satellites.forEach((sat, i) => {
+      const sprite = spriteRefs.current[i];
+      if (!sprite) return;
+
+      // Slow organic orbital rotation around the core orb
+      const angle = time * sat.orbitSpeed;
+      const cosA = Math.cos(angle);
+      const sinA = Math.sin(angle);
+
+      const rotatedX = sat.baseRelPos.x * cosA - sat.baseRelPos.z * sinA;
+      const rotatedZ = sat.baseRelPos.x * sinA + sat.baseRelPos.z * cosA;
+      const rotatedY = sat.baseRelPos.y;
+
+      // Gentle organic float oscillation right around the orb
+      const floatAmp = 0.02 + (sat.baseRelPos.length() * 0.02);
+      const offsetX = Math.sin(time * sat.speed + sat.phase) * floatAmp;
+      const offsetY = Math.cos(time * sat.speed * 1.3 + sat.phase) * floatAmp;
+      const offsetZ = Math.sin(time * sat.speed * 0.8 + sat.phase) * floatAmp;
+
+      const targetPos = new THREE.Vector3(rotatedX + offsetX, rotatedY + offsetY, rotatedZ + offsetZ);
+
+      // Organic lerp interpolation: creates fluid trailing nebula swarm effect when orb is moved
+      sat.currentPos.lerp(targetPos, lerpFactor);
+      sprite.position.copy(sat.currentPos);
+
+      // Subtle twinkling rotation and shimmer
+      if (sprite.material) {
+        sprite.material.rotation += sat.rotationSpeed * delta;
+        const shimmer = 0.60 + Math.sin(time * 3.5 + sat.opacityPhase) * 0.40;
+        sprite.material.opacity = shimmer * 0.92;
+      }
+    });
+  });
+
+  return (
+    <group ref={groupRef}>
+      {satellites.map((sat, i) => (
+        <sprite
+          key={i}
+          ref={(el) => (spriteRefs.current[i] = el)}
+          position={sat.currentPos.toArray()}
+          scale={[sat.scale, sat.scale, sat.scale]}
+        >
+          <spriteMaterial
+            map={sparkleTexture}
+            transparent={true}
+            opacity={0.85}
+            blending={THREE.AdditiveBlending}
+            depthWrite={false}
+          />
+        </sprite>
+      ))}
+    </group>
+  );
+}
+
 const starTextureCache = {};
 
 function getMenuStarTexture(colorHex) {
@@ -339,12 +499,6 @@ function getMenuStarTexture(colorHex) {
   const centerY = 128;
   const radius = 128;
 
-  // Compact, crisp volumetric star radial gradient:
-  // 0% -> Pure White Core (#ffffff)
-  // 18% -> Soft White Center
-  // 42% -> Toned-down Pastel Stem Color
-  // 68% -> Compact Aura Glow (33% opacity)
-  // 88% -> Clean Edge Fade-out (Zero wide blur spread)
   const grad = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
   grad.addColorStop(0.0, '#ffffff');
   grad.addColorStop(0.18, 'rgba(255, 255, 255, 0.92)');
@@ -374,7 +528,7 @@ function InteractiveOrb({ color, initialPos, orbKey, coordsRef, setIsDraggingOrb
 
   const [isDragging, setIsDragging] = useState(false);
   const [hovered, setHovered] = useState(false);
-  const { camera, raycaster, gl } = useThree();
+  const { raycaster, gl } = useThree();
   
   // Track dragging distance and active grabbing controller (0, 1, or 'mouse')
   const dragDistanceRef = useRef(2.5);
@@ -419,7 +573,7 @@ function InteractiveOrb({ color, initialPos, orbKey, coordsRef, setIsDraggingOrb
   const handlePointerDown = (e) => {
     e.stopPropagation();
     if (e.target && typeof e.target.setPointerCapture === 'function' && e.pointerId) {
-      try { e.target.setPointerCapture(e.pointerId); } catch(err) {}
+      try { e.target.setPointerCapture(e.pointerId); } catch { /* Capture is optional. */ }
     }
     
     const xr = gl.xr;
@@ -745,7 +899,7 @@ function InteractiveOrb({ color, initialPos, orbKey, coordsRef, setIsDraggingOrb
 }
 
 // 3D VR Spatial Audio Experience (다이내믹 멀티트랙 스템 믹서 엔진)
-function VRAudioExperience({ starColors, activeSong, leftRate, rightRate, activePreset, isAudioActive, setIsDraggingOrb, onNextSong }) {
+function VRAudioExperience({ starColors, activeSong, leftRate, rightRate, activePreset, isAudioActive, soundMode, setIsDraggingOrb, onNextSong }) {
   const audioCtxRef = useRef(null);
   const audioElementsRef = useRef({});
   const pannersRef = useRef({});
@@ -758,7 +912,6 @@ function VRAudioExperience({ starColors, activeSong, leftRate, rightRate, active
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'n' || e.key === 'N') {
-        console.log("Keyboard 'N' pressed -> Next Song!");
         if (onNextSong) onNextSong();
       }
     };
@@ -776,8 +929,36 @@ function VRAudioExperience({ starColors, activeSong, leftRate, rightRate, active
   useEffect(() => { rightRateRef.current = rightRate; }, [rightRate]);
   useEffect(() => { activePresetRef.current = activePreset; }, [activePreset]);
 
-  // 활성 곡에 따른 멀티트랙 스템 정보 동적 취득
-  const stems = useMemo(() => songStemsMap[activeSong] || songStemsMap[1], [activeSong]);
+  // 활성 곡 및 테마별 악기 고유 컬러 동적 매핑 (보컬, 드럼, 베이스, 피아노, 기타 등 각각 고유 색상 부여)
+  const stems = useMemo(() => {
+    const rawStems = SONG_STEMS[activeSong] || SONG_STEMS[1];
+    // 🎨 은색 2개 + 핑크 2개 + 보라 2개 (차분하고 우아한 채도/명도 6종 1:1 매핑)
+    const paletteMap = {
+      luxury: {
+        // ⚪ 은색 2종 (Silver Pair)
+        drum: '#f8fafc',        // 🥁 Drums: 은색 1 (맑은 백은색 플래티넘 ⚪)
+        drums: '#f8fafc',
+        piano: '#94a3b8',       // 🎹 Piano: 은색 2 (차분한 슬레이트 스틸 실버 🔘)
+
+        // 🌸 핑크 2종 (Muted Rose Pair)
+        guitar2: '#f4d7e4',     // 🎸 Guitar 2: 핑크 1 (부드러운 페일 파우더 로즈 🌸)
+        vocal: '#c95c8e',       // 🎤 Vocal: 핑크 2 (그윽한 시크 안티크 로즈 🌺)
+        lead_vocal: '#c95c8e',
+        melody: '#c95c8e',
+
+        // 🪻 보라 2종 (Muted Lavender/Violet Pair)
+        guitar1: '#dcd0f0',     // 🎸 Guitar 1: 보라 1 (은은한 페일 오로라 라벤더 🪻)
+        bass: '#7c5c99'         // 🎸 Bass: 보라 2 (묵직한 딥 벨벳 바이올렛 💜)
+      }
+    };
+
+    const activePalette = paletteMap.luxury;
+
+    return rawStems.map((stem) => ({
+      ...stem,
+      color: activePalette[stem.key] || stem.color
+    }));
+  }, [activeSong, starColors]);
 
   // 스템별 3D 좌표를 60fps 추적이 가능한 useRef 좌표계 사전에 동적 적재
   const orbCoordsRef = useRef({});
@@ -971,7 +1152,6 @@ function VRAudioExperience({ starColors, activeSong, leftRate, rightRate, active
     }
     
     if (aPressedThisFrame && !wasAPressedRef.current) {
-      console.log("VR Controller A/X button clicked -> Next Song!");
       if (onNextSong) onNextSong();
     }
     wasAPressedRef.current = aPressedThisFrame;
@@ -1052,9 +1232,17 @@ function VRAudioExperience({ starColors, activeSong, leftRate, rightRate, active
       const audio = audioElementsRef.current[stem.key];
 
       if (panner && pos) {
-        panner.positionX.setValueAtTime(pos.x, webAudioTime);
-        panner.positionY.setValueAtTime(pos.y, webAudioTime);
-        panner.positionZ.setValueAtTime(pos.z, webAudioTime);
+        if (soundMode === 'stereo') {
+          // Stereo Mode: Lock panner to listener camera position so sound comes out uniformly on left/right speakers
+          panner.positionX.setValueAtTime(camera.position.x, webAudioTime);
+          panner.positionY.setValueAtTime(camera.position.y, webAudioTime);
+          panner.positionZ.setValueAtTime(camera.position.z, webAudioTime);
+        } else {
+          // Spatial Mode: 3D Positional Audio
+          panner.positionX.setValueAtTime(pos.x, webAudioTime);
+          panner.positionY.setValueAtTime(pos.y, webAudioTime);
+          panner.positionZ.setValueAtTime(pos.z, webAudioTime);
+        }
       }
 
       if (audio) {
@@ -1071,8 +1259,8 @@ function VRAudioExperience({ starColors, activeSong, leftRate, rightRate, active
 
   return (
     <>
-      {/* 5개든 6개든 배열 리스트만큼 3D 사운드 오브를 무제한 자동 스폰 */}
-      {stems.map((stem) => (
+      {/* 3D 악기 별 오르브는 Spatial 공간음향 모드일 때만 렌더링 (Stereo 모드일 때는 숨김) */}
+      {soundMode !== 'stereo' && stems.map((stem) => (
         <InteractiveOrb
           key={stem.key}
           orbKey={stem.key}
@@ -1247,7 +1435,7 @@ function SleekAxes3D({ length = 6.5, segments = 24 }) {
   );
 }
 
-export function VRScene({ store, starColors, isVRTest, isInVR, isDesktopVR, activeSong, leftRate, rightRate, activePreset, isAudioActive, vrModeType, onNextSong, vrCameraPos, vrCameraRot, onStarMixVolumeChange }) {
+export function VRScene({ store, starColors, soundMode, isInVR, isDesktopVR, activeSong, leftRate, rightRate, activePreset, isAudioActive, vrModeType, onNextSong, vrCameraPos, vrCameraRot }) {
   const isVRActive = isInVR || isDesktopVR;
   const [isDraggingOrb, setIsDraggingOrb] = useState(false);
 
@@ -1264,9 +1452,16 @@ export function VRScene({ store, starColors, isVRTest, isInVR, isDesktopVR, acti
       visibility: isVRActive ? 'visible' : 'hidden',
       transition: 'opacity 0.3s ease, visibility 0.3s ease'
     }}>
-      <Canvas>
+      <Canvas 
+        gl={{ preserveDrawingBuffer: true, powerPreference: 'high-performance', antialias: true }}
+        onCreated={({ gl }) => {
+          gl.domElement.addEventListener('webglcontextlost', (e) => {
+            e.preventDefault();
+            console.warn('WebGL Context Lost - Attempting Restoration...');
+          }, false);
+        }}
+      >
         <XR store={store}>
-          <LoggerComponent />
             <CameraRig vrCameraPos={vrCameraPos} vrCameraRot={vrCameraRot} />
             <color attach="background" args={['#111111']} />
             
@@ -1280,9 +1475,12 @@ export function VRScene({ store, starColors, isVRTest, isInVR, isDesktopVR, acti
               <meshBasicMaterial color="#111111" side={THREE.BackSide} />
             </mesh>
             
-            <Suspense fallback={<mesh position={[0, 1.6, -2]}><boxGeometry args={[0.2, 0.2, 0.2]} /><meshBasicMaterial color="red" /></mesh>}>
-              <Stars3D starColors={starColors} onStarMixVolumeChange={onStarMixVolumeChange} isVRActive={isVRActive} />
-            </Suspense>
+            {/* Background 3000 ambient particle stars - Always rendered in 3D Space */}
+            {isVRActive && (
+              <Suspense fallback={null}>
+                <Stars3D soundMode={soundMode} />
+              </Suspense>
+            )}
             
             <ControllerHelpers />
             {isDesktopVR && <OrbitControls enabled={!isDraggingOrb} enableZoom={true} enablePan={false} maxDistance={25} minDistance={1} />}
@@ -1296,6 +1494,7 @@ export function VRScene({ store, starColors, isVRTest, isInVR, isDesktopVR, acti
                 rightRate={rightRate}
                 activePreset={activePreset}
                 isAudioActive={isAudioActive}
+                soundMode={soundMode}
                 setIsDraggingOrb={setIsDraggingOrb}
                 onNextSong={onNextSong}
               />
