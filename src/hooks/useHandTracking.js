@@ -1,5 +1,24 @@
 import { useEffect, useRef, useState } from 'react';
 import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision';
+import { HAND_GESTURE_CONFIG as CONFIG } from '../hand-tracking/gestureConfig';
+
+const distance2D = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+
+const angleBetween2D = (origin, a, b) => {
+  const ax = a.x - origin.x;
+  const ay = a.y - origin.y;
+  const bx = b.x - origin.x;
+  const by = b.y - origin.y;
+  const magnitude = Math.hypot(ax, ay) * Math.hypot(bx, by);
+  if (magnitude === 0) return 0;
+  const cosine = Math.max(-1, Math.min(1, (ax * bx + ay * by) / magnitude));
+  return Math.acos(cosine) * (180 / Math.PI);
+};
+
+const isFingerExtended = (landmarks, tipIndex, pipIndex, margin = 1.12) => {
+  const wrist = landmarks[0];
+  return distance2D(landmarks[tipIndex], wrist) > distance2D(landmarks[pipIndex], wrist) * margin;
+};
 
 export function useHandTracking(videoRef, enabled = true) {
   const [handData, setHandData] = useState([]); 
@@ -8,11 +27,8 @@ export function useHandTracking(videoRef, enabled = true) {
   const requestRef = useRef();
   const lastDetectTimeRef = useRef(0);
   
-  // Multi-hand state tracking
-  const handStatesRef = useRef([
-    { isPinched: false, time: 0, snapCount: 0, lastTriggerTime: 0 },
-    { isPinched: false, time: 0, snapCount: 0, lastTriggerTime: 0 }
-  ]);
+  const trackedHandsRef = useRef([]);
+  const nextTrackingIdRef = useRef(1);
 
   useEffect(() => {
     async function init() {
@@ -78,92 +94,143 @@ export function useHandTracking(videoRef, enabled = true) {
         }
 
         if (results && results.landmarks && results.landmarks.length > 0) {
-          const hands = results.landmarks.map((landmarks, index) => {
-            const x = landmarks.reduce((acc, l) => acc + l.x, 0) / landmarks.length;
-            const y = landmarks.reduce((acc, l) => acc + l.y, 0) / landmarks.length;
-            
+          const detections = results.landmarks.map((landmarks, index) => {
             const wrist = landmarks[0];
             const middleMCP = landmarks[9];
-            const scale = Math.sqrt(
-              Math.pow(wrist.x - middleMCP.x, 2) + 
-              Math.pow(wrist.y - middleMCP.y, 2)
-            ) * 4;
+            const palmLandmarks = [wrist, landmarks[5], landmarks[9], landmarks[13], landmarks[17]];
+            const x = palmLandmarks.reduce((sum, point) => sum + point.x, 0) / palmLandmarks.length;
+            const y = palmLandmarks.reduce((sum, point) => sum + point.y, 0) / palmLandmarks.length;
+            const palmSize = Math.max(distance2D(wrist, middleMCP), 0.001);
+            const scale = palmSize * 4;
 
-            // Calculate Hand Span Area (Polygon of tips + wrist)
-            // Normalizing by scale squared to make it distance-independent
-            const points = [0, 4, 8, 12, 16, 20].map(idx => ({
-              x: (landmarks[idx].x - wrist.x) / (scale || 1),
-              y: (landmarks[idx].y - wrist.y) / (scale || 1)
-            }));
-            
-            // Shoelace formula for area
-            let area = 0;
-            for (let i = 0; i < points.length; i++) {
-              const j = (i + 1) % points.length;
-              area += points[i].x * points[j].y;
-              area -= points[j].x * points[i].y;
-            }
-            area = Math.abs(area) / 2;
+            const fingers = {
+              thumb: isFingerExtended(landmarks, 4, 3, 1.08),
+              index: isFingerExtended(landmarks, 8, 6),
+              middle: isFingerExtended(landmarks, 12, 10),
+              ring: isFingerExtended(landmarks, 16, 14),
+              pinky: isFingerExtended(landmarks, 20, 18),
+            };
 
-            // Explicit Finger Extension Detection to guarantee instant release when hand is opened
-            const isIndexExtended = landmarks[8].y < landmarks[6].y;
-            const isMiddleExtended = landmarks[12].y < landmarks[10].y;
-            const isRingExtended = landmarks[16].y < landmarks[14].y;
-            const isPinkyExtended = landmarks[20].y < landmarks[18].y;
-            
-            let extendedCount = 0;
-            if (isIndexExtended) extendedCount++;
-            if (isMiddleExtended) extendedCount++;
-            if (isRingExtended) extendedCount++;
-            if (isPinkyExtended) extendedCount++;
+            const thumbIndexDistance = distance2D(landmarks[4], landmarks[8]) / palmSize;
+            const thumbIndexMidpoint = {
+              x: (landmarks[4].x + landmarks[8].x) / 2,
+              y: (landmarks[4].y + landmarks[8].y) / 2,
+            };
+            const thumbIndexReach = distance2D(wrist, thumbIndexMidpoint) / palmSize;
+            const fourFingersFolded = !fingers.index && !fingers.middle && !fingers.ring && !fingers.pinky;
+            // In a fist, the thumb/index tips stay close to the palm. During a
+            // pinch they may touch each other, but the joined tips remain
+            // extended away from the wrist.
+            const isFist = fourFingersFolded && thumbIndexReach < CONFIG.FIST_TIP_REACH_THRESHOLD;
+            const zoomAngleOrigin = {
+              x: (landmarks[2].x + landmarks[5].x) / 2,
+              y: (landmarks[2].y + landmarks[5].y) / 2,
+            };
+            const thumbIndexAngle = angleBetween2D(zoomAngleOrigin, landmarks[4], landmarks[8]);
+            const rawHandedness = results.handednesses?.[index]?.[0]?.categoryName || 'Unknown';
+            const handednessScore = results.handednesses?.[index]?.[0]?.score || 0;
 
-            // Normalized Area Range: approx 0.02 (closed) to 0.55 (open)
-            // Widened the range to 0.55 to make it start decreasing much later
-            let avgCurl = Math.max(0, Math.min(1, (0.5 - area) / 0.48));
-
-            // If at least 2 major fingers are extended, the hand is definitely NOT a fist (force open state)
-            if (extendedCount >= 2) {
-              avgCurl = 0;
-            }
-
-            // Only trigger isFist at the very last moment (92% closed AND no more than 1 finger extended)
-            const isFist = avgCurl > 0.92 && extendedCount <= 1;
-
-            // Advanced Snap Detection
-            const thumbTip = landmarks[4];
-            const middleTip = landmarks[12];
-            const indexTip = landmarks[8];
-            const indexMCP = landmarks[6];
-            
-            const isIndexCurled = indexTip.y > indexMCP.y;
-            const pinchDist = Math.sqrt(Math.pow(thumbTip.x - middleTip.x, 2) + Math.pow(thumbTip.y - middleTip.y, 2));
-
-            const state = handStatesRef.current[index] || { isPinched: false, time: 0, snapCount: 0, lastTriggerTime: 0 };
-            
-            if (pinchDist < 0.05 && !isIndexCurled) {
-              if (!state.isPinched) {
-                state.isPinched = true;
-                state.time = now;
-              }
-            } else if (pinchDist > 0.08) {
-              if (state.isPinched) {
-                const duration = now - state.time;
-                if (duration > 30 && duration < 450) {
-                  if (now - (state.lastTriggerTime || 0) > 500) {
-                    state.snapCount += 1;
-                    state.lastTriggerTime = now;
-                  }
-                }
-                state.isPinched = false;
-              }
-            }
-            handStatesRef.current[index] = state;
-            
-            const handedness = results.handednesses?.[index]?.[0]?.categoryName || 'Unknown';
-
-            return { x, y, scale, isFist, snapCount: state.snapCount, handedness, curlAmount: avgCurl };
+            return {
+              x,
+              y,
+              scale,
+              fingers,
+              isFist,
+              thumbIndexDistance,
+              thumbIndexReach,
+              thumbIndexAngle,
+              thumbTip: { x: landmarks[4].x, y: landmarks[4].y },
+              indexTip: { x: landmarks[8].x, y: landmarks[8].y },
+              rawHandedness,
+              handednessScore,
+              timestamp: now,
+            };
           });
-          setHandData(hands);
+
+          const previousTracks = trackedHandsRef.current;
+          const usedTrackIds = new Set();
+          const nextTracks = [];
+          const hands = detections.map((detection) => {
+            let bestTrack = null;
+            let bestDistance = Infinity;
+            previousTracks.forEach((track) => {
+              if (usedTrackIds.has(track.id)) return;
+              const positionDistance = Math.hypot(detection.x - track.x, detection.y - track.y);
+              const handednessPenalty = track.handedness === detection.rawHandedness ? 0 : 0.06;
+              const score = positionDistance + handednessPenalty;
+              if (positionDistance < 0.28 && score < bestDistance) {
+                bestDistance = score;
+                bestTrack = track;
+              }
+            });
+
+            const track = bestTrack || {
+              id: nextTrackingIdRef.current++,
+              handedness: detection.rawHandedness,
+              pendingHandedness: null,
+              pendingFrames: 0,
+            };
+            usedTrackIds.add(track.id);
+
+            if (detection.rawHandedness !== track.handedness && detection.handednessScore >= 0.7) {
+              if (track.pendingHandedness === detection.rawHandedness) track.pendingFrames += 1;
+              else {
+                track.pendingHandedness = detection.rawHandedness;
+                track.pendingFrames = 1;
+              }
+              if (track.pendingFrames >= 5) {
+                track.handedness = detection.rawHandedness;
+                track.pendingHandedness = null;
+                track.pendingFrames = 0;
+              }
+            } else {
+              track.pendingHandedness = null;
+              track.pendingFrames = 0;
+            }
+
+            track.x = detection.x;
+            track.y = detection.y;
+            nextTracks.push(track);
+
+            const { thumb, index, middle, ring, pinky } = detection.fingers;
+            // A real pinch often bends the index tip enough that the generic
+            // "finger extended" test becomes false. Keep Zoom active through
+            // that final pinch range, while a separated Thumb Only pose remains
+            // available for depth control.
+            const isZoom = !detection.isFist && thumb && !middle && !ring && !pinky && (
+              index || detection.thumbIndexDistance <= CONFIG.ZOOM_PINCH_DISTANCE
+            );
+            return {
+              ...detection,
+              trackingId: track.id,
+              handedness: track.handedness,
+              gestures: {
+                openPalm: thumb && index && middle && ring && pinky,
+                indexOnly: !thumb && index && !middle && !ring && !pinky,
+                thumbOnly: thumb && !index && !middle && !ring && !pinky && !isZoom,
+                cameraMove: thumb && index && middle && !ring && !pinky,
+                zoom: isZoom,
+              },
+            };
+          });
+
+          trackedHandsRef.current = nextTracks;
+          setHandData(hands.map((hand) => ({
+            x: hand.x,
+            y: hand.y,
+            scale: hand.scale,
+            fingers: hand.fingers,
+            isFist: hand.isFist,
+            thumbIndexDistance: hand.thumbIndexDistance,
+            thumbIndexReach: hand.thumbIndexReach,
+            thumbIndexAngle: hand.thumbIndexAngle,
+            thumbTip: hand.thumbTip,
+            indexTip: hand.indexTip,
+            timestamp: hand.timestamp,
+            trackingId: hand.trackingId,
+            handedness: hand.handedness,
+            gestures: hand.gestures,
+          })));
         } else {
           setHandData([]);
         }

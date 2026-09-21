@@ -408,85 +408,11 @@ export function SpatialExperience({
         rightOrb.tz = Math.max(-4.5, Math.min(4.5, rightOrb.tz + rightDZ)); // Increased limit to +4.5 to allow going behind the head
 
       } else {
-        // HAND CONTROL MODE (Grab Detection)
-        const GRAB_START_THRESHOLD = 0.85;
-        const GRAB_RELEASE_THRESHOLD = 0.80; // Raised to ensure immediate release when hand is slightly opened
-
-        Object.keys(orbs).forEach(key => {
-          const orb = orbs[key];
-          const { sx, sy } = getOrbScreenPos(orb);
-
-          // Find the hand currently grabbing this orb, if any
-          let matchingHand = null;
-          if (orb.grabbedBy) {
-            // 1. Try to find by exact handedness
-            matchingHand = hands.find(h => h.handedness === orb.grabbedBy);
-            
-            // 2. If not found by handedness (due to MediaPipe handedness flickering),
-            // check if there is a hand extremely close to the orb screen position (within 150px)
-            if (!matchingHand) {
-              matchingHand = hands.find(h => {
-                const hX = (1 - h.x) * width;
-                const hY = h.y * height;
-                const dist = Math.sqrt(Math.pow(hX - sx, 2) + Math.pow(hY - sy, 2));
-                return dist < 150;
-              });
-            }
-
-            // 3. Fallback to hands[0] ONLY if it's the only hand currently detected
-            if (!matchingHand && hands.length === 1) {
-              matchingHand = hands[0];
-            }
-            
-            // Verify if the hand is still detected and remains clenched above release threshold
-            if (matchingHand && matchingHand.curlAmount > GRAB_RELEASE_THRESHOLD) {
-              orb.isGrabbed = true;
-              orb.grabbedBy = matchingHand.handedness; // lock/update handedness
-            } else {
-              orb.grabbedBy = null;
-              orb.isGrabbed = false;
-              matchingHand = null;
-            }
-          }
-
-          // If not grabbed, find a close hand clenching to grab it
-          if (!orb.isGrabbed) {
-            const otherKey = key === 'left' ? 'right' : 'left';
-            const otherOrb = orbs[otherKey];
-
-            const potentialHand = hands.find(h => {
-              const hX = (1 - h.x) * width;
-              const hY = h.y * height;
-              const dist = Math.sqrt(Math.pow(hX - sx, 2) + Math.pow(hY - sy, 2));
-              const isAlreadyGrabbingOther = otherOrb.isGrabbed && otherOrb.grabbedBy === h.handedness;
-
-              return dist < 120 && h.isFist && !isAlreadyGrabbingOther;
-            });
-
-            if (potentialHand) {
-              orb.grabbedBy = potentialHand.handedness;
-              orb.isGrabbed = true;
-              matchingHand = potentialHand;
-            }
-          }
-
-          // Update target positions based on grab state
-          if (orb.isGrabbed && matchingHand) {
-            // Grabbed: follow the hand coordinates directly using screen matching projection!
-            const hX = (1 - matchingHand.x) * width;
-            const hY = matchingHand.y * height;
-            
-            // Map hand scale (0.1 to 0.8) to 3D depth Z (-1.0 to -4.5 in front of listener)
-            const handScale = Math.max(0.1, Math.min(0.8, matchingHand.scale || 0.45));
-            orb.tz = -1.0 - (handScale - 0.1) * 5.0; // handScale 0.1..0.8 -> -1.0..-4.5m
-            
-            const depthProj = cameraDistance / Math.max(0.1, cameraDistance + orb.tz);
-            
-            // Solve: hX = centerX + tx * scaleFactor * depthProj
-            orb.tx = (hX - centerX) / Math.max(0.1, scaleFactor * depthProj);
-            // Solve: hY = centerY - ty * scaleFactor * depthProj
-            orb.ty = -(hY - centerY) / Math.max(0.1, scaleFactor * depthProj);
-          }
+        // Legacy hand mapping is intentionally disabled. The active 3D scene owns
+        // the single canonical webcam gesture map in WebcamGestureController.
+        Object.values(orbs).forEach((orb) => {
+          orb.grabbedBy = null;
+          orb.isGrabbed = false;
         });
       }
 

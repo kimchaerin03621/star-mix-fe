@@ -139,33 +139,198 @@ body {
   background: #000000;
 }
 
-.webcam-feed {
+.webcam-monitor {
   position: absolute;
-  z-index: 100;
-  transform: scaleX(-1);
-  object-fit: cover;
-  transition: all 0.3s ease;
-}
-
-.webcam-feed.visible {
   top: 95px;
   right: 36px;
-  width: 160px !important;
-  height: 120px !important;
+  width: 184px;
+  height: 138px;
+  z-index: 100;
+  transition: all 0.3s ease;
+  overflow: hidden;
   border-radius: var(--radius-sm);
   border: 2px solid rgba(255, 255, 255, 0.25);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  opacity: 0.75 !important;
+  background: #080808;
+}
+
+.webcam-monitor.visible {
+  opacity: 0.9;
   pointer-events: auto;
 }
 
-.webcam-feed.hidden-feed {
-  top: 95px;
-  right: 36px;
+.webcam-monitor.hidden-feed {
   width: 1px !important;
   height: 1px !important;
   opacity: 0.01 !important;
   pointer-events: none;
+  border: 0;
+}
+
+.webcam-feed {
+  width: 100%;
+  height: 100%;
+  display: block;
+  transform: scaleX(-1);
+  object-fit: cover;
+}
+
+.webcam-status {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 8px;
+  pointer-events: none;
+  font-family: var(--sf-font-heading);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.82);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.95);
+}
+
+.webcam-status-mode,
+.webcam-hand-list span {
+  align-self: flex-start;
+  padding: 3px 5px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.64);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.webcam-status-mode.active,
+.webcam-hand-list span.active {
+  color: #fff;
+  border-color: rgba(0, 255, 204, 0.75);
+  box-shadow: 0 0 8px rgba(0, 255, 204, 0.28);
+}
+
+.webcam-hand-list {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+
+.hand-feedback-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.hand-feedback-lines {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+
+.hand-grab-line {
+  stroke: rgba(255, 255, 255, 0.42);
+  stroke-width: 1;
+  stroke-dasharray: 3 6;
+  opacity: 0;
+  transition: opacity 80ms linear;
+  filter: drop-shadow(0 0 3px rgba(0, 255, 204, 0.35));
+}
+
+.palm-cursor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  border: 1.5px solid rgba(0, 255, 204, 0.88);
+  border-radius: 50%;
+  background: rgba(0, 255, 204, 0.08);
+  box-shadow: 0 0 9px rgba(0, 255, 204, 0.36), inset 0 0 5px rgba(255, 255, 255, 0.18);
+  will-change: transform;
+  transition: width 120ms ease, height 120ms ease, margin 120ms ease,
+    border-color 120ms ease, background 120ms ease, box-shadow 120ms ease;
+}
+
+.palm-cursor.hover {
+  width: 24px;
+  height: 24px;
+  margin: -12px 0 0 -12px;
+  border-color: rgba(0, 255, 204, 0.9);
+  box-shadow: 0 0 12px rgba(0, 255, 204, 0.52);
+  animation: palm-hover-pulse 900ms ease-in-out infinite;
+}
+
+.palm-cursor.grabbed {
+  border-width: 2px;
+  border-color: rgba(255, 255, 255, 0.95);
+  background: rgba(0, 255, 204, 0.5);
+  box-shadow: 0 0 11px rgba(0, 255, 204, 0.55);
+}
+
+.depth-indicator,
+.orbit-indicator {
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+}
+
+.depth-indicator {
+  border: 1px solid rgba(0, 255, 204, 0.7);
+}
+
+.depth-indicator.far {
+  animation: depth-ring-far 720ms ease-out infinite;
+}
+
+.depth-indicator.near {
+  animation: depth-ring-near 720ms ease-in infinite;
+}
+
+.orbit-indicator {
+  inset: -7px;
+  border: 1px solid transparent;
+  border-top-color: rgba(255, 255, 255, 0.85);
+  border-right-color: rgba(0, 255, 204, 0.8);
+  animation: orbit-cursor-spin 850ms linear infinite;
+}
+
+.hand-zoom-visual {
+  opacity: 0;
+  transition: opacity 80ms linear;
+}
+
+.hand-zoom-visual line {
+  stroke: rgba(255, 255, 255, 0.72);
+  stroke-width: 1;
+}
+
+.hand-zoom-visual circle {
+  fill: rgba(0, 255, 204, 0.78);
+  stroke: rgba(255, 255, 255, 0.88);
+  stroke-width: 1;
+  filter: drop-shadow(0 0 3px rgba(0, 255, 204, 0.65));
+}
+
+@keyframes palm-hover-pulse {
+  0%, 100% { opacity: 0.72; }
+  50% { opacity: 1; }
+}
+
+@keyframes depth-ring-far {
+  from { transform: scale(0.7); opacity: 0.9; }
+  to { transform: scale(1.55); opacity: 0; }
+}
+
+@keyframes depth-ring-near {
+  from { transform: scale(1.55); opacity: 0; }
+  to { transform: scale(0.7); opacity: 0.9; }
+}
+
+@keyframes orbit-cursor-spin {
+  to { transform: rotate(360deg); }
 }
 
 .ui-overlay {
@@ -2159,15 +2324,6 @@ body {
   opacity: 0.95;
 }
 
-.global-header-center {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 32px;
-}
-
 .global-header-actions {
   display: flex;
   align-items: center;
@@ -2188,14 +2344,6 @@ body {
   backdrop-filter: blur(12px);
   transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
   text-transform: none;
-}
-
-.pill-btn.active {
-  background: rgba(255, 255, 255, 0.18);
-  border-color: #ffffff;
-  color: #ffffff;
-  box-shadow: 0 0 18px rgba(255, 255, 255, 0.4);
-  font-weight: 700;
 }
 
 .pill-btn:hover {

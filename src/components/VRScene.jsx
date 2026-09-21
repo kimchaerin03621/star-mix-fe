@@ -4,9 +4,10 @@ import { XR, IfInSessionMode } from '@react-three/xr';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { SONG_STEMS } from '../audio/songStems';
+import { WebcamGestureController } from '../hand-tracking/WebcamGestureController';
 
 
-function Stars3D({ soundMode }) {
+function Stars3D() {
   const count = 3000;
   const meshRef = useRef();
   
@@ -45,31 +46,14 @@ function Stars3D({ soundMode }) {
     const col = new Float32Array(count * 3);
     const whiteColor = new THREE.Color('#ffffff');
 
-    // 6 desaturated Silver, Pink, Purple shades for Stereo mode space stars
-    const stereoPalette = [
-      new THREE.Color('#f8fafc'), // Silver 1 (Platinum)
-      new THREE.Color('#94a3b8'), // Silver 2 (Slate Steel)
-      new THREE.Color('#f4d7e4'), // Pink 1 (Powder Rose)
-      new THREE.Color('#c95c8e'), // Pink 2 (Antique Rose)
-      new THREE.Color('#dcd0f0'), // Purple 1 (Pale Lavender)
-      new THREE.Color('#7c5c99')  // Purple 2 (Velvet Violet)
-    ];
-    
     for (let i = 0; i < count; i++) {
       const i3 = i * 3;
-      if (soundMode === 'stereo') {
-        const pickedColor = stereoPalette[i % stereoPalette.length];
-        col[i3] = pickedColor.r;
-        col[i3 + 1] = pickedColor.g;
-        col[i3 + 2] = pickedColor.b;
-      } else {
-        col[i3] = whiteColor.r;
-        col[i3 + 1] = whiteColor.g;
-        col[i3 + 2] = whiteColor.b;
-      }
+      col[i3] = whiteColor.r;
+      col[i3 + 1] = whiteColor.g;
+      col[i3 + 2] = whiteColor.b;
     }
     return col;
-  }, [soundMode]);
+  }, []);
 
   useEffect(() => {
     if (meshRef.current && meshRef.current.geometry && meshRef.current.geometry.attributes.color) {
@@ -516,7 +500,17 @@ function getMenuStarTexture(colorHex) {
 }
 
 // 3D Interactive Audio Orb (Main Menu Volumetric Celestial Star Style)
-function InteractiveOrb({ color, initialPos, orbKey, coordsRef, setIsDraggingOrb, analysersRef, draggingOrbsRef }) {
+function InteractiveOrb({
+  color,
+  initialPos,
+  orbKey,
+  coordsRef,
+  setIsDraggingOrb,
+  analysersRef,
+  draggingOrbsRef,
+  isHandHovered,
+  isHandGrabbed,
+}) {
   const meshRef = useRef();
   const auraRef = useRef();
   const waveRef1 = useRef();
@@ -528,6 +522,7 @@ function InteractiveOrb({ color, initialPos, orbKey, coordsRef, setIsDraggingOrb
 
   const [isDragging, setIsDragging] = useState(false);
   const [hovered, setHovered] = useState(false);
+  const isVisualHovered = hovered || isHandHovered || isHandGrabbed;
   const { raycaster, gl } = useThree();
   
   // Track dragging distance and active grabbing controller (0, 1, or 'mouse')
@@ -538,9 +533,9 @@ function InteractiveOrb({ color, initialPos, orbKey, coordsRef, setIsDraggingOrb
   // Sync drag state to parent collision manager
   useEffect(() => {
     if (draggingOrbsRef && draggingOrbsRef.current) {
-      draggingOrbsRef.current[orbKey] = isDragging;
+      draggingOrbsRef.current[orbKey] = isDragging || isHandGrabbed;
     }
-  }, [isDragging, orbKey, draggingOrbsRef]);
+  }, [isDragging, isHandGrabbed, orbKey, draggingOrbsRef]);
 
   // Desktop mouse pointer feedback
   useEffect(() => {
@@ -637,11 +632,11 @@ function InteractiveOrb({ color, initialPos, orbKey, coordsRef, setIsDraggingOrb
       const avg = sum / (bufferLength || 1);
       currentVol = Math.pow(avg / 255, 1.2);
 
-      const baseScale = hovered ? 1.25 : 1.0;
+      const baseScale = isVisualHovered ? 1.25 : 1.0;
       const pulseScale = baseScale + currentVol * 0.95;
       meshRef.current.scale.set(pulseScale, pulseScale, pulseScale);
     } else if (meshRef.current) {
-      const baseScale = hovered ? 1.25 : 1.0;
+      const baseScale = isVisualHovered ? 1.25 : 1.0;
       meshRef.current.scale.set(baseScale, baseScale, baseScale);
     }
 
@@ -880,11 +875,11 @@ function InteractiveOrb({ color, initialPos, orbKey, coordsRef, setIsDraggingOrb
 
         {/* Volumetric Soft-Glow Celestial Star Sprite (Compact Toned-Down Pastel Glow) */}
         {starTexture && (
-          <sprite scale={hovered ? [1.45, 1.45, 1.45] : [1.15, 1.15, 1.15]}>
+          <sprite scale={isVisualHovered ? [1.45, 1.45, 1.45] : [1.15, 1.15, 1.15]}>
             <spriteMaterial
               map={starTexture}
               transparent={true}
-              opacity={hovered ? 0.95 : 0.82}
+              opacity={isVisualHovered ? 0.95 : 0.82}
               blending={THREE.AdditiveBlending}
               depthWrite={false}
             />
@@ -892,14 +887,27 @@ function InteractiveOrb({ color, initialPos, orbKey, coordsRef, setIsDraggingOrb
         )}
 
         {/* Dynamic point light to illuminate surrounding space stars */}
-        <pointLight position={[0, 0, 0]} color={color} intensity={hovered ? 2.0 : 1.2} distance={6} decay={1.5} />
+        <pointLight position={[0, 0, 0]} color={color} intensity={isVisualHovered ? 2.0 : 1.2} distance={6} decay={1.5} />
       </group>
     </group>
   );
 }
 
 // 3D VR Spatial Audio Experience (다이내믹 멀티트랙 스템 믹서 엔진)
-function VRAudioExperience({ starColors, activeSong, leftRate, rightRate, activePreset, isAudioActive, soundMode, setIsDraggingOrb, onNextSong }) {
+function VRAudioExperience({
+  starColors,
+  activeSong,
+  leftRate,
+  rightRate,
+  activePreset,
+  isAudioActive,
+  setIsDraggingOrb,
+  onNextSong,
+  handData,
+  orbitControlsRef,
+  onWebcamInteractionChange,
+  handVisualFrameRef,
+}) {
   const audioCtxRef = useRef(null);
   const audioElementsRef = useRef({});
   const pannersRef = useRef({});
@@ -1130,6 +1138,18 @@ function VRAudioExperience({ starColors, activeSong, leftRate, rightRate, active
 
   const wasAPressedRef = useRef(false);
   const draggingOrbsRef = useRef({});
+  const [handInteraction, setHandInteraction] = useState({
+    hoveredOrbKey: null,
+    grabbedOrbKey: null,
+    grabHandId: null,
+    mode: 'idle',
+    activeHandId: null,
+  });
+
+  const handleHandInteractionChange = (interaction) => {
+    setHandInteraction(interaction);
+    onWebcamInteractionChange?.(interaction);
+  };
 
   // Frame Loop updates: Head/Camera Tracking, 3D Sound Positioning & Sphere Collision
   useFrame((state) => {
@@ -1232,17 +1252,9 @@ function VRAudioExperience({ starColors, activeSong, leftRate, rightRate, active
       const audio = audioElementsRef.current[stem.key];
 
       if (panner && pos) {
-        if (soundMode === 'stereo') {
-          // Stereo Mode: Lock panner to listener camera position so sound comes out uniformly on left/right speakers
-          panner.positionX.setValueAtTime(camera.position.x, webAudioTime);
-          panner.positionY.setValueAtTime(camera.position.y, webAudioTime);
-          panner.positionZ.setValueAtTime(camera.position.z, webAudioTime);
-        } else {
-          // Spatial Mode: 3D Positional Audio
-          panner.positionX.setValueAtTime(pos.x, webAudioTime);
-          panner.positionY.setValueAtTime(pos.y, webAudioTime);
-          panner.positionZ.setValueAtTime(pos.z, webAudioTime);
-        }
+        panner.positionX.setValueAtTime(pos.x, webAudioTime);
+        panner.positionY.setValueAtTime(pos.y, webAudioTime);
+        panner.positionZ.setValueAtTime(pos.z, webAudioTime);
       }
 
       if (audio) {
@@ -1259,8 +1271,17 @@ function VRAudioExperience({ starColors, activeSong, leftRate, rightRate, active
 
   return (
     <>
-      {/* 3D 악기 별 오르브는 Spatial 공간음향 모드일 때만 렌더링 (Stereo 모드일 때는 숨김) */}
-      {soundMode !== 'stereo' && stems.map((stem) => (
+      <WebcamGestureController
+        handData={handData}
+        stems={stems}
+        orbCoordsRef={orbCoordsRef}
+        draggingOrbsRef={draggingOrbsRef}
+        orbitControlsRef={orbitControlsRef}
+        onInteractionChange={handleHandInteractionChange}
+        setIsDraggingOrb={setIsDraggingOrb}
+        visualFrameRef={handVisualFrameRef}
+      />
+      {stems.map((stem) => (
         <InteractiveOrb
           key={stem.key}
           orbKey={stem.key}
@@ -1270,6 +1291,8 @@ function VRAudioExperience({ starColors, activeSong, leftRate, rightRate, active
           setIsDraggingOrb={setIsDraggingOrb}
           analysersRef={analysersRef}
           draggingOrbsRef={draggingOrbsRef}
+          isHandHovered={handInteraction.hoveredOrbKey === stem.key}
+          isHandGrabbed={handInteraction.grabbedOrbKey === stem.key}
         />
       ))}
     </>
@@ -1435,9 +1458,10 @@ function SleekAxes3D({ length = 6.5, segments = 24 }) {
   );
 }
 
-export function VRScene({ store, starColors, soundMode, isInVR, isDesktopVR, activeSong, leftRate, rightRate, activePreset, isAudioActive, vrModeType, onNextSong, vrCameraPos, vrCameraRot }) {
+export function VRScene({ store, starColors, handData, isInVR, isDesktopVR, activeSong, leftRate, rightRate, activePreset, isAudioActive, vrModeType, onNextSong, vrCameraPos, vrCameraRot, onWebcamInteractionChange, handVisualFrameRef }) {
   const isVRActive = isInVR || isDesktopVR;
   const [isDraggingOrb, setIsDraggingOrb] = useState(false);
+  const orbitControlsRef = useRef(null);
 
   return (
     <div style={{ 
@@ -1478,12 +1502,12 @@ export function VRScene({ store, starColors, soundMode, isInVR, isDesktopVR, act
             {/* Background 3000 ambient particle stars - Always rendered in 3D Space */}
             {isVRActive && (
               <Suspense fallback={null}>
-                <Stars3D soundMode={soundMode} />
+                <Stars3D />
               </Suspense>
             )}
             
             <ControllerHelpers />
-            {isDesktopVR && <OrbitControls enabled={!isDraggingOrb} enableZoom={true} enablePan={false} maxDistance={25} minDistance={1} />}
+            {isDesktopVR && <OrbitControls ref={orbitControlsRef} enabled={!isDraggingOrb} enableZoom={true} enablePan={false} maxDistance={25} minDistance={1} />}
 
             {/* Premium 3D VR Spatial Audio Experience - ONLY in VR 2 */}
             {isVRActive && vrModeType === 2 && (
@@ -1494,9 +1518,12 @@ export function VRScene({ store, starColors, soundMode, isInVR, isDesktopVR, act
                 rightRate={rightRate}
                 activePreset={activePreset}
                 isAudioActive={isAudioActive}
-                soundMode={soundMode}
                 setIsDraggingOrb={setIsDraggingOrb}
                 onNextSong={onNextSong}
+                handData={handData}
+                orbitControlsRef={orbitControlsRef}
+                onWebcamInteractionChange={onWebcamInteractionChange}
+                handVisualFrameRef={handVisualFrameRef}
               />
             )}
         </XR>

@@ -261,17 +261,6 @@ export function SpatialExperiment({ onBack }) {
     setRightRate(1.0);
   }, [activeSong]);
 
-  // Handle Finger Snap to cycle songs
-  const totalSnapCountRef = useRef(0);
-  useEffect(() => {
-    const currentTotalSnaps = handData.reduce((acc, h) => acc + h.snapCount, 0);
-    if (currentTotalSnaps > totalSnapCountRef.current) {
-      const nextSong = (activeSong % 3) + 1;
-      handleSongChange(nextSong);
-      totalSnapCountRef.current = currentTotalSnaps;
-    }
-  }, [handData, activeSong]);
-
   const handleSongChange = (id) => {
     setActiveSong(id);
     setSongTrigger(prev => prev + 1);

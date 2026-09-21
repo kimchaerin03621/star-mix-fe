@@ -5,6 +5,7 @@ import './index.css';
 import { ControllerPanel } from './components/ControllerPanel';
 import { createXRStore } from '@react-three/xr';
 import { VRScene } from './components/VRScene';
+import { HandGestureFeedback } from './hand-tracking/HandGestureFeedback';
 
 const xrStore = createXRStore({ 
   offerSession: false
@@ -558,12 +559,52 @@ const SONGS = [
   { id: 3, title: 'Kerning City', artist: 'MapleStory' }
 ];
 
+const GESTURE_LABELS = {
+  fist: 'FIST',
+  openPalm: 'OPEN PALM',
+  indexOnly: 'INDEX ONLY',
+  thumbOnly: 'THUMB ONLY',
+  cameraMove: 'CAMERA ORBIT',
+  zoom: 'ZOOM',
+  unknown: 'UNMAPPED',
+};
+
+const INTERACTION_LABELS = {
+  idle: 'IDLE',
+  hover: 'HOVER',
+  grab: 'GRAB · X/Y MOVE',
+  'depth-far': 'GRAB · DEPTH FAR',
+  'depth-near': 'GRAB · DEPTH NEAR',
+  'camera-move': 'CAMERA ORBIT',
+  zoom: 'ZOOM',
+  'grab-camera-move': 'GRAB + CAMERA ORBIT',
+  'grab-zoom': 'GRAB + ZOOM',
+};
+
+const getGestureLabel = (hand) => {
+  if (hand.isFist) return GESTURE_LABELS.fist;
+  if (hand.gestures.openPalm) return GESTURE_LABELS.openPalm;
+  if (hand.gestures.indexOnly) return GESTURE_LABELS.indexOnly;
+  if (hand.gestures.thumbOnly) return GESTURE_LABELS.thumbOnly;
+  if (hand.gestures.cameraMove) return GESTURE_LABELS.cameraMove;
+  if (hand.gestures.zoom) return GESTURE_LABELS.zoom;
+  return GESTURE_LABELS.unknown;
+};
+
 function App() {
   const videoRef = useRef(null);
+  const handVisualFrameRef = useRef({ grabbedOrbPoint: null });
   const [, setSourceCanvas] = useState(null);
   const [isInVR, setIsInVR] = useState(false);
   const [isDesktopVR, setIsDesktopVR] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
+  const [webcamInteraction, setWebcamInteraction] = useState({
+    hoveredOrbKey: null,
+    grabbedOrbKey: null,
+    grabHandId: null,
+    mode: 'idle',
+    activeHandId: null,
+  });
   const [isAudioInitialized, setIsAudioInitialized] = useState(false);
   const [isMusicLoading, setIsMusicLoading] = useState(false);
   const [activePreset, setActivePreset] = useState(1);
@@ -594,7 +635,6 @@ function App() {
   const [customTexture, setCustomTexture] = useState(null);
   const [starColors, setStarColors] = useState({ left: '#E09F3E', right: '#FFF3B0' });
 
-  const [soundMode, setSoundMode] = useState('spatial'); // 'stereo' | 'spatial'
   const [vrModeType, setVrModeType] = useState(1); // 1 for VR 1 (Classic), 2 for VR 2 (Spatial)
   const [, setAnalyserNode] = useState(null);
 
@@ -706,7 +746,10 @@ function App() {
     }
   }, [isAudioPausedInView, isAudioInitialized, audioElements, targetVolume]);
 
-  const handData = useHandTracking(videoRef, viewMode !== 'menu' && viewMode !== 'intro');
+  const handTrackingEnabled =
+    (isDesktopVR && vrModeType === 2) ||
+    (viewMode !== 'menu' && viewMode !== 'intro');
+  const handData = useHandTracking(videoRef, handTrackingEnabled);
 
   const unlockIntroExperience = async () => {
     try {
@@ -755,15 +798,6 @@ function App() {
     setLeftRate(1.0);
     setRightRate(1.0);
   }, [activeSong]);
-
-  // Handle Finger Snap (Disabled song cycling since only SONG 1 is active)
-  const totalSnapCountRef = useRef(0);
-  useEffect(() => {
-    const currentTotalSnaps = handData.reduce((acc, h) => acc + h.snapCount, 0);
-    if (currentTotalSnaps > totalSnapCountRef.current) {
-      totalSnapCountRef.current = currentTotalSnaps;
-    }
-  }, [handData]);
 
   const handleSongChange = (id) => {
     setActiveSong(id);
@@ -1269,21 +1303,6 @@ function App() {
             </div>
           </div>
 
-          <div className="global-header-center">
-            <button 
-              className={`pill-btn ${soundMode === 'stereo' ? 'active' : ''}`}
-              onClick={() => setSoundMode('stereo')}
-            >
-              Stereo
-            </button>
-            <button 
-              className={`pill-btn ${soundMode === 'spatial' ? 'active' : ''}`}
-              onClick={() => setSoundMode('spatial')}
-            >
-              Spatial
-            </button>
-          </div>
-
           <div className="global-header-actions">
             <button className="pill-btn" onClick={() => setIsEditorOpen(true)}>
               Star Edit
@@ -1542,7 +1561,7 @@ function App() {
       <VRScene
         store={xrStore}
         starColors={starColors}
-        soundMode={soundMode}
+        handData={handData}
         isInVR={isInVR}
         isDesktopVR={isDesktopVR}
         activeSong={activeSong}
@@ -1554,17 +1573,40 @@ function App() {
         onNextSong={handleNextSong}
         vrCameraPos={vrCameraPos}
         vrCameraRot={vrCameraRot}
+        onWebcamInteractionChange={setWebcamInteraction}
+        handVisualFrameRef={handVisualFrameRef}
+      />
+
+      <HandGestureFeedback
+        handData={handData}
+        interaction={webcamInteraction}
+        visualFrameRef={handVisualFrameRef}
       />
 
 
 
-      {/* Webcam element is always mounted at the bottom of the DOM to render on top of the absolute canvas */}
-      <video 
-        ref={videoRef} 
-        className={`webcam-feed ${['intro', 'dj'].includes(viewMode) ? 'visible' : 'hidden-feed'}`} 
-        playsInline 
-        muted 
-      />
+      {/* Keep the video mounted so MediaPipe retains its stream between views. */}
+      <div className={`webcam-monitor ${cameraActive && viewMode !== 'intro' ? 'visible' : 'hidden-feed'}`}>
+        <video ref={videoRef} className="webcam-feed" playsInline muted />
+        <div className="webcam-status" aria-live="polite">
+          <span className={`webcam-status-mode ${webcamInteraction.mode !== 'idle' ? 'active' : ''}`}>
+            {INTERACTION_LABELS[webcamInteraction.mode] || INTERACTION_LABELS.idle}
+            {webcamInteraction.grabbedOrbKey ? ` · ${webcamInteraction.grabbedOrbKey.toUpperCase()}` : ''}
+          </span>
+          <div className="webcam-hand-list">
+            {handData.length === 0 ? (
+              <span>NO HAND</span>
+            ) : handData.map((hand) => (
+              <span
+                key={hand.trackingId}
+                className={webcamInteraction.activeHandId === hand.trackingId ? 'active' : ''}
+              >
+                {hand.handedness?.toUpperCase() || 'HAND'} #{hand.trackingId} · {getGestureLabel(hand)}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
