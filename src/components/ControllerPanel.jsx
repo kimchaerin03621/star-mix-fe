@@ -74,7 +74,7 @@ export function ControllerPanel({
                 fontWeight: '800',
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
-                fontFamily: "'Share Tech Mono', monospace",
+                fontFamily: "'Pretendard Variable', Pretendard, sans-serif",
                 letterSpacing: '1px'
               }}
             >
@@ -92,7 +92,7 @@ export function ControllerPanel({
                 fontWeight: '800',
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
-                fontFamily: "'Share Tech Mono', monospace",
+                fontFamily: "'Pretendard Variable', Pretendard, sans-serif",
                 letterSpacing: '1px'
               }}
             >

@@ -559,6 +559,9 @@ const SONGS = [
   { id: 3, title: 'Kerning City', artist: 'MapleStory' }
 ];
 
+// Keep deferred exhibition tools implemented but out of the current experience.
+const SHOW_FUTURE_FEATURE_CONTROLS = false;
+
 const GESTURE_LABELS = {
   fist: 'FIST',
   openPalm: 'OPEN PALM',
@@ -622,7 +625,6 @@ function App() {
   const [mappingGroup, setMappingGroup] = useState('group1'); // 'group1' | 'group2'
 
   const [viewMode, setViewMode] = useState('intro'); // Start on minimal pitch-black intro screen!
-  const [introHovered, setIntroHovered] = useState(false);
   const isWarping = false;
   const warpProgress = 0;
 
@@ -1053,9 +1055,11 @@ function App() {
             mappedControlTag = 'BTN 2';
             mappedActionDesc = 'PRESET 2 (NDS Style) 전환';
           } else if (data1 === 50 || data1 === 11) {
-            setIsEditorOpen(true);
-            mappedControlTag = 'BTN 3';
-            mappedActionDesc = 'My Star 에디터 모달 열기';
+            if (SHOW_FUTURE_FEATURE_CONTROLS) {
+              setIsEditorOpen(true);
+              mappedControlTag = 'BTN 3';
+              mappedActionDesc = 'My Star 에디터 모달 열기';
+            }
           } else if (data1 === 51 || data1 === 12) {
             setViewMode('menu');
             mappedControlTag = 'BTN 4';
@@ -1303,14 +1307,16 @@ function App() {
             </div>
           </div>
 
-          <div className="global-header-actions">
-            <button className="pill-btn" onClick={() => setIsEditorOpen(true)}>
-              Star Edit
-            </button>
-            <button className="pill-btn" onClick={() => setViewMode('controller')}>
-              Control Room
-            </button>
-          </div>
+          {SHOW_FUTURE_FEATURE_CONTROLS && (
+            <div className="global-header-actions">
+              <button className="pill-btn" onClick={() => setIsEditorOpen(true)}>
+                Star Edit
+              </button>
+              <button className="pill-btn" onClick={() => setViewMode('controller')}>
+                Control Room
+              </button>
+            </div>
+          )}
         </header>
       )}
 
@@ -1463,17 +1469,31 @@ function App() {
       {/* Pitch-Black Minimal Intro Screen (viewMode === 'intro') */}
       {!isInVR && !isDesktopVR && viewMode === 'intro' && (
         <div className="minimal-intro-overlay">
-          <button 
-            className="intro-interactive-text"
-            onMouseEnter={() => setIntroHovered(true)}
-            onMouseLeave={() => setIntroHovered(false)}
-            onClick={async () => {
-              await unlockIntroExperience();
-              handleEnterVR(2);
-            }}
-          >
-            {introHovered ? "YES." : "channel?"}
-          </button>
+          <div className="minimal-intro-content">
+            <main className="minimal-intro-center">
+              <h1 className="minimal-intro-channel">CHANNEL</h1>
+              <h1 className="minimal-intro-slogan">
+                Grab the sound. Move it through space.
+              </h1>
+              <p className="minimal-intro-tagline">Touch. Move. Listen.</p>
+
+              <button
+                className="minimal-intro-arrow"
+                aria-label="Enter the spatial sound experience"
+                onClick={async () => {
+                  await unlockIntroExperience();
+                  handleEnterVR(2);
+                }}
+              >
+                →
+              </button>
+            </main>
+
+            <footer className="minimal-intro-bottom">
+              <h2>A Spatial Sound Interaction Experiment</h2>
+              <p>Explore sound as a tangible object through gesture-based spatial audio.</p>
+            </footer>
+          </div>
         </div>
       )}
 
@@ -1502,7 +1522,7 @@ function App() {
         </div>
       )}
 
-      {viewMode === 'controller' && (
+      {SHOW_FUTURE_FEATURE_CONTROLS && viewMode === 'controller' && (
         <ControllerPanel
           isSupported={typeof navigator !== 'undefined' && !!navigator.requestMIDIAccess}
           status={midiStatus}
@@ -1524,7 +1544,7 @@ function App() {
         />
       )}
 
-      {isEditorOpen && (
+      {SHOW_FUTURE_FEATURE_CONTROLS && isEditorOpen && (
         <StarEditor
           onApply={handleApplyCustomStar}
           onCancel={() => setIsEditorOpen(false)}

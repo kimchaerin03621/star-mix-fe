@@ -721,7 +721,7 @@ export function SpatialExperience({
 
               // Label "GRAB"
               ctx.fillStyle = glowColor;
-              ctx.font = 'bold 10px Inter, sans-serif';
+              ctx.font = 'bold 10px Pretendard';
               ctx.textAlign = 'center';
               ctx.textBaseline = 'middle';
               ctx.fillText("GRAB", sx, sy - pulseRadius - 12);
@@ -784,7 +784,7 @@ export function SpatialExperience({
           
           // 3. Draw key layout below the orb
           const hudY = sy + pulseRadius + 22;
-          ctx.font = 'bold 10px Inter, Roboto, sans-serif';
+          ctx.font = 'bold 10px Pretendard';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           
@@ -846,7 +846,7 @@ export function SpatialExperience({
             const shiftX = sx;
             const shiftY = hudY + (keySize + gap) * 2 + 6;
             ctx.save();
-            ctx.font = 'bold 8px Inter, sans-serif';
+            ctx.font = 'bold 8px Pretendard';
             if (isShift) {
               ctx.fillStyle = glowColor;
               ctx.shadowBlur = 8;
@@ -862,12 +862,12 @@ export function SpatialExperience({
             if (isBehind) {
               ctx.save();
               ctx.fillStyle = '#ff007f'; // bright alert pink
-              ctx.font = 'bold 9px Inter, sans-serif';
+              ctx.font = 'bold 9px Pretendard';
               ctx.fillText(`[REAR / 머리 뒤]`, sx, sy - pulseRadius - 24);
               ctx.restore();
             }
             ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-            ctx.font = '9px monospace';
+            ctx.font = '9px Pretendard';
             ctx.fillText(`X: ${orb.cx.toFixed(2)} Y: ${orb.cy.toFixed(2)} Z: ${orb.cz.toFixed(2)}`, sx, sy - pulseRadius - 12);
           } else {
             // Draw Arrow keys
@@ -885,7 +885,7 @@ export function SpatialExperience({
             const shiftX = sx;
             const shiftY = hudY + (keySize + gap) * 2 + 6;
             ctx.save();
-            ctx.font = 'bold 8px Inter, sans-serif';
+            ctx.font = 'bold 8px Pretendard';
             if (isShift) {
               ctx.fillStyle = glowColor;
               ctx.shadowBlur = 8;
@@ -901,12 +901,12 @@ export function SpatialExperience({
             if (isBehind) {
               ctx.save();
               ctx.fillStyle = '#ff007f'; // bright alert pink
-              ctx.font = 'bold 9px Inter, sans-serif';
+              ctx.font = 'bold 9px Pretendard';
               ctx.fillText(`[REAR / 머리 뒤]`, sx, sy - pulseRadius - 24);
               ctx.restore();
             }
             ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-            ctx.font = '9px monospace';
+            ctx.font = '9px Pretendard';
             ctx.fillText(`X: ${orb.cx.toFixed(2)} Y: ${orb.cy.toFixed(2)} Z: ${orb.cz.toFixed(2)}`, sx, sy - pulseRadius - 12);
           }
           
