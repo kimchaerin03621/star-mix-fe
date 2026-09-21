@@ -42,7 +42,6 @@ export function WebcamGestureController({
     activeHandId: null,
   });
   const raycasterRef = useRef(new THREE.Raycaster());
-  const planeRef = useRef(new THREE.Plane(new THREE.Vector3(0, 0, 1), 0));
   const targetPointRef = useRef(new THREE.Vector3());
   const projectedRef = useRef(new THREE.Vector3());
   const orbitOffsetRef = useRef(new THREE.Vector3());
@@ -105,11 +104,12 @@ export function WebcamGestureController({
         if (orb) {
           const point = grab.lastScreenPoint;
           raycasterRef.current.setFromCamera({ x: point.ndcX, y: point.ndcY }, camera);
-          planeRef.current.set(new THREE.Vector3(0, 0, 1), -grab.lockedZ);
-          if (raycasterRef.current.ray.intersectPlane(planeRef.current, targetPointRef.current)) {
-            orb.x = clamp(targetPointRef.current.x, CONFIG.STAR_MIN_X, CONFIG.STAR_MAX_X) + grab.xyOffset.x;
-            orb.y = clamp(targetPointRef.current.y, CONFIG.STAR_MIN_Y, CONFIG.STAR_MAX_Y) + grab.xyOffset.y;
-            orb.z = grab.lockedZ;
+          if (raycasterRef.current.ray.intersectPlane(grab.dragPlane, targetPointRef.current)) {
+            // The drag plane is captured from the camera orientation at grab
+            // start, so hand X/Y always maps to the visible screen plane.
+            // dragOffset prevents a jump when the fist closes near, rather
+            // than exactly on, the projected center of the star.
+            orb.copy(targetPointRef.current).add(grab.dragOffset);
           }
         }
       }
@@ -131,15 +131,17 @@ export function WebcamGestureController({
         const secondaryThumbOnly = thumb && !index && !middle && !ring && !pinky && !secondaryHand.isFist;
 
         if (secondaryIndexOnly) {
-          // Near movement can legitimately place the star beyond the old
-          // world-space Z maximum when the listener is elsewhere. Preserve
-          // that current position and move away incrementally instead of
-          // clamping back to STAR_MAX_Z on the first Far frame.
-          grab.lockedZ = Math.max(
-            grab.lockedZ - CONFIG.DEPTH_MOVE_SPEED * delta,
-            CONFIG.STAR_MIN_Z,
-          );
-          orb.z = grab.lockedZ;
+          const distanceFromListener = orb.distanceTo(camera.position);
+          const availableDistance = CONFIG.MAX_LISTENER_DISTANCE - distanceFromListener;
+          if (availableDistance > 0) {
+            const moveDistance = Math.min(CONFIG.DEPTH_MOVE_SPEED * delta, availableDistance);
+            const directionAwayFromListener = targetPointRef.current
+              .copy(orb)
+              .sub(camera.position)
+              .normalize();
+            orb.addScaledVector(directionAwayFromListener, moveDistance);
+            grab.dragOffset.addScaledVector(directionAwayFromListener, moveDistance);
+          }
           secondaryDepthActive = true;
           depthMode = 'depth-far';
         } else if (secondaryThumbOnly) {
@@ -152,9 +154,7 @@ export function WebcamGestureController({
               .sub(orb)
               .normalize();
             orb.addScaledVector(directionToListener, moveDistance);
-            grab.lockedZ = orb.z;
-            grab.xyOffset.x += directionToListener.x * moveDistance;
-            grab.xyOffset.y += directionToListener.y * moveDistance;
+            grab.dragOffset.addScaledVector(directionToListener, moveDistance);
           }
           secondaryDepthActive = true;
           depthMode = 'depth-near';
@@ -193,12 +193,27 @@ export function WebcamGestureController({
           if (fistHand) {
             const orb = orbCoordsRef.current[memory.orbKey];
             if (orb) {
+              const grabPoint = toScreenPoint(fistHand);
+              const dragPlaneNormal = camera.getWorldDirection(new THREE.Vector3()).normalize();
+              const dragPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(dragPlaneNormal, orb);
+              const initialIntersection = new THREE.Vector3();
+              raycasterRef.current.setFromCamera(
+                { x: grabPoint.ndcX, y: grabPoint.ndcY },
+                camera,
+              );
+              const hasIntersection = raycasterRef.current.ray.intersectPlane(
+                dragPlane,
+                initialIntersection,
+              );
+
               grabRef.current = {
                 orbKey: memory.orbKey,
                 handId: fistHand.trackingId,
-                lockedZ: orb.z,
-                xyOffset: { x: 0, y: 0 },
-                lastScreenPoint: toScreenPoint(fistHand),
+                dragPlane,
+                dragOffset: hasIntersection
+                  ? orb.clone().sub(initialIntersection)
+                  : new THREE.Vector3(),
+                lastScreenPoint: grabPoint,
                 lostFrames: 0,
               };
               draggingOrbsRef.current[memory.orbKey] = true;
