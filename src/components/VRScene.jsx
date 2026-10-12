@@ -4,6 +4,7 @@ import { XR, IfInSessionMode } from '@react-three/xr';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { SONG_STEMS } from '../audio/songStems';
+import { getInstrumentTexture } from './instrumentIcons';
 import { WebcamGestureController } from '../hand-tracking/WebcamGestureController';
 
 
@@ -470,6 +471,13 @@ function OrbSwarmSatellites({ color, isDragging }) {
 
 const starTextureCache = {};
 
+// Instrument silhouette opacity/size (world units) for each interaction state.
+const ICON_STATE = {
+  rest: { opacity: 0.5, scale: 0.46 },
+  hovered: { opacity: 0.9, scale: 0.62 },
+  grabbed: { opacity: 1, scale: 0.68 },
+};
+
 function getMenuStarTexture(colorHex) {
   if (typeof document === 'undefined') return null;
   if (starTextureCache[colorHex]) return starTextureCache[colorHex];
@@ -508,10 +516,12 @@ function InteractiveOrb({
   setIsDraggingOrb,
   analysersRef,
   draggingOrbsRef,
+  instrument,
   isHandHovered,
   isHandGrabbed,
 }) {
   const meshRef = useRef();
+  const iconRef = useRef();
   const auraRef = useRef();
   const waveRef1 = useRef();
   const waveRef2 = useRef();
@@ -519,10 +529,24 @@ function InteractiveOrb({
   const waveTimeRef = useRef(0);
   
   const starTexture = useMemo(() => getMenuStarTexture(color), [color]);
+  const instrumentTexture = useMemo(() => getInstrumentTexture(instrument), [instrument]);
 
   const [isDragging, setIsDragging] = useState(false);
   const [hovered, setHovered] = useState(false);
   const isVisualHovered = hovered || isHandHovered || isHandGrabbed;
+
+  // The instrument silhouette is faint at rest, clear on hover, brightest once grabbed.
+  useFrame((_, delta) => {
+    const icon = iconRef.current;
+    if (!icon) return;
+    const target = isHandGrabbed || isDragging
+      ? ICON_STATE.grabbed
+      : isVisualHovered ? ICON_STATE.hovered : ICON_STATE.rest;
+    const ease = 1 - Math.exp(-delta * 10);
+    icon.material.opacity += (target.opacity - icon.material.opacity) * ease;
+    const nextScale = icon.scale.x + (target.scale - icon.scale.x) * ease;
+    icon.scale.set(nextScale, nextScale, nextScale);
+  });
   const { raycaster, gl } = useThree();
   
   // Track dragging distance and active grabbing controller (0, 1, or 'mouse')
@@ -881,6 +905,18 @@ function InteractiveOrb({
               transparent={true}
               opacity={isVisualHovered ? 0.95 : 0.82}
               blending={THREE.AdditiveBlending}
+              depthWrite={false}
+            />
+          </sprite>
+        )}
+
+        {/* Instrument silhouette cut into the star's glowing core */}
+        {instrumentTexture && (
+          <sprite ref={iconRef} scale={[ICON_STATE.rest.scale, ICON_STATE.rest.scale, ICON_STATE.rest.scale]} renderOrder={10}>
+            <spriteMaterial
+              map={instrumentTexture}
+              transparent={true}
+              opacity={ICON_STATE.rest.opacity}
               depthWrite={false}
             />
           </sprite>
@@ -1325,6 +1361,7 @@ function VRAudioExperience({
           setIsDraggingOrb={setIsDraggingOrb}
           analysersRef={analysersRef}
           draggingOrbsRef={draggingOrbsRef}
+          instrument={stem.instrument}
           isHandHovered={handInteraction.hoveredOrbKey === stem.key}
           isHandGrabbed={handInteraction.grabbedOrbKey === stem.key}
         />
