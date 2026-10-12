@@ -1,0 +1,31 @@
+/* Call-to-action shown over the galaxy before the camera starts. It follows the
+   intro's look: black, white type, hairline border, the star pink as the only accent. */
+.camera-start-button {
+  position: fixed;
+  bottom: 40px;
+  left: 50%;
+  z-index: 101;
+  transform: translateX(-50%);
+  padding: 14px 38px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  color: var(--text-primary, #fff);
+  font-family: var(--sf-font-body, inherit);
+  font-size: 1rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: border-color 220ms ease, box-shadow 220ms ease, background 220ms ease, transform 220ms ease;
+}
+
+.camera-start-button:hover,
+.camera-start-button:focus-visible {
+  border-color: #ff5c9d;
+  background: rgba(255, 92, 157, 0.1);
+  box-shadow: 0 0 28px rgba(255, 92, 157, 0.35);
+  transform: translateX(-50%) translateY(-2px);
+  outline: none;
+}

@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useHandTracking } from './hooks/useHandTracking';
 import { Starfield2D } from './components/Experience';
 import './index.css';
+import './exhibition.css';
 import { ControllerPanel } from './components/ControllerPanel';
 import { createXRStore } from '@react-three/xr';
 import { VRScene } from './components/VRScene';
@@ -1504,7 +1505,7 @@ function App() {
           )}
 
           {!cameraActive && (
-            <button className="start-button" onClick={startCamera}>
+            <button className="camera-start-button" onClick={startCamera}>
               카메라 시작하기
             </button>
           )}
