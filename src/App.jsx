@@ -829,11 +829,12 @@ function App() {
   });
 
   // Nobody around for a while: send the next visitor back to the galaxy.
-  useIdleReturn(handData, isInSpace, returnToGalaxy, SPACE_IDLE_RETURN_MS);
+  // (Not while someone is inside the headset: no webcam hands or mouse there.)
+  useIdleReturn(handData, isInSpace && !isInVR, returnToGalaxy, SPACE_IDLE_RETURN_MS);
 
   const unmixProgress = useUnmixGesture(
     handData,
-    cameraActive && (isInGalaxy || isInSpace),
+    cameraActive && (isInGalaxy || (isInSpace && !isInVR)),
     isInSpace ? returnToGalaxy : beginUnmix,
   );
 
@@ -857,19 +858,32 @@ function App() {
     }
   };
 
+  // The headset session is just another way of looking at the spatial scene, so
+  // leaving it drops back to the on-screen scene with the music still playing.
   useEffect(() => {
-    let wasActive = false;
     const unsub = xrStore.subscribe((state) => {
-      const active = !!state.session;
-      setIsInVR(active);
-      // Only reset audio when a previously-active XR session genuinely ends
-      if (wasActive && !active) {
-        setIsAudioInitialized(false);
-      }
-      wasActive = active;
+      setIsInVR(!!state.session);
     });
     return unsub;
   }, []);
+
+  // Checked again each time the spatial scene opens, so a headset that was
+  // plugged in after the page loaded still gets its button.
+  const [isVRSupported, setIsVRSupported] = useState(false);
+  useEffect(() => {
+    if (!isDesktopVR || typeof navigator === 'undefined' || !navigator.xr) return;
+    navigator.xr.isSessionSupported('immersive-vr')
+      .then(setIsVRSupported)
+      .catch(() => setIsVRSupported(false));
+  }, [isDesktopVR]);
+
+  const enterHeadset = async () => {
+    try {
+      await xrStore.enterVR();
+    } catch (err) {
+      console.error('Could not start the VR session:', err);
+    }
+  };
 
   // Base BPM Map
   const bpmMap = {
@@ -1601,8 +1615,7 @@ function App() {
 
       {/* The galaxy stays mounted (just hidden) while the spatial scene is open, so its
           audio graph survives the round trip. */}
-      {!isInVR && (
-        <div style={{ display: isDesktopVR ? 'none' : 'contents' }}>
+      <div style={{ display: (isDesktopVR || isInVR) ? 'none' : 'contents' }}>
         <Starfield2D
           galaxyPhase={galaxyPhase}
           stems={EXHIBITION_STEMS}
@@ -1627,9 +1640,14 @@ function App() {
           onAnalyserReady={setAnalyserNode}
         />
         </div>
+
+      {isInSpace && !isInVR && isVRSupported && (
+        <button className="vr-enter-button" onClick={enterHeadset}>
+          VR 헤드셋으로 보기
+        </button>
       )}
 
-      {isInSpace && cameraActive && (
+      {isInSpace && cameraActive && !isInVR && (
         <GestureHint lines={['주먹을 쥐어 별을 잡고 옮겨 보세요', '🤘 1초 유지 — 은하로 돌아가요']} />
       )}
 
