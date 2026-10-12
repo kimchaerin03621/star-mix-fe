@@ -8,6 +8,8 @@ import { VRScene } from './components/VRScene';
 import { HandGestureFeedback } from './hand-tracking/HandGestureFeedback';
 import { useUnmixGesture } from './hand-tracking/useUnmixGesture';
 import { UnmixProgress } from './hand-tracking/UnmixProgress';
+import { GestureHint } from './hand-tracking/GestureHint';
+import { useIdleReturn } from './hand-tracking/useIdleReturn';
 import { GroupAudio } from './audio/GroupAudio';
 import { EXHIBITION_SONG, getStemGroupUrls } from './audio/songStems';
 
@@ -557,6 +559,7 @@ function StarEditor({ onApply, onCancel, previousTexture, previousColors }) {
   );
 }
 
+const SPACE_IDLE_RETURN_MS = 30000;
 const UNMIX_GATHER_MS = 1100;
 const GALAXY_BURST_MS = 1800;
 
@@ -821,6 +824,9 @@ function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   });
+
+  // Nobody around for a while: send the next visitor back to the galaxy.
+  useIdleReturn(handData, isInSpace, returnToGalaxy, SPACE_IDLE_RETURN_MS);
 
   const unmixProgress = useUnmixGesture(
     handData,
@@ -1426,26 +1432,7 @@ function App() {
           </div>
 
           {cameraActive && (
-            <div
-              style={{
-                position: 'fixed',
-                left: 0,
-                right: 0,
-                bottom: 72,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 6,
-                color: 'rgba(255,255,255,0.7)',
-                fontSize: 14,
-                letterSpacing: '0.06em',
-                pointerEvents: 'none',
-                zIndex: 5,
-              }}
-            >
-              <span>손으로 별을 휘저어 소리를 섞어 보세요</span>
-              <span>🤘 1초 유지 — 소리가 풀려요</span>
-            </div>
+            <GestureHint lines={['손으로 별을 휘저어 소리를 섞어 보세요', '🤘 1초 유지 — 소리가 풀려요']} />
           )}
 
           {SHOW_FUTURE_FEATURE_CONTROLS && (
@@ -1636,6 +1623,10 @@ function App() {
           onAnalyserReady={setAnalyserNode}
         />
         </div>
+      )}
+
+      {isInSpace && cameraActive && (
+        <GestureHint lines={['주먹을 쥐어 별을 잡고 옮겨 보세요', '🤘 1초 유지 — 은하로 돌아가요']} />
       )}
 
       <UnmixProgress
