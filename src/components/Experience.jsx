@@ -1,11 +1,17 @@
 import React, { useRef, useEffect } from 'react';
+import { getStemColor } from '../audio/songStems';
+import { getStemScreenAnchors } from '../audio/stemLayout';
 
 // How hard stars are pulled in (and spun) while the galaxy gathers, how fast
 // they spring back out afterwards, and how long the center glow takes to peak.
 const GATHER_PULL = 0.02;
 const GATHER_SWIRL = 0.006;
 const BURST_SPRING_POWER = 0.012;
-const GATHER_GLOW_MS = 1000;
+// The gather has two beats: stars spiral into the center for GATHER_SPLIT_MS,
+// then split into stem-colored clusters (radius as a fraction of screen height).
+const GATHER_SPLIT_MS = 650;
+const SPLIT_GLOW_MS = 700;
+const CLUSTER_RADIUS = 0.05;
 
 export function Starfield2D({
   handData, isAudioActive, onMusicReady, 
@@ -18,6 +24,7 @@ export function Starfield2D({
   isWarping,
   warpProgress = 0,
   galaxyPhase = 'idle',
+  stems = [],
   audioCtx,
   audioElements,
   isWhiteOnly = false,
@@ -43,11 +50,23 @@ export function Starfield2D({
   const warpProgressRef = useRef(warpProgress);
   const galaxyPhaseRef = useRef(galaxyPhase);
   const gatherStartRef = useRef(0);
+  const stemTexturesRef = useRef({});
+  const stemAnchorsRef = useRef({ aspect: 0, list: [] });
 
+  // When the stars gather, each one is dealt to a stem of its own half: the
+  // pink half to the lead stems, the white half to the band stems.
   useEffect(() => {
     galaxyPhaseRef.current = galaxyPhase;
-    if (galaxyPhase === 'gathered') gatherStartRef.current = performance.now();
-  }, [galaxyPhase]);
+    if (galaxyPhase !== 'gathered') return;
+    gatherStartRef.current = performance.now();
+    const pickFrom = (group) => stems.filter((stem) => stem.group === group);
+    const leadStems = pickFrom('lead');
+    const bandStems = pickFrom('band');
+    starsRef.current.forEach((star) => {
+      const pool = star.colorType === 'pink' ? leadStems : bandStems;
+      star.stemKey = pool.length ? pool[Math.floor(Math.random() * pool.length)].key : null;
+    });
+  }, [galaxyPhase, stems]);
 
   useEffect(() => {
     isWarpingRef.current = isWarping;
@@ -113,7 +132,10 @@ export function Starfield2D({
         colorType: initialX < 0.5 ? 'pink' : 'white',
         mass: 0.4 + Math.random() * 0.6,
         phase: Math.random() * Math.PI * 2,
-        twinkleSpeed: 0.001 + Math.random() * 0.004
+        twinkleSpeed: 0.001 + Math.random() * 0.004,
+        stemKey: null,
+        clusterAngle: Math.random() * Math.PI * 2,
+        clusterRadius: Math.sqrt(Math.random())
       });
     }
     starsRef.current = newStars;
@@ -165,8 +187,11 @@ export function Starfield2D({
 
       pinkTextureRef.current = processTexture(starColors?.left || '#ff5c9d');
       textureRef.current = processTexture(starColors?.right || '#ffffff');
+      stems.forEach((stem) => {
+        stemTexturesRef.current[stem.key] = processTexture(getStemColor(stem));
+      });
     };
-  }, [customTexture, starColors]);
+  }, [customTexture, starColors, stems]);
 
   const onMusicReadyRef = useRef(onMusicReady);
   useEffect(() => {
@@ -388,6 +413,24 @@ export function Starfield2D({
       const stars = starsRef.current;
       let activePushes = 0;
 
+      // Unmixing: first every star spirals into the center, then the galaxy
+      // splits into one colored cluster per stem, laid out like the 3D scene.
+      const isGathering = galaxyPhaseRef.current === 'gathered';
+      const gatherElapsed = isGathering ? performance.now() - gatherStartRef.current : 0;
+      const isSplit = isGathering && gatherElapsed >= GATHER_SPLIT_MS && stems.length > 0;
+      if (isSplit) {
+        const aspect = width / height;
+        if (stemAnchorsRef.current.aspect !== aspect) {
+          stemAnchorsRef.current = {
+            aspect,
+            list: getStemScreenAnchors(stems, aspect),
+          };
+        }
+      }
+      const anchors = isSplit ? stemAnchorsRef.current.list : [];
+      const anchorByKey = {};
+      anchors.forEach((anchor) => { anchorByKey[anchor.key] = anchor; });
+
       stars.forEach(star => {
         let isPushed = false;
         hands.forEach((h) => {
@@ -422,12 +465,20 @@ export function Starfield2D({
         } else {
           star.vx += Math.sin(Date.now() * 0.005 + star.phase) * 0.003;
           star.vy += Math.cos(Date.now() * 0.005 + star.phase) * 0.003;
-          if (galaxyPhaseRef.current === 'gathered') {
-            // Spiral every star into the center.
-            const toCenterX = 0.5 - star.x;
-            const toCenterY = 0.5 - star.y;
-            star.vx += (toCenterX * GATHER_PULL - toCenterY * GATHER_SWIRL) * width;
-            star.vy += (toCenterY * GATHER_PULL + toCenterX * GATHER_SWIRL) * height;
+          if (isGathering) {
+            const anchor = isSplit ? anchorByKey[star.stemKey] : null;
+            const clusterSpread = CLUSTER_RADIUS * (height / width);
+            const targetX = anchor
+              ? anchor.x + Math.cos(star.clusterAngle) * star.clusterRadius * clusterSpread
+              : 0.5;
+            const targetY = anchor
+              ? anchor.y + Math.sin(star.clusterAngle) * star.clusterRadius * CLUSTER_RADIUS
+              : 0.5;
+            const toTargetX = targetX - star.x;
+            const toTargetY = targetY - star.y;
+            const swirl = anchor ? GATHER_SWIRL * 0.3 : GATHER_SWIRL;
+            star.vx += (toTargetX * GATHER_PULL - toTargetY * swirl) * width;
+            star.vy += (toTargetY * GATHER_PULL + toTargetX * swirl) * height;
           } else {
             const springPower = galaxyPhaseRef.current === 'bursting' ? BURST_SPRING_POWER : 0.0004;
             star.vx += (star.ox - star.x) * springPower * width;
@@ -459,7 +510,8 @@ export function Starfield2D({
           ctx.lineTo(sx, sy);
           ctx.stroke();
         } else {
-          const currentTex = (isWhiteOnly || star.colorType === 'white') ? textureRef.current : (pinkTextureRef.current || textureRef.current);
+          const splitTex = isSplit && anchorByKey[star.stemKey] ? stemTexturesRef.current[star.stemKey] : null;
+          const currentTex = splitTex || ((isWhiteOnly || star.colorType === 'white') ? textureRef.current : (pinkTextureRef.current || textureRef.current));
           if (currentTex && currentTex.complete) {
             ctx.globalAlpha = star.z * (0.7 + twinkle * 0.3);
             ctx.drawImage(currentTex, sx - sSize / 2, sy - sSize / 2, sSize, sSize);
@@ -579,17 +631,34 @@ export function Starfield2D({
         }
       }
 
-      // A glow grows at the center as the stars gather into it.
-      if (galaxyPhaseRef.current === 'gathered') {
-        const glowAmount = Math.min(1, (performance.now() - gatherStartRef.current) / GATHER_GLOW_MS);
-        const glowRadius = Math.min(width, height) * (0.12 + 0.28 * glowAmount);
-        const glow = ctx.createRadialGradient(width / 2, height / 2, 0, width / 2, height / 2, glowRadius);
-        glow.addColorStop(0, `rgba(255, 255, 255, ${0.85 * glowAmount})`);
-        glow.addColorStop(0.35, `rgba(255, 92, 157, ${0.45 * glowAmount})`);
-        glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      // A glow grows at the center as the stars gather, then splits into one
+      // glow per stem color when the clusters form.
+      if (isGathering) {
         ctx.globalCompositeOperation = 'lighter';
-        ctx.fillStyle = glow;
-        ctx.beginPath(); ctx.arc(width / 2, height / 2, glowRadius, 0, Math.PI * 2); ctx.fill();
+        if (!isSplit) {
+          const glowAmount = Math.min(1, gatherElapsed / GATHER_SPLIT_MS);
+          const glowRadius = Math.min(width, height) * (0.12 + 0.28 * glowAmount);
+          const glow = ctx.createRadialGradient(width / 2, height / 2, 0, width / 2, height / 2, glowRadius);
+          glow.addColorStop(0, `rgba(255, 255, 255, ${0.85 * glowAmount})`);
+          glow.addColorStop(0.35, `rgba(255, 92, 157, ${0.45 * glowAmount})`);
+          glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+          ctx.fillStyle = glow;
+          ctx.beginPath(); ctx.arc(width / 2, height / 2, glowRadius, 0, Math.PI * 2); ctx.fill();
+        } else {
+          const splitAmount = Math.min(1, (gatherElapsed - GATHER_SPLIT_MS) / SPLIT_GLOW_MS);
+          const glowRadius = Math.min(width, height) * (0.05 + 0.09 * splitAmount);
+          anchors.forEach((anchor) => {
+            const { r, g, b } = hexToRgb(anchor.color);
+            const cx = anchor.x * width;
+            const cy = anchor.y * height;
+            const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, glowRadius);
+            glow.addColorStop(0, `rgba(255, 255, 255, ${0.7 * splitAmount})`);
+            glow.addColorStop(0.4, `rgba(${r}, ${g}, ${b}, ${0.5 * splitAmount})`);
+            glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = glow;
+            ctx.beginPath(); ctx.arc(cx, cy, glowRadius, 0, Math.PI * 2); ctx.fill();
+          });
+        }
         ctx.globalCompositeOperation = 'source-over';
       }
 

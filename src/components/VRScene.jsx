@@ -3,8 +3,9 @@ import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber';
 import { XR, IfInSessionMode } from '@react-three/xr';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
-import { SONG_STEMS } from '../audio/songStems';
+import { SONG_STEMS, getStemColor } from '../audio/songStems';
 import { getInstrumentTexture } from './instrumentIcons';
+import { ENTRY_CAMERA_POSITION, ENTRY_CAMERA_TARGET } from '../audio/stemLayout';
 import { WebcamGestureController } from '../hand-tracking/WebcamGestureController';
 
 
@@ -941,10 +942,6 @@ function InteractiveOrb({
   );
 }
 
-// Where the desktop camera starts when the scene opens: far enough back to
-// frame every stem, close enough that the mix is about as loud as the galaxy.
-const ENTRY_CAMERA_POSITION = [0, 1.6, 2];
-const ENTRY_CAMERA_TARGET = [0, 1.6, -2.9];
 // Stems closer than this to the listener play at full volume (inverse model).
 const SPATIAL_REF_DISTANCE = 4.0;
 
@@ -1010,31 +1007,9 @@ function VRAudioExperience({
   // 활성 곡 및 테마별 악기 고유 컬러 동적 매핑 (보컬, 드럼, 베이스, 피아노, 기타 등 각각 고유 색상 부여)
   const stems = useMemo(() => {
     const rawStems = SONG_STEMS[activeSong] || SONG_STEMS[1];
-    // 🎨 은색 2개 + 핑크 2개 + 보라 2개 (차분하고 우아한 채도/명도 6종 1:1 매핑)
-    const paletteMap = {
-      luxury: {
-        // ⚪ 은색 2종 (Silver Pair)
-        drum: '#f8fafc',        // 🥁 Drums: 은색 1 (맑은 백은색 플래티넘 ⚪)
-        drums: '#f8fafc',
-        piano: '#94a3b8',       // 🎹 Piano: 은색 2 (차분한 슬레이트 스틸 실버 🔘)
-
-        // 🌸 핑크 2종 (Muted Rose Pair)
-        guitar2: '#f4d7e4',     // 🎸 Guitar 2: 핑크 1 (부드러운 페일 파우더 로즈 🌸)
-        vocal: '#c95c8e',       // 🎤 Vocal: 핑크 2 (그윽한 시크 안티크 로즈 🌺)
-        lead_vocal: '#c95c8e',
-        melody: '#c95c8e',
-
-        // 🪻 보라 2종 (Muted Lavender/Violet Pair)
-        guitar1: '#dcd0f0',     // 🎸 Guitar 1: 보라 1 (은은한 페일 오로라 라벤더 🪻)
-        bass: '#7c5c99'         // 🎸 Bass: 보라 2 (묵직한 딥 벨벳 바이올렛 💜)
-      }
-    };
-
-    const activePalette = paletteMap.luxury;
-
     return rawStems.map((stem) => ({
       ...stem,
-      color: activePalette[stem.key] || stem.color
+      color: getStemColor(stem)
     }));
   }, [activeSong, starColors]);
 

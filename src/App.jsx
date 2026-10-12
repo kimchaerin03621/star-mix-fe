@@ -11,7 +11,7 @@ import { UnmixProgress } from './hand-tracking/UnmixProgress';
 import { GestureHint } from './hand-tracking/GestureHint';
 import { useIdleReturn } from './hand-tracking/useIdleReturn';
 import { GroupAudio } from './audio/GroupAudio';
-import { EXHIBITION_SONG, getStemGroupUrls } from './audio/songStems';
+import { EXHIBITION_SONG, SONG_STEMS, getStemGroupUrls } from './audio/songStems';
 
 const xrStore = createXRStore({ 
   offerSession: false
@@ -560,7 +560,9 @@ function StarEditor({ onApply, onCancel, previousTexture, previousColors }) {
 }
 
 const SPACE_IDLE_RETURN_MS = 30000;
-const UNMIX_GATHER_MS = 1100;
+// Long enough for the stars to gather, split into stem clusters and hold there.
+const UNMIX_GATHER_MS = 1700;
+const EXHIBITION_STEMS = SONG_STEMS[EXHIBITION_SONG];
 const GALAXY_BURST_MS = 1800;
 
 const SONGS = [
@@ -1602,6 +1604,7 @@ function App() {
         <div style={{ display: isDesktopVR ? 'none' : 'contents' }}>
         <Starfield2D
           galaxyPhase={galaxyPhase}
+          stems={EXHIBITION_STEMS}
           handData={(isEditorOpen || viewMode === 'menu' || isDesktopVR) ? [] : handData}
           isAudioActive={isAudioInitialized}
           audioCtx={audioCtx}

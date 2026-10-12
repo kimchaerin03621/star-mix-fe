@@ -32,3 +32,19 @@ export const getStemGroupUrls = (songId) => {
   const urlsFor = (group) => stems.filter((stem) => stem.group === group).map((stem) => stem.url);
   return { lead: urlsFor('lead'), band: urlsFor('band') };
 };
+
+// Display color of each stem, shared by the spatial scene's stars and the
+// galaxy's prism split so a star keeps its color across the transition.
+export const STEM_COLORS = {
+  drum: '#f8fafc',
+  drums: '#f8fafc',
+  piano: '#94a3b8',
+  guitar2: '#f4d7e4',
+  vocal: '#c95c8e',
+  lead_vocal: '#c95c8e',
+  melody: '#c95c8e',
+  guitar1: '#dcd0f0',
+  bass: '#7c5c99',
+};
+
+export const getStemColor = (stem) => STEM_COLORS[stem.key] || stem.color;
