@@ -893,6 +893,13 @@ function InteractiveOrb({
   );
 }
 
+// Where the desktop camera starts when the scene opens: far enough back to
+// frame every stem, close enough that the mix is about as loud as the galaxy.
+const ENTRY_CAMERA_POSITION = [0, 1.6, 2];
+const ENTRY_CAMERA_TARGET = [0, 1.6, -2.9];
+// Stems closer than this to the listener play at full volume (inverse model).
+const SPATIAL_REF_DISTANCE = 4.0;
+
 // 3D VR Spatial Audio Experience (다이내믹 멀티트랙 스템 믹서 엔진)
 function VRAudioExperience({
   starColors,
@@ -903,11 +910,26 @@ function VRAudioExperience({
   isAudioActive,
   setIsDraggingOrb,
   onNextSong,
+  playbackTimeRef,
   handData,
   orbitControlsRef,
   onWebcamInteractionChange,
   handVisualFrameRef,
 }) {
+  const { camera, gl } = useThree();
+
+  useEffect(() => {
+    if (gl.xr?.isPresenting) return;
+    camera.position.set(...ENTRY_CAMERA_POSITION);
+    const controls = orbitControlsRef.current;
+    if (controls) {
+      controls.target.set(...ENTRY_CAMERA_TARGET);
+      controls.update();
+    } else {
+      camera.lookAt(...ENTRY_CAMERA_TARGET);
+    }
+  }, [camera, gl, orbitControlsRef]);
+
   const audioCtxRef = useRef(null);
   const audioElementsRef = useRef({});
   const pannersRef = useRef({});
@@ -1058,7 +1080,7 @@ function VRAudioExperience({
         const panner = ctx.createPanner();
         panner.panningModel = 'HRTF'; // Web Audio API HRTF (Binaural 3D Spatial Audio)
         panner.distanceModel = 'inverse';
-        panner.refDistance = 1.5; // Decreased from 4.0 so approaching a star makes its sound distinct & clear
+        panner.refDistance = SPATIAL_REF_DISTANCE;
         panner.maxDistance = 10000;
         panner.rolloffFactor = 1.0; // Realistic 3D distance attenuation (Dolby Atmos feel)
 
@@ -1527,6 +1549,7 @@ export function VRScene({ store, starColors, handData, isInVR, isDesktopVR, acti
                 isAudioActive={isAudioActive}
                 setIsDraggingOrb={setIsDraggingOrb}
                 onNextSong={onNextSong}
+                playbackTimeRef={playbackTimeRef}
                 handData={handData}
                 orbitControlsRef={orbitControlsRef}
                 onWebcamInteractionChange={onWebcamInteractionChange}

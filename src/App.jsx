@@ -785,6 +785,17 @@ function App() {
     setViewMode('dj');
   };
 
+  // 'U' key: same toggle for testing and as an exhibition fallback if tracking drops.
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key !== 'u' && e.key !== 'U') return;
+      if (isInSpace) returnToGalaxy();
+      else if (isInGalaxy) enterSpace();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  });
+
   const unmixProgress = useUnmixGesture(
     handData,
     cameraActive && (isInGalaxy || isInSpace),
