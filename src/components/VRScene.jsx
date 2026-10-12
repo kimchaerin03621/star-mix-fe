@@ -1151,8 +1151,6 @@ function VRAudioExperience({
     return () => {
       // 30곡 이상 전환해도 기기 메모리를 파괴하지 않는 정밀 가비지 컬렉터(Garbage Collector) 청소
       if (audioElementsRef.current) {
-        const firstAudio = Object.values(audioElementsRef.current)[0];
-        if (firstAudio && playbackTimeRef) playbackTimeRef.current = firstAudio.currentTime;
         Object.values(audioElementsRef.current).forEach(audio => {
           audio.pause();
           audio.src = ''; // 브라우저 스트리밍 버퍼 즉각 해제
@@ -1248,6 +1246,13 @@ function VRAudioExperience({
     const camera = state.camera;
     const ctx = audioCtxRef.current;
     if (!ctx) return;
+
+    // Keep the song position current for the galaxy to pick up when we leave.
+    // (This scene's cleanup runs on a separate renderer and can fire too late.)
+    const leadAudio = Object.values(audioElementsRef.current)[0];
+    if (playbackTimeRef && leadAudio && !leadAudio.paused && leadAudio.currentTime > 0) {
+      playbackTimeRef.current = leadAudio.currentTime;
+    }
 
     const webAudioTime = ctx.currentTime;
 
