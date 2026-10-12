@@ -6,6 +6,10 @@ import { ControllerPanel } from './components/ControllerPanel';
 import { createXRStore } from '@react-three/xr';
 import { VRScene } from './components/VRScene';
 import { HandGestureFeedback } from './hand-tracking/HandGestureFeedback';
+import { useUnmixGesture } from './hand-tracking/useUnmixGesture';
+import { UnmixProgress } from './hand-tracking/UnmixProgress';
+import { GroupAudio } from './audio/GroupAudio';
+import { EXHIBITION_SONG, getStemGroupUrls } from './audio/songStems';
 
 const xrStore = createXRStore({ 
   offerSession: false
@@ -554,7 +558,7 @@ function StarEditor({ onApply, onCancel, previousTexture, previousColors }) {
 }
 
 const SONGS = [
-  { id: 1, title: 'Untie', artist: 'UltraViolet' },
+  { id: 1, title: 'Bohemian Rhapsody', artist: 'Queen' },
   { id: 2, title: 'Hype Boy', artist: 'NewJeans' },
   { id: 3, title: 'Kerning City', artist: 'MapleStory' }
 ];
@@ -569,6 +573,7 @@ const GESTURE_LABELS = {
   thumbOnly: 'THUMB ONLY',
   cameraMove: 'CAMERA ORBIT',
   zoom: 'ZOOM',
+  rock: 'ROCK · UNMIX',
   unknown: 'UNMAPPED',
 };
 
@@ -591,6 +596,7 @@ const getGestureLabel = (hand) => {
   if (hand.gestures.thumbOnly) return GESTURE_LABELS.thumbOnly;
   if (hand.gestures.cameraMove) return GESTURE_LABELS.cameraMove;
   if (hand.gestures.zoom) return GESTURE_LABELS.zoom;
+  if (hand.gestures.rock) return GESTURE_LABELS.rock;
   return GESTURE_LABELS.unknown;
 };
 
@@ -611,7 +617,7 @@ function App() {
   const [isAudioInitialized, setIsAudioInitialized] = useState(false);
   const [isMusicLoading, setIsMusicLoading] = useState(false);
   const [activePreset, setActivePreset] = useState(1);
-  const [activeSong, setActiveSong] = useState(1);
+  const [activeSong, setActiveSong] = useState(EXHIBITION_SONG);
   const [songTrigger, setSongTrigger] = useState(0);
   const [leftRate, setLeftRate] = useState(1.0);
   const [rightRate, setRightRate] = useState(1.0);
@@ -635,7 +641,7 @@ function App() {
 
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [customTexture, setCustomTexture] = useState(null);
-  const [starColors, setStarColors] = useState({ left: '#E09F3E', right: '#FFF3B0' });
+  const [starColors, setStarColors] = useState({ left: '#ff5c9d', right: '#ffffff' });
 
   const [vrModeType, setVrModeType] = useState(1); // 1 for VR 1 (Classic), 2 for VR 2 (Spatial)
   const [, setAnalyserNode] = useState(null);
@@ -753,6 +759,30 @@ function App() {
     (viewMode !== 'menu' && viewMode !== 'intro');
   const handData = useHandTracking(videoRef, handTrackingEnabled);
 
+  // Galaxy (2D) <-> spatial scene (3D). The rock sign held for a second
+  // unmixes the galaxy into its stems, and does the reverse from the scene.
+  const isInSpace = isDesktopVR && vrModeType === 2;
+  const isInGalaxy = viewMode === 'dj' && !isInVR && !isDesktopVR;
+
+  const enterSpace = () => {
+    setVrModeType(2);
+    setActiveSong(EXHIBITION_SONG);
+    setViewMode('menu');
+    setIsDesktopVR(true);
+  };
+
+  const returnToGalaxy = () => {
+    setVrModeType(1);
+    setIsDesktopVR(false);
+    setViewMode('dj');
+  };
+
+  const unmixProgress = useUnmixGesture(
+    handData,
+    cameraActive && (isInGalaxy || isInSpace),
+    isInSpace ? returnToGalaxy : enterSpace,
+  );
+
   const unlockIntroExperience = async () => {
     try {
       if (!audioCtx || !isAudioInitialized) {
@@ -801,40 +831,11 @@ function App() {
     setRightRate(1.0);
   }, [activeSong]);
 
+  // The galaxy's stem groups are built once for the exhibition song, so a song
+  // change only updates the spatial scene's stems.
   const handleSongChange = (id) => {
     setActiveSong(id);
     setSongTrigger(prev => prev + 1);
-    setIsMusicLoading(true);
-
-    if (audioElementsRef.current.left) {
-      const songMap = {
-        1: { vocal: '/Rosewood_vocal_left.mp3', drum: '/Rosewood_drum_right.mp3' },
-        2: { vocal: '/Rosewood_vocal_left.mp3', drum: '/Rosewood_drum_right.mp3' },
-        3: { vocal: '/Rosewood_vocal_left.mp3', drum: '/Rosewood_drum_right.mp3' },
-      };
-      const { vocal, drum } = songMap[id] || songMap[1];
-      // Safely update sources
-      const leftAudio = audioElementsRef.current.left;
-      const rightAudio = audioElementsRef.current.right;
-      // Pause current playback and reset src to avoid interruption
-      leftAudio.pause();
-      rightAudio.pause();
-      leftAudio.src = '';
-      rightAudio.src = '';
-      // Assign new sources
-      leftAudio.src = vocal;
-      rightAudio.src = drum;
-      // Load new media
-      leftAudio.load();
-      rightAudio.load();
-      // Attempt playback if context is running and NOT in VR 2 mode
-      const isVR2Now = (isInVR || isDesktopVR) && vrModeType === 2;
-      if (audioCtx && audioCtx.state !== 'suspended' && !isVR2Now) {
-        leftAudio.play().catch(() => {});
-        rightAudio.play().catch(() => {});
-      }
-      setAudioElements({ left: leftAudio, right: rightAudio });
-    }
   };
 
   const refreshMidiInputs = (access) => {
@@ -885,22 +886,9 @@ function App() {
       else if (currentSong === 1) nextSong = 3;
       else if (currentSong === 3) nextSong = 2;
 
-      if (audioElementsRef.current.left) {
-        const songMap = {
-          1: { vocal: '/Rosewood_vocal_left.mp3', drum: '/Rosewood_drum_right.mp3' },
-          2: { vocal: '/00_left.mp3', drum: '/gangnamstyle_right.mp3' },
-          3: { vocal: '/Rosewood_vocal_left.mp3', drum: '/Rosewood_drum_right.mp3' },
-        };
-        const { vocal, drum } = songMap[nextSong];
-        audioElementsRef.current.left.src = vocal;
-        audioElementsRef.current.right.src = drum;
-
-        setAudioElements({ left: audioElementsRef.current.left, right: audioElementsRef.current.right });
-      }
       return nextSong;
     });
     setSongTrigger(prev => prev + 1);
-    setIsMusicLoading(true);
   };
 
   const [activePads, setActivePads] = useState({});
@@ -1183,17 +1171,9 @@ function App() {
         setIsAudioInitialized(true);
         setIsMusicLoading(true);
 
-        const songMap = {
-          1: { vocal: '/Rosewood_vocal_left.mp3', drum: '/Rosewood_drum_right.mp3' },
-          2: { vocal: '/00_left.mp3', drum: '/gangnamstyle_right.mp3' },
-          3: { vocal: '/Rosewood_vocal_left.mp3', drum: '/Rosewood_drum_right.mp3' },
-        };
-        const { vocal, drum } = songMap[activeSong] || songMap[1];
-
-        const leftAudio = new Audio(vocal);
-        const rightAudio = new Audio(drum);
-        leftAudio.loop = true;
-        rightAudio.loop = true;
+        const { lead, band } = getStemGroupUrls(EXHIBITION_SONG);
+        const leftAudio = new GroupAudio(lead);
+        const rightAudio = new GroupAudio(band);
 
         const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
         const ctx = new AudioCtxClass();
@@ -1249,7 +1229,7 @@ function App() {
     // Automatically trigger audio context initialization on user gesture only for VR 2
     if (modeType === 2) {
       setIsAudioInitialized(true);
-      setActiveSong(1);
+      setActiveSong(EXHIBITION_SONG);
       setSongTrigger(prev => prev + 1);
       setIsMusicLoading(true);
     } else {
@@ -1386,7 +1366,7 @@ function App() {
 
             {/* Song Selection Buttons */}
             <div className="song-controls">
-              <button className={`song-button ${activeSong === 1 ? 'active' : ''}`} onClick={() => handleSongChange(1)}>SONG 1</button>
+              <button className="song-button active">{SONGS.find(song => song.id === EXHIBITION_SONG)?.title}</button>
             </div>
 
             {/* Preset Toggle Buttons */}
@@ -1482,7 +1462,7 @@ function App() {
                 aria-label="Enter the spatial sound experience"
                 onClick={async () => {
                   await unlockIntroExperience();
-                  handleEnterVR(2);
+                  setViewMode('dj');
                 }}
               >
                 →
@@ -1553,10 +1533,12 @@ function App() {
         />
       )}
 
-      {!isInVR && !isDesktopVR && (
+      {/* The galaxy stays mounted (just hidden) while the spatial scene is open, so its
+          audio graph survives the round trip. */}
+      {!isInVR && (
+        <div style={{ display: isDesktopVR ? 'none' : 'contents' }}>
         <Starfield2D
-          isWhiteOnly={true}
-          handData={(isEditorOpen || viewMode === 'menu') ? [] : handData}
+          handData={(isEditorOpen || viewMode === 'menu' || isDesktopVR) ? [] : handData}
           isAudioActive={isAudioInitialized}
           audioCtx={audioCtx}
           audioElements={audioElements}
@@ -1576,7 +1558,13 @@ function App() {
           warpProgress={warpProgress}
           onAnalyserReady={setAnalyserNode}
         />
+        </div>
       )}
+
+      <UnmixProgress
+        progress={unmixProgress}
+        label={isInSpace ? '은하로 돌아가는 중' : '소리를 푸는 중'}
+      />
 
       <VRScene
         store={xrStore}

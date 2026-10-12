@@ -210,6 +210,9 @@ export function useHandTracking(videoRef, enabled = true) {
                 thumbOnly: thumb && !index && !middle && !ring && !pinky && !isZoom,
                 cameraMove: thumb && index && middle && !ring && !pinky,
                 zoom: isZoom,
+                // Index + pinky ("rock" sign). The thumb is ignored on purpose:
+                // no other gesture has the pinky up with the middle/ring folded.
+                rock: !detection.isFist && index && !middle && !ring && pinky,
               },
             };
           });

@@ -232,21 +232,21 @@ export function Starfield2D({
           drumToLeft: drumToLeftGain,
         };
 
-        const leftAudio = audioElements.left;   // Vocal
-        const rightAudio = audioElements.right; // Drum
-        
-        if (leftAudio && !leftAudio._sourceConnected) {
-          leftAudio._sourceConnected = true;
-          const leftSource = ctx.createMediaElementSource(leftAudio);
-          leftSource.connect(vocalToLeftGain);
-          leftSource.connect(vocalToRightGain);
-        }
-        if (rightAudio && !rightAudio._sourceConnected) {
-          rightAudio._sourceConnected = true;
-          const rightSource = ctx.createMediaElementSource(rightAudio);
-          rightSource.connect(drumToRightGain);
-          rightSource.connect(drumToLeftGain);
-        }
+        const leftAudio = audioElements.left;   // Lead group (vocal)
+        const rightAudio = audioElements.right; // Band group (drum + bass + piano ...)
+
+        // Every stem of a group feeds the same pair of crossfade gains.
+        const connectGroup = (group, toSameSide, toOtherSide) => {
+          if (!group || group._sourceConnected) return;
+          group._sourceConnected = true;
+          (group.elements || [group]).forEach((element) => {
+            const source = ctx.createMediaElementSource(element);
+            source.connect(toSameSide);
+            source.connect(toOtherSide);
+          });
+        };
+        connectGroup(leftAudio, vocalToLeftGain, vocalToRightGain);
+        connectGroup(rightAudio, drumToRightGain, drumToLeftGain);
 
         audioElementsRef.current = { left: leftAudio, right: rightAudio };
       }
