@@ -1383,18 +1383,47 @@ function App() {
               {!isMusicLoading && (cameraActive ? (handData.length > 0 ? `손 인식 중 (${handData.length}개)` : "손을 기다리는 중...") : "카메라를 켜주세요.")}
             </div>
 
-            {/* Song Selection Buttons */}
-            <div className="song-controls">
-              <button className="song-button active">{SONGS.find(song => song.id === EXHIBITION_SONG)?.title}</button>
-            </div>
+            {SHOW_FUTURE_FEATURE_CONTROLS && (
+              <>
+                {/* Song Selection Buttons */}
+                <div className="song-controls">
+                  <button className="song-button active">{SONGS.find(song => song.id === EXHIBITION_SONG)?.title}</button>
+                </div>
 
-            {/* Preset Toggle Buttons */}
-            <div className="preset-controls">
-              <button className={`preset-button ${activePreset === 1 ? 'active' : ''}`} onClick={() => setActivePreset(1)}>PRESET 1 (Quadrant EQ)</button>
-              <button className={`preset-button ${activePreset === 2 ? 'active' : ''}`} onClick={() => setActivePreset(2)}>PRESET 2 (NDS Style)</button>
-            </div>
+                {/* Preset Toggle Buttons */}
+                <div className="preset-controls">
+                  <button className={`preset-button ${activePreset === 1 ? 'active' : ''}`} onClick={() => setActivePreset(1)}>PRESET 1 (Quadrant EQ)</button>
+                  <button className={`preset-button ${activePreset === 2 ? 'active' : ''}`} onClick={() => setActivePreset(2)}>PRESET 2 (NDS Style)</button>
+                </div>
+              </>
+            )}
           </div>
 
+          {cameraActive && (
+            <div
+              style={{
+                position: 'fixed',
+                left: 0,
+                right: 0,
+                bottom: 72,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 6,
+                color: 'rgba(255,255,255,0.7)',
+                fontSize: 14,
+                letterSpacing: '0.06em',
+                pointerEvents: 'none',
+                zIndex: 5,
+              }}
+            >
+              <span>손으로 별을 휘저어 소리를 섞어 보세요</span>
+              <span>🤘 1초 유지 — 소리가 풀려요</span>
+            </div>
+          )}
+
+          {SHOW_FUTURE_FEATURE_CONTROLS && (
+          <>
           {/* BPM & Volume Sliders (Channel 1 / Left) */}
           <div className="bpm-slider-container left">
             <div className="bpm-value" style={{ color: starColors.left, textShadow: `0 0 10px ${starColors.left}80` }}>
@@ -1456,6 +1485,8 @@ function App() {
             />
             <div className="bpm-label">BPM 2</div>
           </div>
+          </>
+          )}
 
           {!cameraActive && (
             <button className="start-button" onClick={startCamera}>
