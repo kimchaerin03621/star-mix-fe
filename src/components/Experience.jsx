@@ -1,6 +1,13 @@
 import React, { useRef, useEffect } from 'react';
 
-export function Starfield2D({ 
+// How hard stars are pulled in (and spun) while the galaxy gathers, how fast
+// they spring back out afterwards, and how long the center glow takes to peak.
+const GATHER_PULL = 0.02;
+const GATHER_SWIRL = 0.006;
+const BURST_SPRING_POWER = 0.012;
+const GATHER_GLOW_MS = 1000;
+
+export function Starfield2D({
   handData, isAudioActive, onMusicReady, 
   activePreset, activeSong, songTrigger, 
   leftRate, rightRate,
@@ -10,6 +17,7 @@ export function Starfield2D({
   onMixingProgress,
   isWarping,
   warpProgress = 0,
+  galaxyPhase = 'idle',
   audioCtx,
   audioElements,
   isWhiteOnly = false,
@@ -33,6 +41,13 @@ export function Starfield2D({
 
   const isWarpingRef = useRef(isWarping);
   const warpProgressRef = useRef(warpProgress);
+  const galaxyPhaseRef = useRef(galaxyPhase);
+  const gatherStartRef = useRef(0);
+
+  useEffect(() => {
+    galaxyPhaseRef.current = galaxyPhase;
+    if (galaxyPhase === 'gathered') gatherStartRef.current = performance.now();
+  }, [galaxyPhase]);
 
   useEffect(() => {
     isWarpingRef.current = isWarping;
@@ -407,9 +422,17 @@ export function Starfield2D({
         } else {
           star.vx += Math.sin(Date.now() * 0.005 + star.phase) * 0.003;
           star.vy += Math.cos(Date.now() * 0.005 + star.phase) * 0.003;
-          const springPower = 0.0004;
-          star.vx += (star.ox - star.x) * springPower * width;
-          star.vy += (star.oy - star.y) * springPower * height;
+          if (galaxyPhaseRef.current === 'gathered') {
+            // Spiral every star into the center.
+            const toCenterX = 0.5 - star.x;
+            const toCenterY = 0.5 - star.y;
+            star.vx += (toCenterX * GATHER_PULL - toCenterY * GATHER_SWIRL) * width;
+            star.vy += (toCenterY * GATHER_PULL + toCenterX * GATHER_SWIRL) * height;
+          } else {
+            const springPower = galaxyPhaseRef.current === 'bursting' ? BURST_SPRING_POWER : 0.0004;
+            star.vx += (star.ox - star.x) * springPower * width;
+            star.vy += (star.oy - star.y) * springPower * height;
+          }
         }
 
         star.x += star.vx / width;
@@ -554,6 +577,20 @@ export function Starfield2D({
           gainsRef.current.left.gain.setTargetAtTime(safeVal(leftVolume, 1.0), curTime, 0.05);
           gainsRef.current.right.gain.setTargetAtTime(safeVal(rightVolume, 1.0), curTime, 0.05);
         }
+      }
+
+      // A glow grows at the center as the stars gather into it.
+      if (galaxyPhaseRef.current === 'gathered') {
+        const glowAmount = Math.min(1, (performance.now() - gatherStartRef.current) / GATHER_GLOW_MS);
+        const glowRadius = Math.min(width, height) * (0.12 + 0.28 * glowAmount);
+        const glow = ctx.createRadialGradient(width / 2, height / 2, 0, width / 2, height / 2, glowRadius);
+        glow.addColorStop(0, `rgba(255, 255, 255, ${0.85 * glowAmount})`);
+        glow.addColorStop(0.35, `rgba(255, 92, 157, ${0.45 * glowAmount})`);
+        glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.fillStyle = glow;
+        ctx.beginPath(); ctx.arc(width / 2, height / 2, glowRadius, 0, Math.PI * 2); ctx.fill();
+        ctx.globalCompositeOperation = 'source-over';
       }
 
       // Visualize ALL hands with adjusted aura intensity

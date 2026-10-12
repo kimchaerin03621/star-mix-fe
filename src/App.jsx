@@ -557,6 +557,9 @@ function StarEditor({ onApply, onCancel, previousTexture, previousColors }) {
   );
 }
 
+const UNMIX_GATHER_MS = 1100;
+const GALAXY_BURST_MS = 1800;
+
 const SONGS = [
   { id: 1, title: 'Bohemian Rhapsody', artist: 'Queen' },
   { id: 2, title: 'Hype Boy', artist: 'NewJeans' },
@@ -771,6 +774,11 @@ function App() {
   const isInSpace = isDesktopVR && vrModeType === 2;
   const isInGalaxy = viewMode === 'dj' && !isInVR && !isDesktopVR;
 
+  // 'idle' = normal galaxy, 'gathered' = every star pulled to the center (while
+  // unmixing and for as long as the spatial scene is open), 'bursting' = the
+  // stars spring back out after returning.
+  const [galaxyPhase, setGalaxyPhase] = useState('idle');
+
   const enterSpace = () => {
     playbackTimeRef.current = audioElementsRef.current.left?.currentTime || 0;
     setVrModeType(2);
@@ -779,18 +787,36 @@ function App() {
     setIsDesktopVR(true);
   };
 
+  const beginUnmix = () => {
+    if (galaxyPhase === 'idle') setGalaxyPhase('gathered');
+  };
+
   const returnToGalaxy = () => {
     setVrModeType(1);
     setIsDesktopVR(false);
     setViewMode('dj');
+    setGalaxyPhase('bursting');
   };
+
+  // The stars gather first, then the spatial scene opens on top of them.
+  useEffect(() => {
+    if (galaxyPhase !== 'gathered' || isInSpace) return undefined;
+    const timer = setTimeout(enterSpace, UNMIX_GATHER_MS);
+    return () => clearTimeout(timer);
+  }, [galaxyPhase, isInSpace]);
+
+  useEffect(() => {
+    if (galaxyPhase !== 'bursting') return undefined;
+    const timer = setTimeout(() => setGalaxyPhase('idle'), GALAXY_BURST_MS);
+    return () => clearTimeout(timer);
+  }, [galaxyPhase]);
 
   // 'U' key: same toggle for testing and as an exhibition fallback if tracking drops.
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key !== 'u' && e.key !== 'U') return;
       if (isInSpace) returnToGalaxy();
-      else if (isInGalaxy) enterSpace();
+      else if (isInGalaxy) beginUnmix();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -799,7 +825,7 @@ function App() {
   const unmixProgress = useUnmixGesture(
     handData,
     cameraActive && (isInGalaxy || isInSpace),
-    isInSpace ? returnToGalaxy : enterSpace,
+    isInSpace ? returnToGalaxy : beginUnmix,
   );
 
   const unlockIntroExperience = async () => {
@@ -1588,6 +1614,7 @@ function App() {
       {!isInVR && (
         <div style={{ display: isDesktopVR ? 'none' : 'contents' }}>
         <Starfield2D
+          galaxyPhase={galaxyPhase}
           handData={(isEditorOpen || viewMode === 'menu' || isDesktopVR) ? [] : handData}
           isAudioActive={isAudioInitialized}
           audioCtx={audioCtx}
