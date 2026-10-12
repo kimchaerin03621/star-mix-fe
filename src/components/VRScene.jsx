@@ -454,6 +454,7 @@ function OrbSwarmSatellites({ color, isDragging }) {
         <sprite
           key={i}
           ref={(el) => (spriteRefs.current[i] = el)}
+          raycast={() => null}
           position={sat.currentPos.toArray()}
           scale={[sat.scale, sat.scale, sat.scale]}
         >
@@ -911,7 +912,7 @@ function InteractiveOrb({
 
         {/* Volumetric Soft-Glow Celestial Star Sprite (Compact Toned-Down Pastel Glow) */}
         {starTexture && (
-          <sprite scale={isVisualHovered ? [1.45, 1.45, 1.45] : [1.15, 1.15, 1.15]}>
+          <sprite raycast={() => null} scale={isVisualHovered ? [1.45, 1.45, 1.45] : [1.15, 1.15, 1.15]}>
             <spriteMaterial
               map={starTexture}
               transparent={true}
@@ -924,7 +925,7 @@ function InteractiveOrb({
 
         {/* Instrument silhouette cut into the star's glowing core */}
         {instrumentTexture && (
-          <sprite ref={iconRef} scale={[ICON_STATE.rest.scale, ICON_STATE.rest.scale, ICON_STATE.rest.scale]} renderOrder={10}>
+          <sprite ref={iconRef} raycast={() => null} scale={[ICON_STATE.rest.scale, ICON_STATE.rest.scale, ICON_STATE.rest.scale]} renderOrder={10}>
             <spriteMaterial
               map={instrumentTexture}
               transparent={true}
@@ -1211,8 +1212,9 @@ function VRAudioExperience({
       if (session) {
         for (const source of session.inputSources) {
           if (source.gamepad) {
-            // buttons[0] is A (right) or X (left) or primary trigger in standard maps
-            const buttonA = source.gamepad.buttons[0];
+            // xr-standard mapping: 0 = trigger, 1 = squeeze, 4 = A (right) / X (left).
+            // The trigger grabs stars, so only A/X may switch songs.
+            const buttonA = source.gamepad.buttons[4];
             if (buttonA && buttonA.pressed) {
               aPressedThisFrame = true;
             }
