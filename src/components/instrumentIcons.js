@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 
 const SIZE = 256;
-const INK = '#120b1c';
 const textureCache = {};
 
 const microphone = (ctx) => {
@@ -119,27 +118,40 @@ const DRAWERS = {
   piano: (ctx) => piano(ctx),
 };
 
-// Dark line-art silhouette of an instrument, meant to sit on top of the star's
-// glowing core so it reads as a cut-out of light.
-export function getInstrumentTexture(instrument) {
+// A glowing line drawing of the instrument: a wide, blurred stroke in the
+// star's color underneath, and a thin white stroke on top. Drawn additively
+// over a dimmed star core, it reads as the star itself taking the shape.
+export function getInstrumentTexture(instrument, color) {
   if (typeof document === 'undefined') return null;
   const draw = DRAWERS[instrument];
   if (!draw) return null;
-  if (textureCache[instrument]) return textureCache[instrument];
+  const cacheKey = `${instrument}:${color}`;
+  if (textureCache[cacheKey]) return textureCache[cacheKey];
 
   const canvas = document.createElement('canvas');
   canvas.width = SIZE;
   canvas.height = SIZE;
   const ctx = canvas.getContext('2d');
-  ctx.strokeStyle = INK;
-  ctx.fillStyle = INK;
-  ctx.lineWidth = 11;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
+
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 26;
+  ctx.lineWidth = 14;
+  draw(ctx);
+  draw(ctx);
+  ctx.restore();
+
+  ctx.strokeStyle = '#ffffff';
+  ctx.fillStyle = '#ffffff';
+  ctx.lineWidth = 7;
   draw(ctx);
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.needsUpdate = true;
-  textureCache[instrument] = texture;
+  textureCache[cacheKey] = texture;
   return texture;
 }

@@ -473,14 +473,17 @@ const starTextureCache = {};
 
 // Instrument silhouette opacity/size (world units) for each interaction state.
 const ICON_STATE = {
-  rest: { opacity: 0.5, scale: 0.46 },
-  hovered: { opacity: 0.9, scale: 0.62 },
+  rest: { opacity: 0.6, scale: 0.46 },
+  hovered: { opacity: 0.95, scale: 0.62 },
   grabbed: { opacity: 1, scale: 0.68 },
 };
 
-function getMenuStarTexture(colorHex) {
+// `dimCore` swaps the white-hot center for a soft halo, leaving room for the
+// instrument line drawing to sit in the middle of the star.
+function getMenuStarTexture(colorHex, dimCore = false) {
   if (typeof document === 'undefined') return null;
-  if (starTextureCache[colorHex]) return starTextureCache[colorHex];
+  const cacheKey = dimCore ? `${colorHex}:dim` : colorHex;
+  if (starTextureCache[cacheKey]) return starTextureCache[cacheKey];
 
   const canvas = document.createElement('canvas');
   canvas.width = 256;
@@ -492,18 +495,26 @@ function getMenuStarTexture(colorHex) {
   const radius = 128;
 
   const grad = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
-  grad.addColorStop(0.0, '#ffffff');
-  grad.addColorStop(0.18, 'rgba(255, 255, 255, 0.92)');
-  grad.addColorStop(0.42, colorHex);
-  grad.addColorStop(0.68, colorHex + '33');
-  grad.addColorStop(0.88, 'rgba(0, 0, 0, 0)');
+  if (dimCore) {
+    grad.addColorStop(0.0, colorHex + '33');
+    grad.addColorStop(0.3, colorHex + '66');
+    grad.addColorStop(0.5, colorHex + '99');
+    grad.addColorStop(0.7, colorHex + '33');
+    grad.addColorStop(0.88, 'rgba(0, 0, 0, 0)');
+  } else {
+    grad.addColorStop(0.0, '#ffffff');
+    grad.addColorStop(0.18, 'rgba(255, 255, 255, 0.92)');
+    grad.addColorStop(0.42, colorHex);
+    grad.addColorStop(0.68, colorHex + '33');
+    grad.addColorStop(0.88, 'rgba(0, 0, 0, 0)');
+  }
 
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, 256, 256);
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.needsUpdate = true;
-  starTextureCache[colorHex] = texture;
+  starTextureCache[cacheKey] = texture;
   return texture;
 }
 
@@ -528,8 +539,8 @@ function InteractiveOrb({
   const waveRef3 = useRef();
   const waveTimeRef = useRef(0);
   
-  const starTexture = useMemo(() => getMenuStarTexture(color), [color]);
-  const instrumentTexture = useMemo(() => getInstrumentTexture(instrument), [instrument]);
+  const instrumentTexture = useMemo(() => getInstrumentTexture(instrument, color), [instrument, color]);
+  const starTexture = useMemo(() => getMenuStarTexture(color, Boolean(instrumentTexture)), [color, instrumentTexture]);
 
   const [isDragging, setIsDragging] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -917,6 +928,7 @@ function InteractiveOrb({
               map={instrumentTexture}
               transparent={true}
               opacity={ICON_STATE.rest.opacity}
+              blending={THREE.AdditiveBlending}
               depthWrite={false}
             />
           </sprite>
