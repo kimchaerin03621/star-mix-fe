@@ -1041,7 +1041,12 @@ function VRAudioExperience({
         audio.crossOrigin = "anonymous";
         audio.loop = true;
         audio.preservesPitch = true;
-        
+        // Continue the song from where the galaxy left off.
+        const resumeAt = playbackTimeRef?.current || 0;
+        if (resumeAt > 0) {
+          audio.addEventListener('loadedmetadata', () => { audio.currentTime = resumeAt; }, { once: true });
+        }
+
         const source = ctx.createMediaElementSource(audio);
         const gain = ctx.createGain();
         gain.gain.value = 1.0;
@@ -1124,6 +1129,8 @@ function VRAudioExperience({
     return () => {
       // 30곡 이상 전환해도 기기 메모리를 파괴하지 않는 정밀 가비지 컬렉터(Garbage Collector) 청소
       if (audioElementsRef.current) {
+        const firstAudio = Object.values(audioElementsRef.current)[0];
+        if (firstAudio && playbackTimeRef) playbackTimeRef.current = firstAudio.currentTime;
         Object.values(audioElementsRef.current).forEach(audio => {
           audio.pause();
           audio.src = ''; // 브라우저 스트리밍 버퍼 즉각 해제
@@ -1458,7 +1465,7 @@ function SleekAxes3D({ length = 6.5, segments = 24 }) {
   );
 }
 
-export function VRScene({ store, starColors, handData, isInVR, isDesktopVR, activeSong, leftRate, rightRate, activePreset, isAudioActive, vrModeType, onNextSong, vrCameraPos, vrCameraRot, onWebcamInteractionChange, handVisualFrameRef }) {
+export function VRScene({ store, starColors, handData, isInVR, isDesktopVR, activeSong, leftRate, rightRate, activePreset, isAudioActive, vrModeType, onNextSong, playbackTimeRef, vrCameraPos, vrCameraRot, onWebcamInteractionChange, handVisualFrameRef }) {
   const isVRActive = isInVR || isDesktopVR;
   const [isDraggingOrb, setIsDraggingOrb] = useState(false);
   const orbitControlsRef = useRef(null);

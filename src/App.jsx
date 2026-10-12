@@ -662,6 +662,8 @@ function App() {
   const [audioCtx, setAudioCtx] = useState(null);
   const [audioElements, setAudioElements] = useState(null);
   const audioElementsRef = useRef({ left: null, right: null });
+  // Song position handed back and forth between the galaxy and the spatial scene.
+  const playbackTimeRef = useRef(0);
   const currentVolumeRef = useRef(1.0);
   const leftVolumeRef = useRef(1.0);
   const rightVolumeRef = useRef(1.0);
@@ -746,6 +748,11 @@ function App() {
       currentVolumeRef.current = 0;
     } else {
       if (isAudioInitialized) {
+        if (playbackTimeRef.current > 0) {
+          left.currentTime = playbackTimeRef.current;
+          right.currentTime = playbackTimeRef.current;
+          playbackTimeRef.current = 0;
+        }
         left.volume = Math.max(0, Math.min(1, currentVolumeRef.current * leftVolumeRef.current));
         right.volume = Math.max(0, Math.min(1, currentVolumeRef.current * rightVolumeRef.current));
         left.play().catch(() => {});
@@ -765,6 +772,7 @@ function App() {
   const isInGalaxy = viewMode === 'dj' && !isInVR && !isDesktopVR;
 
   const enterSpace = () => {
+    playbackTimeRef.current = audioElementsRef.current.left?.currentTime || 0;
     setVrModeType(2);
     setActiveSong(EXHIBITION_SONG);
     setViewMode('menu');
@@ -1579,6 +1587,7 @@ function App() {
         isAudioActive={isAudioInitialized && vrModeType === 2}
         vrModeType={vrModeType}
         onNextSong={handleNextSong}
+        playbackTimeRef={playbackTimeRef}
         vrCameraPos={vrCameraPos}
         vrCameraRot={vrCameraRot}
         onWebcamInteractionChange={setWebcamInteraction}
