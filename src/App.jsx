@@ -770,7 +770,20 @@ function App() {
   const handTrackingEnabled =
     (isDesktopVR && vrModeType === 2) ||
     (viewMode !== 'menu' && viewMode !== 'intro');
-  const handData = useHandTracking(videoRef, handTrackingEnabled);
+  const trackedHands = useHandTracking(videoRef, handTrackingEnabled);
+
+  // Demo recordings drive the app with scripted hands, shaped exactly like the
+  // tracker's output (dev builds only; production never exposes this).
+  const [scriptedHands, setScriptedHands] = useState(null);
+  useEffect(() => {
+    if (!import.meta.env.DEV) return undefined;
+    window.__starMixDemo = { setHands: setScriptedHands };
+    return () => { delete window.__starMixDemo; };
+  }, []);
+  const handData = scriptedHands ?? trackedHands;
+
+  // ?demo hides the developer readouts (webcam preview, gesture labels) for filming.
+  const isDemo = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('demo');
 
   // Galaxy (2D) <-> spatial scene (3D). The rock sign held for a second
   // unmixes the galaxy into its stems, and does the reverse from the scene.
@@ -1381,10 +1394,12 @@ function App() {
       {!isInVR && !isDesktopVR && viewMode === 'dj' && (
         <>
           <div className="ui-overlay active-hud">
-            <div className="ui-status">
-              {isMusicLoading && <div style={{ color: 'var(--color-primary)', fontWeight: 'bold' }}>새로운 음원 로딩 중...</div>}
-              {!isMusicLoading && (cameraActive ? (handData.length > 0 ? `손 인식 중 (${handData.length}개)` : "손을 기다리는 중...") : "카메라를 켜주세요.")}
-            </div>
+            {!isDemo && (
+              <div className="ui-status">
+                {isMusicLoading && <div style={{ color: 'var(--color-primary)', fontWeight: 'bold' }}>새로운 음원 로딩 중...</div>}
+                {!isMusicLoading && (cameraActive ? (handData.length > 0 ? `손 인식 중 (${handData.length}개)` : "손을 기다리는 중...") : "카메라를 켜주세요.")}
+              </div>
+            )}
 
             {SHOW_FUTURE_FEATURE_CONTROLS && (
               <>
@@ -1595,7 +1610,7 @@ function App() {
         />
         </div>
 
-      {isInSpace && !isInVR && isVRSupported && (
+      {isInSpace && !isInVR && isVRSupported && !isDemo && (
         <button className="vr-enter-button" onClick={enterHeadset}>
           VR 헤드셋으로 보기
         </button>
@@ -1638,7 +1653,7 @@ function App() {
 
 
       {/* Keep the video mounted so MediaPipe retains its stream between views. */}
-      <div className={`webcam-monitor ${cameraActive && viewMode !== 'intro' ? 'visible' : 'hidden-feed'}`}>
+      <div className={`webcam-monitor ${cameraActive && viewMode !== 'intro' && !isDemo ? 'visible' : 'hidden-feed'}`}>
         <video ref={videoRef} className="webcam-feed" playsInline muted />
         <div className="webcam-status" aria-live="polite">
           <span className={`webcam-status-mode ${webcamInteraction.mode !== 'idle' ? 'active' : ''}`}>

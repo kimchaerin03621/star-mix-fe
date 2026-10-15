@@ -17,6 +17,12 @@ export async function startTabRecording(page) {
       },
       preferCurrentTab: true,
     });
+
+    // Chrome slides a "sharing this tab" bar in once capture starts, which shrinks
+    // the page by a few dozen pixels. Let that settle before recording so the
+    // picture does not change size halfway through.
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+
     const recorder = new MediaRecorder(stream, {
       mimeType: 'video/webm;codecs=vp9,opus',
       videoBitsPerSecond: 8_000_000,
@@ -63,11 +69,21 @@ export async function stopTabRecording(page, outputPath) {
           sum += samples[i] * samples[i];
           peak = Math.max(peak, Math.abs(samples[i]));
         }
+        // Loudness of each second, to tell silence from the actual music.
+        const rate = decoded.sampleRate;
+        const rmsPerSecond = [];
+        for (let start = 0; start < samples.length; start += rate) {
+          let part = 0;
+          const end = Math.min(start + rate, samples.length);
+          for (let i = start; i < end; i += 1) part += samples[i] * samples[i];
+          rmsPerSecond.push(+Math.sqrt(part / (end - start)).toFixed(3));
+        }
         audio = {
           seconds: decoded.duration,
           channels: decoded.numberOfChannels,
           rms: Math.sqrt(sum / samples.length),
           peak,
+          rmsPerSecond,
         };
         await context.close();
       } catch (error) {
