@@ -19,6 +19,7 @@ export default defineConfig({
         '--enable-unsafe-swiftshader',
         '--ignore-gpu-blocklist',
         '--autoplay-policy=no-user-gesture-required',
+        '--auto-accept-this-tab-capture',
       ],
     },
   },
