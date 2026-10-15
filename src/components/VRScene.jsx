@@ -473,6 +473,40 @@ function OrbSwarmSatellites({ color, isDragging }) {
 
 const starTextureCache = {};
 
+// three.js numbers its controllers in the order they connect, which does not have
+// to match the order of session.inputSources (that differs per device and
+// browser). Each controller announces its input source when it connects, so we
+// remember that pairing instead of guessing from the array order.
+const controllerSources = new WeakMap();
+const watchedControllers = new WeakSet();
+
+function watchControllerSources(xr) {
+  [0, 1].forEach((index) => {
+    const controller = xr.getController(index);
+    if (watchedControllers.has(controller)) return;
+    watchedControllers.add(controller);
+    controller.addEventListener('connected', (event) => controllerSources.set(controller, event.data));
+    controller.addEventListener('disconnected', () => controllerSources.delete(controller));
+  });
+}
+
+function getControllerSource(xr, session, index) {
+  const announced = controllerSources.get(xr.getController(index));
+  if (announced) return announced;
+  const sources = Array.from(session.inputSources);
+  return sources.find((source, i) => i === index
+    || (index === 0 && source.handedness === 'right')
+    || (index === 1 && source.handedness === 'left')) || sources[index];
+}
+
+// Touch controllers report the thumbstick on axes 2/3 (axes 0/1 are the unused
+// touchpad); a pad with only two axes puts it on 0/1.
+function getThumbstickY(gamepad) {
+  const axes = gamepad.axes ?? [];
+  const value = axes.length >= 4 ? axes[3] : axes[1];
+  return Number.isFinite(value) ? value : 0;
+}
+
 // Instrument silhouette opacity/size (world units) for each interaction state.
 const ICON_STATE = {
   rest: { opacity: 0.6, scale: 0.46 },
@@ -746,9 +780,7 @@ function InteractiveOrb({
             if (!isDragging) {
               let isButtonPressed = false;
               if (session && session.inputSources) {
-                // WebXR Input Source 1:1 Precision Mapping (#2): Match by index or handedness
-                const targetSource = session.inputSources.find((src, idx) => idx === i || (i === 0 && src.handedness === 'right') || (i === 1 && src.handedness === 'left'));
-                const sourceToUse = targetSource || session.inputSources[i];
+                const sourceToUse = getControllerSource(xr, session, i);
                 if (sourceToUse && sourceToUse.gamepad && sourceToUse.gamepad.buttons) {
                   const btn0 = sourceToUse.gamepad.buttons[0]; // Trigger
                   const btn1 = sourceToUse.gamepad.buttons[1]; // Grip / Squeeze
@@ -799,8 +831,7 @@ function InteractiveOrb({
 
       // Release check: if trigger & grip buttons are unpressed, release grab automatically!
       if (session && session.inputSources) {
-        const targetSource = session.inputSources.find((src, i) => i === idx || (idx === 0 && src.handedness === 'right') || (idx === 1 && src.handedness === 'left'));
-        const sourceToUse = targetSource || session.inputSources[idx];
+        const sourceToUse = getControllerSource(xr, session, idx);
         if (sourceToUse && sourceToUse.gamepad && sourceToUse.gamepad.buttons) {
           const btn0 = sourceToUse.gamepad.buttons[0];
           const btn1 = sourceToUse.gamepad.buttons[1];
@@ -814,8 +845,9 @@ function InteractiveOrb({
           }
 
           // Joystick Y axis adjusts depth distance along pointer ray
-          if (sourceToUse.gamepad.axes && Math.abs(sourceToUse.gamepad.axes[1]) > 0.1) {
-            dragDistanceRef.current += sourceToUse.gamepad.axes[1] * -0.06;
+          const stickY = getThumbstickY(sourceToUse.gamepad);
+          if (Math.abs(stickY) > 0.1) {
+            dragDistanceRef.current += stickY * -0.06;
             dragDistanceRef.current = Math.max(0.3, Math.min(10.0, dragDistanceRef.current));
           }
         }
@@ -1023,6 +1055,40 @@ function VRAudioExperience({
       }
     });
   }, [stems]);
+
+  useEffect(() => {
+    watchControllerSources(gl.xr);
+  }, [gl]);
+
+  // Dev-only hook so the end-to-end tests can read where each star is.
+  useEffect(() => {
+    if (!import.meta.env.DEV) return undefined;
+    window.__starMixTest = {
+      getStemPositions: () => Object.fromEntries(
+        Object.entries(orbCoordsRef.current).map(([key, position]) => [key, position.toArray()]),
+      ),
+      getControllerState: () => {
+        const session = gl.xr.getSession();
+        return {
+          presenting: gl.xr.isPresenting,
+          renderedFrames: gl.info.render.frame,
+          controllers: [0, 1].map((index) => {
+            const controller = gl.xr.getController(index);
+            const source = session?.inputSources[index];
+            return {
+              visible: controller.visible,
+              position: controller.getWorldPosition(controller.position.clone()).toArray(),
+              rayDirection: controller.getWorldDirection(new THREE.Vector3()).negate().toArray(),
+              handedness: source?.handedness ?? null,
+              triggerValue: source?.gamepad?.buttons[0]?.value ?? null,
+              axes: source ? Array.from(source.gamepad?.axes ?? []) : null,
+            };
+          }),
+        };
+      },
+    };
+    return () => { delete window.__starMixTest; };
+  }, [gl]);
 
   // Initialize Web Audio Engine (곡 전환 시 정밀한 가비지 컬렉션 및 리소스 파기 보장)
   useEffect(() => {
