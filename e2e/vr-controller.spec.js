@@ -52,6 +52,23 @@ test('pulling the trigger does not switch the song', async ({ page }) => {
   expect(Object.keys(await stemPositions(page)).sort()).toEqual(before);
 });
 
+test('no controller button switches the song (the exhibition plays one song)', async ({ page }) => {
+  const before = Object.keys(await stemPositions(page)).sort();
+
+  // xr-standard buttons: squeeze, thumbstick press, A/X and B/Y.
+  for (const id of ['squeeze', 'a-button', 'b-button', 'thumbstick']) {
+    await setButton(page, 'right', id, 1);
+    await setButton(page, 'left', id, 1);
+    await page.waitForTimeout(300);
+    await setButton(page, 'right', id, 0);
+    await setButton(page, 'left', id, 0);
+  }
+  await page.keyboard.press('n');
+  await page.waitForTimeout(500);
+
+  expect(Object.keys(await stemPositions(page)).sort()).toEqual(before);
+});
+
 test('releasing the trigger leaves the star where it was dropped', async ({ page }) => {
   await setButton(page, 'right', 'trigger', 1);
   await page.waitForTimeout(300);

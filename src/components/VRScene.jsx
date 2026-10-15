@@ -987,7 +987,6 @@ function VRAudioExperience({
   activePreset,
   isAudioActive,
   setIsDraggingOrb,
-  onNextSong,
   playbackTimeRef,
   handData,
   orbitControlsRef,
@@ -1015,19 +1014,6 @@ function VRAudioExperience({
   const analysersRef = useRef({});
   const eqFiltersRef = useRef({ low: null, mid: null, high: null });
   const masterFilterRef = useRef(null);
-
-  // Keyboard 'N' shortcut for fast desktop testing & fallback
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'n' || e.key === 'N') {
-        if (onNextSong) onNextSong();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [onNextSong]);
 
   // Sync refs to avoid canvas render loop teardown and layout reflow on every frame
   const leftRateRef = useRef(leftRate);
@@ -1253,7 +1239,6 @@ function VRAudioExperience({
     };
   }, [isAudioActive, stems]);
 
-  const wasAPressedRef = useRef(false);
   const draggingOrbsRef = useRef({});
   const [handInteraction, setHandInteraction] = useState({
     hoveredOrbKey: null,
@@ -1270,31 +1255,7 @@ function VRAudioExperience({
 
   // Frame Loop updates: Head/Camera Tracking, 3D Sound Positioning & Sphere Collision
   useFrame((state) => {
-    // 0. VR Controller A/X (Primary Button) check
-    const xr = state.gl.xr;
-    let aPressedThisFrame = false;
-    if (xr && xr.isPresenting) {
-      const session = xr.getSession();
-      if (session) {
-        for (const source of session.inputSources) {
-          if (source.gamepad) {
-            // xr-standard mapping: 0 = trigger, 1 = squeeze, 4 = A (right) / X (left).
-            // The trigger grabs stars, so only A/X may switch songs.
-            const buttonA = source.gamepad.buttons[4];
-            if (buttonA && buttonA.pressed) {
-              aPressedThisFrame = true;
-            }
-          }
-        }
-      }
-    }
-    
-    if (aPressedThisFrame && !wasAPressedRef.current) {
-      if (onNextSong) onNextSong();
-    }
-    wasAPressedRef.current = aPressedThisFrame;
-
-    // 0.5 Sphere Collision & Repulsion: Prevent stars from colliding/merging with each other
+    // 0. Sphere Collision & Repulsion: Prevent stars from colliding/merging with each other
     const stemKeys = Object.keys(orbCoordsRef.current);
     const minDistance = 0.75; // 0.75m minimum distance between star centers to prevent overlap
 
@@ -1584,7 +1545,7 @@ function SleekAxes3D({ length = 6.5, segments = 24 }) {
   );
 }
 
-export function VRScene({ store, starColors, handData, isInVR, isDesktopVR, activeSong, leftRate, rightRate, activePreset, isAudioActive, vrModeType, onNextSong, playbackTimeRef, vrCameraPos, vrCameraRot, onWebcamInteractionChange, handVisualFrameRef }) {
+export function VRScene({ store, starColors, handData, isInVR, isDesktopVR, activeSong, leftRate, rightRate, activePreset, isAudioActive, vrModeType, playbackTimeRef, vrCameraPos, vrCameraRot, onWebcamInteractionChange, handVisualFrameRef }) {
   const isVRActive = isInVR || isDesktopVR;
   const [isDraggingOrb, setIsDraggingOrb] = useState(false);
   const orbitControlsRef = useRef(null);
@@ -1645,7 +1606,6 @@ export function VRScene({ store, starColors, handData, isInVR, isDesktopVR, acti
                 activePreset={activePreset}
                 isAudioActive={isAudioActive}
                 setIsDraggingOrb={setIsDraggingOrb}
-                onNextSong={onNextSong}
                 playbackTimeRef={playbackTimeRef}
                 handData={handData}
                 orbitControlsRef={orbitControlsRef}

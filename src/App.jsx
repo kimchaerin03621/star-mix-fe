@@ -655,9 +655,6 @@ function App() {
   const [vrModeType, setVrModeType] = useState(1); // 1 for VR 1 (Classic), 2 for VR 2 (Spatial)
   const [, setAnalyserNode] = useState(null);
 
-  // Music Player HUD state
-  const [songDropdownOpen, setSongDropdownOpen] = useState(false);
-
   // VR 2 (Spatial Audio Mode) active check: pause 2D background audio in VR 2, resume when exiting VR 2
   const isVR2Active = (isInVR || isDesktopVR) && vrModeType === 2;
 
@@ -899,13 +896,6 @@ function App() {
     setRightRate(1.0);
   }, [activeSong]);
 
-  // The galaxy's stem groups are built once for the exhibition song, so a song
-  // change only updates the spatial scene's stems.
-  const handleSongChange = (id) => {
-    setActiveSong(id);
-    setSongTrigger(prev => prev + 1);
-  };
-
   const refreshMidiInputs = (access) => {
     const nextInputs = Array.from(access.inputs.values()).map((input) => ({
       id: input.id,
@@ -945,18 +935,6 @@ function App() {
       console.error('Failed to request MIDI access:', err);
       setMidiStatus('MIDI 접근 권한을 가져오지 못했어요.');
     }
-  };
-
-  const handleNextSong = () => {
-    setActiveSong((currentSong) => {
-      let nextSong = 2;
-      if (currentSong === 2) nextSong = 1;
-      else if (currentSong === 1) nextSong = 3;
-      else if (currentSong === 3) nextSong = 2;
-
-      return nextSong;
-    });
-    setSongTrigger(prev => prev + 1);
   };
 
   const [activePads, setActivePads] = useState({});
@@ -1370,42 +1348,18 @@ function App() {
 
       {isDesktopVR && (
         <>
-          {/* 3D Sound Space Real-time Song Selection HUD */}
+          {/* Now-playing label for the spatial scene (the exhibition plays one song) */}
           {vrModeType === 2 && (
             <div className="music-player-hud">
-              {/* Song Selector Dropdown */}
               <div className="player-top-row">
-                <button 
-                  className="player-song-toggle"
-                  onClick={() => setSongDropdownOpen(!songDropdownOpen)}
-                >
-                  <span className={`dropdown-arrow ${songDropdownOpen ? 'open' : ''}`}>▼</span>
+                <div className="player-song-toggle" style={{ cursor: 'default', pointerEvents: 'none' }}>
                   <span className="player-song-title">
                     {SONGS.find(s => s.id === activeSong)?.title}
                   </span>
                   <span className="player-song-artist">
                     - {SONGS.find(s => s.id === activeSong)?.artist}
                   </span>
-                </button>
-
-                {songDropdownOpen && (
-                  <div className="player-song-dropdown">
-                    {SONGS.map(song => (
-                      <div
-                        key={song.id}
-                        className={`dropdown-item ${activeSong === song.id ? 'active' : ''}`}
-                        onClick={() => {
-                          handleSongChange(song.id);
-                          setSongDropdownOpen(false);
-                        }}
-                      >
-                        <span className="item-check">{activeSong === song.id ? '✓' : ''}</span>
-                        <span className="item-title">{song.title}</span>
-                        <span className="item-artist">{song.artist}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                </div>
               </div>
             </div>
           )}
@@ -1668,7 +1622,6 @@ function App() {
         activePreset={activePreset}
         isAudioActive={isAudioInitialized && vrModeType === 2}
         vrModeType={vrModeType}
-        onNextSong={handleNextSong}
         playbackTimeRef={playbackTimeRef}
         vrCameraPos={vrCameraPos}
         vrCameraRot={vrCameraRot}
