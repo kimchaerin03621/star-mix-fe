@@ -53,7 +53,8 @@ async function reconnectControllers(page) {
     left.connected = true;
     right.connected = true;
   });
-  await page.waitForFunction(() => window.__starMixTest.getControllerState().controllers.every((c) => c.visible));
+  // Poll on a timer: while a headset session is active the page's own frame callbacks may pause.
+  await page.waitForFunction(() => window.__starMixTest.getControllerState().controllers.every((c) => c.visible), undefined, { polling: 100 });
 }
 
 // The app reads either controller depending on which one is closer, so the tests

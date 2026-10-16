@@ -20,7 +20,8 @@ const isFingerExtended = (landmarks, tipIndex, pipIndex, margin = 1.12) => {
   return distance2D(landmarks[tipIndex], wrist) > distance2D(landmarks[pipIndex], wrist) * margin;
 };
 
-export function useHandTracking(videoRef, enabled = true) {
+// `load: false` skips downloading the MediaPipe model (for devices with no webcam).
+export function useHandTracking(videoRef, enabled = true, load = true) {
   const [handData, setHandData] = useState([]); 
   const [isReady, setIsReady] = useState(false);
   const landmarkerRef = useRef(null);
@@ -31,6 +32,8 @@ export function useHandTracking(videoRef, enabled = true) {
   const nextTrackingIdRef = useRef(1);
 
   useEffect(() => {
+    if (!load) return undefined;
+
     async function init() {
       try {
         const vision = await FilesetResolver.forVisionTasks(
@@ -68,7 +71,7 @@ export function useHandTracking(videoRef, enabled = true) {
     return () => {
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
     };
-  }, []);
+  }, [load]);
 
   const detect = () => {
     if (!enabled) {

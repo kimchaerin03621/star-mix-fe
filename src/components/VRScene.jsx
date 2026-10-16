@@ -1055,6 +1055,7 @@ function VRAudioExperience({
       getStemPositions: () => Object.fromEntries(
         Object.entries(orbCoordsRef.current).map(([key, position]) => [key, position.toArray()]),
       ),
+      endSession: () => gl.xr.getSession()?.end(),
       getControllerState: () => {
         const session = gl.xr.getSession();
         return {
@@ -1552,7 +1553,18 @@ function SleekAxes3D({ length = 6.5, segments = 24 }) {
   );
 }
 
-export function VRScene({ store, starColors, handData, isInVR, isDesktopVR, activeSong, leftRate, rightRate, activePreset, isAudioActive, vrModeType, playbackTimeRef, vrCameraPos, vrCameraRot, onWebcamInteractionChange, handVisualFrameRef }) {
+// Tells the page when the 3D canvas and its XR connection are up. Asking for a VR
+// session before that fails ("not connected to three.js"), and a headset is slow to
+// get here. The short delay lets the XR component finish connecting first.
+function SceneReadySignal({ onReady }) {
+  useEffect(() => {
+    const timer = setTimeout(() => onReady(true), 300);
+    return () => clearTimeout(timer);
+  }, [onReady]);
+  return null;
+}
+
+export function VRScene({ store, starColors, handData, isInVR, isDesktopVR, activeSong, leftRate, rightRate, activePreset, isAudioActive, vrModeType, playbackTimeRef, vrCameraPos, vrCameraRot, onWebcamInteractionChange, handVisualFrameRef, onSceneReady }) {
   const isVRActive = isInVR || isDesktopVR;
   const [isDraggingOrb, setIsDraggingOrb] = useState(false);
   const orbitControlsRef = useRef(null);
@@ -1580,6 +1592,7 @@ export function VRScene({ store, starColors, handData, isInVR, isDesktopVR, acti
         }}
       >
         <XR store={store}>
+            {onSceneReady && <SceneReadySignal onReady={onSceneReady} />}
             <CameraRig vrCameraPos={vrCameraPos} vrCameraRot={vrCameraRot} />
             <color attach="background" args={['#111111']} />
             

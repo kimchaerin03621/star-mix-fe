@@ -562,6 +562,10 @@ function StarEditor({ onApply, onCancel, previousTexture, previousColors }) {
 
 const SPACE_IDLE_RETURN_MS = 30000;
 // Long enough for the stars to gather, split into stem clusters and hold there.
+// ?vr turns a device into the headset station: no galaxy, no webcam, one big button
+// that starts the spatial scene in VR, and a reset once the headset comes off.
+const isVrStation = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('vr');
+
 const UNMIX_GATHER_MS = 1700;
 // Playback level of the galaxy's stems (the spatial scene's output gain is matched to it).
 const GALAXY_PLAYBACK_VOLUME = 1.0;
@@ -772,7 +776,7 @@ function App() {
   const handTrackingEnabled =
     (isDesktopVR && vrModeType === 2) ||
     (viewMode !== 'menu' && viewMode !== 'intro');
-  const trackedHands = useHandTracking(videoRef, handTrackingEnabled);
+  const trackedHands = useHandTracking(videoRef, handTrackingEnabled && !isVrStation, !isVrStation);
 
   // Demo recordings drive the app with scripted hands, shaped exactly like the
   // tracker's output (dev builds only; production never exposes this).
@@ -883,19 +887,48 @@ function App() {
   // plugged in after the page loaded still gets its button.
   const [isVRSupported, setIsVRSupported] = useState(false);
   useEffect(() => {
-    if (!isDesktopVR || typeof navigator === 'undefined' || !navigator.xr) return;
+    if ((!isDesktopVR && !isVrStation) || typeof navigator === 'undefined' || !navigator.xr) return;
     navigator.xr.isSessionSupported('immersive-vr')
       .then(setIsVRSupported)
       .catch(() => setIsVRSupported(false));
   }, [isDesktopVR]);
 
+  // The 3D canvas takes a moment to connect; a VR request before that is rejected, so
+  // wait for the scene and, if it still slips through, try again for a few seconds.
+  const [isSceneReady, setIsSceneReady] = useState(false);
   const enterHeadset = async () => {
-    try {
-      await xrStore.enterVR();
-    } catch (err) {
-      console.error('Could not start the VR session:', err);
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      try {
+        await xrStore.enterVR();
+        return;
+      } catch (err) {
+        const notConnectedYet = String(err?.message).includes('not connected to three.js');
+        if (!notConnectedYet || attempt === 7) {
+          console.error('Could not start the VR session:', err);
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      }
     }
   };
+
+  // Headset station: one click unlocks the sound, opens the spatial scene and asks
+  // for the VR session (it must happen inside the click for the browser to allow it).
+  const startVrStation = () => {
+    setVrModeType(2);
+    setActiveSong(EXHIBITION_SONG);
+    setViewMode('menu');
+    setIsAudioInitialized(true);
+    setIsDesktopVR(true);
+    enterHeadset();
+  };
+
+  // When the headset comes off, start over so the next visitor sees the first screen.
+  const wasInHeadsetRef = useRef(false);
+  useEffect(() => {
+    if (isVrStation && wasInHeadsetRef.current && !isInVR) window.location.reload();
+    wasInHeadsetRef.current = isInVR;
+  }, [isInVR]);
 
   // Base BPM Map
   const bpmMap = {
@@ -1508,16 +1541,34 @@ function App() {
               </h1>
               <p className="minimal-intro-tagline">Touch. Move. Listen.</p>
 
-              <button
-                className="minimal-intro-arrow"
-                aria-label="Enter the spatial sound experience"
-                onClick={async () => {
-                  await unlockIntroExperience();
-                  setViewMode('dj');
-                }}
-              >
-                →
-              </button>
+              {isVrStation ? (
+                <>
+                  <button
+                    className="vr-station-start"
+                    onClick={startVrStation}
+                    disabled={!isVRSupported || !isSceneReady}
+                  >
+                    VR로 입장하기
+                  </button>
+                  {!isVRSupported && (
+                    <p className="vr-station-note">VR 기기를 연결하거나 Quest 브라우저에서 열어 주세요</p>
+                  )}
+                  {isVRSupported && !isSceneReady && (
+                    <p className="vr-station-note">준비 중...</p>
+                  )}
+                </>
+              ) : (
+                <button
+                  className="minimal-intro-arrow"
+                  aria-label="Enter the spatial sound experience"
+                  onClick={async () => {
+                    await unlockIntroExperience();
+                    setViewMode('dj');
+                  }}
+                >
+                  →
+                </button>
+              )}
             </main>
 
             <footer className="minimal-intro-bottom">
@@ -1586,7 +1637,7 @@ function App() {
 
       {/* The galaxy stays mounted (just hidden) while the spatial scene is open, so its
           audio graph survives the round trip. */}
-      <div style={{ display: (isDesktopVR || isInVR) ? 'none' : 'contents' }}>
+      {!isVrStation && (<div style={{ display: (isDesktopVR || isInVR) ? 'none' : 'contents' }}>
         <Starfield2D
           galaxyPhase={galaxyPhase}
           stems={EXHIBITION_STEMS}
@@ -1610,7 +1661,7 @@ function App() {
           warpProgress={warpProgress}
           onAnalyserReady={setAnalyserNode}
         />
-        </div>
+        </div>)}
 
       {isInSpace && !isInVR && isVRSupported && !isDemo && (
         <button className="vr-enter-button" onClick={enterHeadset}>
@@ -1628,6 +1679,7 @@ function App() {
       />
 
       <VRScene
+        onSceneReady={setIsSceneReady}
         store={xrStore}
         starColors={starColors}
         handData={handData}
