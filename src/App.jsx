@@ -563,6 +563,8 @@ function StarEditor({ onApply, onCancel, previousTexture, previousColors }) {
 const SPACE_IDLE_RETURN_MS = 30000;
 // Long enough for the stars to gather, split into stem clusters and hold there.
 const UNMIX_GATHER_MS = 1700;
+// Playback level of the galaxy's stems (the spatial scene's output gain is matched to it).
+const GALAXY_PLAYBACK_VOLUME = 1.0;
 const EXHIBITION_STEMS = SONG_STEMS[EXHIBITION_SONG];
 const GALAXY_BURST_MS = 1800;
 
@@ -696,7 +698,7 @@ function App() {
       ? 0.35 
       : (viewMode === 'controller') 
         ? 0.40 
-        : 0.75;
+        : GALAXY_PLAYBACK_VOLUME;
 
   useEffect(() => {
     let animationFrameId;

@@ -13,6 +13,18 @@ const GATHER_SPLIT_MS = 650;
 const SPLIT_GLOW_MS = 700;
 const CLUSTER_RADIUS = 0.05;
 
+// Making the mix easy to feel for someone using it for the first time:
+// - a half's sound swaps sides once this fraction of its stars has crossed the
+//   center line (it used to take 20%, which needed a lot of stirring);
+const CROSSFADE_FULL_SWAP_RATIO = 0.08;
+// - the more the stars are scattered ("stirred"), the livelier the sound gets: a
+//   gentle EQ lift that is flat at rest. It follows how far stars are from home,
+//   which is visible on screen, so what you see is what you hear.
+const STIR_FULL_DISPLACEMENT = 0.02; // mean distance from home (screen fraction) = fully stirred
+const STIR_REST_DISPLACEMENT = 0.003; // the stars' own idle jitter, ignored so rest stays flat
+const STIR_SMOOTHING = 0.12; // how quickly the lift follows, per frame
+const STIR_EQ_DB = { low: 4, mid: -2, high: 7 };
+
 export function Starfield2D({
   handData, isAudioActive, onMusicReady, 
   activePreset, activeSong, songTrigger, 
@@ -51,6 +63,7 @@ export function Starfield2D({
   const galaxyPhaseRef = useRef(galaxyPhase);
   const gatherStartRef = useRef(0);
   const stemTexturesRef = useRef({});
+  const stirRef = useRef(0);
   const stemAnchorsRef = useRef({ aspect: 0, list: [] });
 
   // When the stars gather, each one is dealt to a stem of its own half: the
@@ -192,6 +205,36 @@ export function Starfield2D({
       });
     };
   }, [customTexture, starColors, stems]);
+
+  // Dev-only: lets the end-to-end tests read how the galaxy is shaping the sound.
+  useEffect(() => {
+    if (!import.meta.env.DEV) return undefined;
+    window.__starMixGalaxy = {
+      getMix: () => {
+        const gains = matrixGainsRef.current;
+        const eq = eqFiltersRef.current;
+        const analyser = analyserRef.current;
+        let outputRms = null;
+        if (analyser) {
+          const buffer = new Float32Array(analyser.fftSize);
+          analyser.getFloatTimeDomainData(buffer);
+          outputRms = Math.sqrt(buffer.reduce((sum, v) => sum + v * v, 0) / buffer.length);
+        }
+        return {
+          outputRms,
+          leftElementVolume: audioElementsRef.current.left?.volume ?? null,
+          rightElementVolume: audioElementsRef.current.right?.volume ?? null,
+          stir: stirRef.current,
+          vocalToLeft: gains.vocalToLeft?.gain.value ?? null,
+          vocalToRight: gains.vocalToRight?.gain.value ?? null,
+          drumToRight: gains.drumToRight?.gain.value ?? null,
+          drumToLeft: gains.drumToLeft?.gain.value ?? null,
+          eqDb: { low: eq.low?.gain.value ?? null, mid: eq.mid?.gain.value ?? null, high: eq.high?.gain.value ?? null },
+        };
+      },
+    };
+    return () => { delete window.__starMixGalaxy; };
+  }, []);
 
   const onMusicReadyRef = useRef(onMusicReady);
   useEffect(() => {
@@ -412,6 +455,7 @@ export function Starfield2D({
 
       const stars = starsRef.current;
       let activePushes = 0;
+      let displacementSum = 0;
 
       // Unmixing: first every star spirals into the center, then the galaxy
       // splits into one colored cluster per stem, laid out like the 3D scene.
@@ -488,6 +532,7 @@ export function Starfield2D({
 
         star.x += star.vx / width;
         star.y += star.vy / height;
+        displacementSum += Math.hypot(star.x - star.ox, star.y - star.oy);
         // Smart Damping: Full velocity when hand touches (isPushed), instant decay (0.75) when hand leaves to eliminate trailing afterimage
         const damping = isWarpingRef.current ? 0.95 : (isPushed ? 0.90 : 0.75);
         star.vx *= damping;
@@ -519,6 +564,13 @@ export function Starfield2D({
         }
       });
 
+      // How stirred the galaxy is right now (0 = every star at home, 1 = well scattered).
+      const meanDisplacement = displacementSum / (stars.length || 1);
+      const stirTarget = galaxyPhaseRef.current === 'idle'
+        ? Math.min(1, Math.max(0, meanDisplacement - STIR_REST_DISPLACEMENT) / (STIR_FULL_DISPLACEMENT - STIR_REST_DISPLACEMENT))
+        : 0;
+      stirRef.current += (stirTarget - stirRef.current) * STIR_SMOOTHING;
+
       // 2. Real-time Crossover Ratio & Equal Power Logarithmic Crossfade Calculation (60 FPS)
       if (matrixGainsRef.current && starsRef.current) {
         let pinkCrossed = 0;
@@ -537,9 +589,9 @@ export function Starfield2D({
         });
 
         // Ratio of stars crossed over (0.0 to 1.0)
-        // 20% displacement = 100% full crossfade
-        const pinkRatio = Math.min(1.0, (pinkCrossed / ((pinkTotal * 0.20) || 1)));
-        const whiteRatio = Math.min(1.0, (whiteCrossed / ((whiteTotal * 0.20) || 1)));
+        // CROSSFADE_FULL_SWAP_RATIO of a half's stars crossed = 100% full crossfade
+        const pinkRatio = Math.min(1.0, (pinkCrossed / ((pinkTotal * CROSSFADE_FULL_SWAP_RATIO) || 1)));
+        const whiteRatio = Math.min(1.0, (whiteCrossed / ((whiteTotal * CROSSFADE_FULL_SWAP_RATIO) || 1)));
 
         // Equal Power Logarithmic Crossfade Curve (cos / sin angle)
         // Guarantees constant perceived volume without clipping or volume dips
@@ -587,41 +639,26 @@ export function Starfield2D({
           lastPreset.current = activePreset;
         }
 
-        // 4-Quadrant EQ & NDS Presets are exclusively triggered by real webcam hand tracking (ignoring mouse movement)
+        // Preset 1 lifts the sound as the galaxy gets stirred (flat at rest, no cuts, so
+        // it never gets quieter). Preset 2 reads the hand and is webcam-only.
         const primaryHand = hands.find(h => !h.isMouse);
+        const eq = eqFiltersRef.current;
 
-        if (primaryHand) {
-          const normX = primaryHand.screenX;
-          const normY = primaryHand.screenY;
-          if (activePreset === 1) {
-            const wMid = (1 - normX) * (1 - normY);      // Upper-Left: Mid Boost
-            const wHigh = normX * (1 - normY);          // Upper-Right: High Boost
-            const wLow = (1 - normX) * normY;           // Lower-Left: Low Sub-Bass Boost
-            const wMuffled = normX * normY;             // Lower-Right: Deep Muffled Lowpass Filter!
-
-            // Bold EQ Transformation (+26 dB max boost, -20 dB cut for non-selected bands)
-            const lowGain = wLow * 26.0 - (wMid + wHigh) * 20.0;
-            const midGain = wMid * 26.0 - (wLow + wHigh) * 20.0;
-            const highGain = wHigh * 26.0 - (wLow + wMid) * 20.0;
-
-            // Master Filter Frequency: Plunges down to 350 Hz in Lower-Right for deep underwater muffled sound!
-            const targetFreq = Math.max(350, 20000 * (1 - wMuffled * 0.98));
-
-            const eq = eqFiltersRef.current;
-            eq.low.gain.setTargetAtTime(safeVal(lowGain, 0), curTime, 0.05);
-            eq.mid.gain.setTargetAtTime(safeVal(midGain, 0), curTime, 0.05);
-            eq.high.gain.setTargetAtTime(safeVal(highGain, 0), curTime, 0.05);
-            masterFilterRef.current.frequency.setTargetAtTime(safeVal(targetFreq, 20000), curTime, 0.05);
-          } else if (activePreset === 2) {
-            const handSpeedMod = 0.8 + safeVal(normX, 0) * 0.4;
-            audioElementsRef.current.left.playbackRate = safeVal(leftRate * handSpeedMod, 1.0);
-            audioElementsRef.current.right.playbackRate = safeVal(rightRate * handSpeedMod, 1.0);
-            masterFilterRef.current.frequency.setTargetAtTime(20000, curTime, 0.1);
-          }
+        if (activePreset === 1) {
+          const stir = stirRef.current;
+          eq.low.gain.setTargetAtTime(STIR_EQ_DB.low * stir, curTime, 0.05);
+          eq.mid.gain.setTargetAtTime(STIR_EQ_DB.mid * stir, curTime, 0.05);
+          eq.high.gain.setTargetAtTime(STIR_EQ_DB.high * stir, curTime, 0.05);
+          masterFilterRef.current.frequency.setTargetAtTime(20000, curTime, 0.1);
+        } else if (primaryHand && activePreset === 2) {
+          const handSpeedMod = 0.8 + safeVal(primaryHand.screenX, 0) * 0.4;
+          audioElementsRef.current.left.playbackRate = safeVal(leftRate * handSpeedMod, 1.0);
+          audioElementsRef.current.right.playbackRate = safeVal(rightRate * handSpeedMod, 1.0);
+          masterFilterRef.current.frequency.setTargetAtTime(20000, curTime, 0.1);
         } else {
-          eqFiltersRef.current.low.gain.setTargetAtTime(0, curTime, 0.1);
-          eqFiltersRef.current.mid.gain.setTargetAtTime(0, curTime, 0.1);
-          eqFiltersRef.current.high.gain.setTargetAtTime(0, curTime, 0.1);
+          eq.low.gain.setTargetAtTime(0, curTime, 0.1);
+          eq.mid.gain.setTargetAtTime(0, curTime, 0.1);
+          eq.high.gain.setTargetAtTime(0, curTime, 0.1);
           masterFilterRef.current.frequency.setTargetAtTime(20000, curTime, 0.1);
         }
 

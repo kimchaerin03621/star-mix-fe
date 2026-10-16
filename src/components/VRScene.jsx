@@ -975,6 +975,8 @@ function InteractiveOrb({
   );
 }
 
+// Level of the whole spatial mix (1 = untouched). About 0.3 matches the galaxy's loudness.
+const SPATIAL_OUTPUT_GAIN = 0.3;
 // Stems closer than this to the listener play at full volume (inverse model).
 const SPATIAL_REF_DISTANCE = 4.0;
 
@@ -1101,7 +1103,12 @@ function VRAudioExperience({
       compressor.release.setValueAtTime(0.25, curTime);
 
       masterFilter.connect(compressor);
-      compressor.connect(ctx.destination);
+      // Trim the spatial mix so it sits at the galaxy's loudness (they used to differ by
+      // ~8 dB) and no longer clips.
+      const outputGain = ctx.createGain();
+      outputGain.gain.value = SPATIAL_OUTPUT_GAIN;
+      compressor.connect(outputGain);
+      outputGain.connect(ctx.destination);
       masterFilterRef.current = masterFilter;
 
       // EQ Shelf filters

@@ -62,26 +62,27 @@ export async function stopTabRecording(page, outputPath) {
       try {
         const context = new AudioContext();
         const decoded = await context.decodeAudioData(bytes.buffer.slice(0));
-        const samples = decoded.getChannelData(0);
-        let sum = 0;
-        let peak = 0;
-        for (let i = 0; i < samples.length; i += 1) {
-          sum += samples[i] * samples[i];
-          peak = Math.max(peak, Math.abs(samples[i]));
-        }
-        // Loudness of each second, to tell silence from the actual music.
+        // Loudness over all channels together (the galaxy keeps the vocal in the left
+        // speaker and the band in the right, so one channel alone says little).
+        const channels = Array.from({ length: decoded.numberOfChannels }, (_, i) => decoded.getChannelData(i));
         const rate = decoded.sampleRate;
+        const rmsOf = (from, to, list) => {
+          let sum = 0;
+          for (const data of list) for (let i = from; i < to; i += 1) sum += data[i] * data[i];
+          return Math.sqrt(sum / (list.length * (to - from) || 1));
+        };
+        let peak = 0;
+        for (const data of channels) for (let i = 0; i < data.length; i += 1) peak = Math.max(peak, Math.abs(data[i]));
         const rmsPerSecond = [];
-        for (let start = 0; start < samples.length; start += rate) {
-          let part = 0;
-          const end = Math.min(start + rate, samples.length);
-          for (let i = start; i < end; i += 1) part += samples[i] * samples[i];
-          rmsPerSecond.push(+Math.sqrt(part / (end - start)).toFixed(3));
+        for (let start = 0; start < channels[0].length; start += rate) {
+          rmsPerSecond.push(+rmsOf(start, Math.min(start + rate, channels[0].length), channels).toFixed(3));
         }
         audio = {
           seconds: decoded.duration,
           channels: decoded.numberOfChannels,
-          rms: Math.sqrt(sum / samples.length),
+          rms: rmsOf(0, channels[0].length, channels),
+          leftRms: rmsOf(0, channels[0].length, [channels[0]]),
+          rightRms: rmsOf(0, channels[0].length, [channels[channels.length - 1]]),
           peak,
           rmsPerSecond,
         };
