@@ -9,7 +9,7 @@ import { getNebulae } from './nebula/nebulaRegistry';
 // glow while a quiet bass leaves the left dark.
 const MAX_STARS = 8;
 const SKY_RADIUS = 45;
-const REST_LEVEL = 0.12; // a star lights its patch of sky a little even when quiet
+const REST_LEVEL = 0.04; // a star lights its patch of sky a little even when quiet
 const SOUND_LEVEL_GAIN = 1.6; // how much its current loudness adds on top
 const HIT_GAIN = 1.4; // extra light on each new hit
 const LEVEL_RISE_PER_SECOND = 16; // light comes up fast so a hit is seen...
@@ -62,13 +62,13 @@ const FRAGMENT = /* glsl */ `
     float cloud = smoothstep(0.42, 0.85, fbm(dir * 2.2 + drift));
     float hue = fbm(dir * 1.3 + vec3(5.0));
     vec3 tint = mix(vec3(0.38, 0.12, 0.46), vec3(0.10, 0.22, 0.52), hue);
-    vec3 color = vec3(0.010, 0.012, 0.028) + tint * cloud * 0.2;
+    vec3 color = vec3(0.010, 0.012, 0.028) + tint * cloud * 0.07;
 
     for (int i = 0; i < ${MAX_STARS}; i++) {
       float facing = max(dot(dir, uStarDir[i]), 0.0);
       float halo = pow(facing, 6.0) * 0.4 + pow(facing, 36.0) * 0.5;
       // The clouds near a sounding star catch its light more than the empty sky does.
-      color += uStarColor[i] * halo * uStarLevel[i] * (0.35 + cloud * 1.6);
+      color += uStarColor[i] * halo * uStarLevel[i] * (0.6 + cloud * 0.5);
     }
     gl_FragColor = vec4(color, 1.0);
   }
