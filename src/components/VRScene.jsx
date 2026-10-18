@@ -508,8 +508,8 @@ function getThumbstickY(gamepad) {
   return Number.isFinite(value) ? value : 0;
 }
 
-// Instruments drawn as an Obsidian-graph style nebula so far (the rest keep the glowing star).
-const NEBULA_INSTRUMENTS = ['vocal'];
+// Instruments drawn as an Obsidian-graph style nebula (any other keeps the plain glowing star).
+const NEBULA_INSTRUMENTS = ['vocal', 'drum', 'bass', 'piano', 'guitar'];
 // How much of its instrument's outline the nebula holds in each state: 0 = free-form
 // wriggle, 1 = fully the instrument. Make hovered/grabbed 0 for a wriggle-only star,
 // or rest 1 for one that always shows its instrument.
@@ -578,10 +578,6 @@ function InteractiveOrb({
   const meshRef = useRef();
   const iconRef = useRef();
   const auraRef = useRef();
-  const waveRef1 = useRef();
-  const waveRef2 = useRef();
-  const waveRef3 = useRef();
-  const waveTimeRef = useRef(0);
   
   const instrumentTexture = useMemo(() => getInstrumentTexture(instrument, color), [instrument, color]);
   const starTexture = useMemo(() => getMenuStarTexture(color, Boolean(instrumentTexture)), [color, instrumentTexture]);
@@ -726,28 +722,6 @@ function InteractiveOrb({
 
     volumeRef.current = currentVol;
 
-    // Concentric Ripple Wave animation
-    const waveSpeed = 0.007 * (1.0 + currentVol * 2.5);
-    waveTimeRef.current += waveSpeed;
-
-    const waveRings = [
-      { ref: waveRef1, offset: 0.0 },
-      { ref: waveRef2, offset: 0.33 },
-      { ref: waveRef3, offset: 0.66 }
-    ];
-
-    waveRings.forEach(({ ref, offset }) => {
-      if (ref.current && ref.current.material) {
-        ref.current.quaternion.copy(state.camera.quaternion);
-        const rawProgress = (waveTimeRef.current + offset) % 1.0;
-        const scaleVal = 1.0 + rawProgress * 3.2;
-        ref.current.scale.set(scaleVal, scaleVal, scaleVal);
-        const baseOpacity = 0.05 + currentVol * 0.65;
-        const opacityVal = Math.max(0, baseOpacity * (1.0 - rawProgress) * Math.sin(rawProgress * Math.PI));
-        ref.current.material.opacity = currentVol > 0.02 ? opacityVal : 0;
-      }
-    });
-
     // VR Ray Pointer & Proximity Detection, Hover Feedback, and Auto-Grab (60/90fps frame loop)
     if (xr && xr.isPresenting && meshRef.current) {
       const session = (typeof xr.getSession === 'function') ? xr.getSession() : null;
@@ -827,13 +801,10 @@ function InteractiveOrb({
     }
 
     if (!isDragging) {
-      // Synchronize mesh & wave ring positions with collision-resolved coordsRef
+      // Synchronize the mesh position with the collision-resolved coordsRef
       if (meshRef.current && coordsRef.current && coordsRef.current[orbKey]) {
         const solvedPos = coordsRef.current[orbKey];
         meshRef.current.position.copy(solvedPos);
-        if (waveRef1.current) waveRef1.current.position.copy(solvedPos);
-        if (waveRef2.current) waveRef2.current.position.copy(solvedPos);
-        if (waveRef3.current) waveRef3.current.position.copy(solvedPos);
       }
       return;
     }
@@ -881,9 +852,6 @@ function InteractiveOrb({
         meshRef.current.position.copy(targetPos);
         coordsRef.current[orbKey].copy(targetPos);
 
-        if (waveRef1.current) waveRef1.current.position.copy(targetPos);
-        if (waveRef2.current) waveRef2.current.position.copy(targetPos);
-        if (waveRef3.current) waveRef3.current.position.copy(targetPos);
       }
     } else if (meshRef.current) {
       // Desktop Mouse Ray Position Update
@@ -902,46 +870,11 @@ function InteractiveOrb({
       meshRef.current.position.copy(nextPoint);
       coordsRef.current[orbKey].copy(nextPoint);
 
-      if (waveRef1.current) waveRef1.current.position.copy(nextPoint);
-      if (waveRef2.current) waveRef2.current.position.copy(nextPoint);
-      if (waveRef3.current) waveRef3.current.position.copy(nextPoint);
     }
   });
 
   return (
     <group>
-      {/* Concentric Ripple Wave Rings */}
-      <mesh ref={waveRef1} position={initialPos}>
-        <ringGeometry args={[0.3, 0.34, 48]} />
-        <meshBasicMaterial
-          color={color}
-          transparent={true}
-          opacity={0}
-          depthWrite={false}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
-      <mesh ref={waveRef2} position={initialPos}>
-        <ringGeometry args={[0.3, 0.34, 48]} />
-        <meshBasicMaterial
-          color={color}
-          transparent={true}
-          opacity={0}
-          depthWrite={false}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
-      <mesh ref={waveRef3} position={initialPos}>
-        <ringGeometry args={[0.3, 0.34, 48]} />
-        <meshBasicMaterial
-          color={color}
-          transparent={true}
-          opacity={0}
-          depthWrite={false}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
-
       {/* Main Interactive Celestial Star Group (Borderless Volumetric Glowing Light Cloud) */}
       <group
         ref={meshRef}
@@ -1086,6 +1019,7 @@ function VRAudioExperience({
         Object.entries(orbCoordsRef.current).map(([key, position]) => [key, position.toArray()]),
       ),
       endSession: () => gl.xr.getSession()?.end(),
+      getRenderStats: () => ({ ...gl.info.render }),
       getControllerState: () => {
         const session = gl.xr.getSession();
         return {

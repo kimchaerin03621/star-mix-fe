@@ -102,7 +102,8 @@ export function buildNebula({ instrument, seedKey, color }) {
     const tone = new THREE.Color().setHSL(
       (hsl.h + (random() - 0.5) * 0.08 + 1) % 1,
       Math.min(1, hsl.s * (1.0 + random() * 0.6)),
-      isHub ? 0.85 : 0.45 + random() * 0.25,
+      // Lightness follows the star's own (a white star stays white, a violet one violet).
+      isHub ? Math.min(0.95, hsl.l + 0.3) : Math.min(0.95, Math.max(0.4, hsl.l * (0.8 + random() * 0.35))),
     );
     return {
       seed: random(),
