@@ -10,8 +10,11 @@ import { getRegions } from './graphRegistry';
 // the rest stays white. The graph never moves, only the colored regions do.
 const MAX_REGIONS = 8;
 const WOBBLE = 0.05; // how far a node drifts (meters), so the graph breathes
-const NEAR_FADE = [0.4, 1.5]; // nodes closer to the eye than this fade out
+const NEAR_FADE = [1.2, 3.2]; // nodes closer to the eye than this fade out (a big blurry dot in your face is only a smudge)
+const MAX_SCREEN_SIZE = 0.035; // no node is drawn bigger than this share of its distance to the eye
 const FAR_DIM = [2.5, 12]; // and nodes dim between these distances, for depth
+const HALO_SIZE = 7; // glow around a colored node, in node sizes
+const HALO_ALPHA = 0.16
 
 const SHARED_GLSL = /* glsl */ `
   uniform float uTime;
@@ -59,14 +62,15 @@ const NODE_VERTEX = /* glsl */ `
   void main() {
     vec4 viewPosition = modelViewMatrix * vec4(drift(aPos, aSeed), 1.0);
     float dist = length(viewPosition.xyz);
-    float strength = tint(0.82);
+    float strength = tint(0.62);
     int r = int(aRegion + 0.5);
     float high = r >= 0 ? uHigh[r] * (1.0 - aAmount) : 0.0;
     float hit = r >= 0 ? uHit[r] * aAmount : 0.0;
     float sparkle = high * (0.5 + 0.5 * sin(uTime * 14.0 + aSeed * 60.0));
     float size = aSize * (1.0 + strength * 1.4 + sparkle * 1.3 + hit * 0.6);
+    size = min(size, dist * ${MAX_SCREEN_SIZE.toFixed(3)});
     vColor *= (1.0 + hit * 0.6 + sparkle);
-    vAlpha = (0.55 + strength * 0.45) * mix(depthDim(dist), 1.0, strength * 0.7) * nearFade(dist);
+    vAlpha = (0.42 + strength * 0.58) * mix(depthDim(dist), 1.0, strength * 0.7) * nearFade(dist);
     viewPosition.xy += position.xy * size;
     gl_Position = projectionMatrix * viewPosition;
     vUv = position.xy + 0.5;
@@ -84,16 +88,43 @@ const NODE_FRAGMENT = /* glsl */ `
   }
 `;
 
+// A soft glow behind each colored node, so a region reads as an area and not just a few dots.
+const HALO_VERTEX = /* glsl */ `
+  ${SHARED_GLSL}
+  attribute float aSize;
+  void main() {
+    vec4 viewPosition = modelViewMatrix * vec4(drift(aPos, aSeed), 1.0);
+    float dist = length(viewPosition.xyz);
+    float strength = tint(0.0);
+    vAlpha = ${HALO_ALPHA.toFixed(2)} * strength * strength * mix(depthDim(dist), 1.0, 0.6) * nearFade(dist);
+    float size = min(aSize * ${HALO_SIZE.toFixed(1)}, dist * 0.12) * step(0.02, strength);
+    viewPosition.xy += position.xy * size;
+    gl_Position = projectionMatrix * viewPosition;
+    vUv = position.xy + 0.5;
+  }
+`;
+
+const HALO_FRAGMENT = /* glsl */ `
+  varying vec3 vColor;
+  varying float vAlpha;
+  varying vec2 vUv;
+  void main() {
+    float d = length(vUv - 0.5) * 2.0;
+    float glow = exp(-d * d * 3.5) * (1.0 - smoothstep(0.8, 1.0, d));
+    gl_FragColor = vec4(vColor, glow * vAlpha);
+  }
+`;
+
 const LINK_VERTEX = /* glsl */ `
   ${SHARED_GLSL}
   void main() {
     vec4 viewPosition = modelViewMatrix * vec4(drift(aPos, aSeed), 1.0);
     float dist = length(viewPosition.xyz);
-    float strength = tint(0.7);
+    float strength = tint(0.55);
     int r = int(aRegion + 0.5);
     float hit = r >= 0 ? uHit[r] * aAmount : 0.0;
     vColor *= (1.0 + hit * 0.5);
-    vAlpha = (0.2 + strength * 0.7) * mix(depthDim(dist), 1.0, strength * 0.7) * nearFade(dist);
+    vAlpha = (0.15 + strength * 0.75) * mix(depthDim(dist), 1.0, strength * 0.7) * nearFade(dist);
     gl_Position = projectionMatrix * viewPosition;
   }
 `;
@@ -135,7 +166,7 @@ const store = {
 };
 
 export function WhiteGraph() {
-  const { graph, nodeGeometry, linkGeometry, nodeMaterial, linkMaterial } = useMemo(() => {
+  const { graph, nodeGeometry, linkGeometry, nodeMaterial, linkMaterial, haloMaterial } = useMemo(() => {
     const graph = buildGraph();
     const count = graph.count;
     const linkCount = graph.links.length;
@@ -202,8 +233,17 @@ export function WhiteGraph() {
       depthWrite: false,
     });
 
+    const haloMaterial = new THREE.ShaderMaterial({
+      uniforms: graphUniforms,
+      vertexShader: HALO_VERTEX,
+      fragmentShader: HALO_FRAGMENT,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+
     quad.dispose();
-    return { graph, nodeGeometry, linkGeometry, nodeMaterial, linkMaterial };
+    return { graph, nodeGeometry, linkGeometry, nodeMaterial, linkMaterial, haloMaterial };
   }, []);
 
   const scratch = useMemo(() => ({ position: new THREE.Vector3() }), []);
@@ -241,7 +281,8 @@ export function WhiteGraph() {
     linkGeometry.dispose();
     nodeMaterial.dispose();
     linkMaterial.dispose();
-  }, [nodeGeometry, linkGeometry, nodeMaterial, linkMaterial]);
+    haloMaterial.dispose();
+  }, [nodeGeometry, linkGeometry, nodeMaterial, linkMaterial, haloMaterial]);
 
   useFrame((state, delta) => {
     graphUniforms.uTime.value = state.clock.elapsedTime;
@@ -347,6 +388,7 @@ export function WhiteGraph() {
   return (
     <group>
       <lineSegments geometry={linkGeometry} material={linkMaterial} frustumCulled={false} raycast={() => null} renderOrder={1} />
+      <mesh geometry={nodeGeometry} material={haloMaterial} frustumCulled={false} raycast={() => null} renderOrder={0} />
       <mesh geometry={nodeGeometry} material={nodeMaterial} frustumCulled={false} raycast={() => null} renderOrder={2} />
     </group>
   );
