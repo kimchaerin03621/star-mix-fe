@@ -10,8 +10,9 @@ import { getNebulae } from './nebula/nebulaRegistry';
 const MAX_STARS = 8;
 const SKY_RADIUS = 45;
 const REST_LEVEL = 0.04; // a star lights its patch of sky a little even when quiet
-const SOUND_LEVEL_GAIN = 1.6; // how much its current loudness adds on top
-const HIT_GAIN = 1.4; // extra light on each new hit
+const SOUND_LEVEL_GAIN = 0.9; // how much its current loudness adds on top
+const HIT_GAIN = 0.7;
+const MAX_LEVEL = 0.9; // a star can never light its patch of sky beyond this // extra light on each new hit
 const LEVEL_RISE_PER_SECOND = 16; // light comes up fast so a hit is seen...
 const LEVEL_FALL_PER_SECOND = 4; // ...and fades slowly
 
@@ -66,7 +67,7 @@ const FRAGMENT = /* glsl */ `
 
     for (int i = 0; i < ${MAX_STARS}; i++) {
       float facing = max(dot(dir, uStarDir[i]), 0.0);
-      float halo = pow(facing, 6.0) * 0.4 + pow(facing, 36.0) * 0.5;
+      float halo = pow(facing, 10.0) * 0.28 + pow(facing, 36.0) * 0.5;
       // The clouds near a sounding star catch its light more than the empty sky does.
       color += uStarColor[i] * halo * uStarLevel[i] * (0.6 + cloud * 0.5);
     }
@@ -137,7 +138,7 @@ export function SkyBackdrop() {
       const color = colorOf(entry.color);
       const luma = color.r * 0.3 + color.g * 0.59 + color.b * 0.11;
       uStarColor.value[i].copy(color).multiplyScalar(1 - 0.55 * THREE.MathUtils.smoothstep(luma, 0.45, 0.85));
-      const target = REST_LEVEL + entry.state.pulse * SOUND_LEVEL_GAIN + (entry.state.hit ?? 0) * HIT_GAIN;
+      const target = Math.min(MAX_LEVEL, REST_LEVEL + entry.state.pulse * SOUND_LEVEL_GAIN + (entry.state.hit ?? 0) * HIT_GAIN);
       uStarLevel.value[i] += (target - uStarLevel.value[i]) * (target > uStarLevel.value[i] ? rise : fall);
     }
   });
