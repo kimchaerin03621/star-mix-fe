@@ -115,3 +115,19 @@
   background: rgba(255, 150, 190, 0.5);
   box-shadow: 0 0 11px rgba(255, 150, 190, 0.6);
 }
+
+/* Dragging the view must never select text or images (it left blue highlights that
+   stayed on screen and made the page feel stuck). */
+html,
+body,
+#root {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+canvas,
+img {
+  -webkit-user-drag: none;
+  user-drag: none;
+}
