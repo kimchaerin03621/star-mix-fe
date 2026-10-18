@@ -1,3 +1,6 @@
+import { HornsIcon } from './HornsIcon';
+
+// Each line is a string, or { text, horns: true } to put the horns hand icon in front of it.
 export function GestureHint({ lines }) {
   return (
     <div
@@ -18,7 +21,15 @@ export function GestureHint({ lines }) {
         zIndex: 5,
       }}
     >
-      {lines.map((line) => <span key={line}>{line}</span>)}
+      {lines.map((line) => {
+        const { text, horns } = typeof line === 'string' ? { text: line } : line;
+        return (
+          <span key={text} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {horns && <HornsIcon size={18} />}
+            {text}
+          </span>
+        );
+      })}
     </div>
   );
 }

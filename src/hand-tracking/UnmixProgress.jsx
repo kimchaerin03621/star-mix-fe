@@ -1,3 +1,5 @@
+import { HornsPaths } from './HornsIcon';
+
 const RADIUS = 54;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
@@ -34,7 +36,9 @@ export function UnmixProgress({ progress, label }) {
           strokeDashoffset={CIRCUMFERENCE * (1 - progress)}
           transform="rotate(-90 70 70)"
         />
-        <text x="70" y="86" textAnchor="middle" fontSize="48">🤘</text>
+        <svg x="40" y="40" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+          <HornsPaths />
+        </svg>
       </svg>
       <span style={{ fontSize: 16, letterSpacing: '0.08em' }}>{label}</span>
     </div>

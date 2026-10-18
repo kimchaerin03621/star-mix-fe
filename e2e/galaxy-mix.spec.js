@@ -17,7 +17,7 @@ test.beforeEach(async ({ page }) => {
   await installQuestEmulator(page);
   await page.goto('/');
   await page.locator('.minimal-intro-arrow').click();
-  await page.getByText('🤘 1초 유지 — 소리가 풀려요').waitFor();
+  await page.getByText('1초 유지 — 소리가 풀려요').waitFor();
   await page.waitForFunction(() => window.__starMixGalaxy?.getMix().vocalToRight !== null);
   await page.waitForTimeout(1500);
 });
