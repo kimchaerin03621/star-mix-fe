@@ -356,7 +356,7 @@ function InteractiveOrb({
   const usesRegion = REGION_INSTRUMENTS.includes(instrument);
   // What this star's stem sounds like right now: overall level, low and high parts, and
   // a short flash on each new hit (a drum stroke, a plucked note).
-  const soundRef = useRef({ vol: 0, low: 0, high: 0, hit: 0, slow: 0 });
+  const soundRef = useRef({ vol: 0, low: 0, high: 0, hit: 0, slow: 0, age: 9 });
   const spectrumRef = useRef(null);
   const interactionRef = useRef({ hovered: false, grabbed: false });
 
@@ -506,6 +506,8 @@ function InteractiveOrb({
       // A hit = the level jumping above its own slow average; it flashes, then fades quickly.
       sound.slow += (currentVol - sound.slow) * Math.min(1, delta * SOUND_SLOW_FOLLOW);
       const onset = Math.min(1, Math.max(0, currentVol - sound.slow - SOUND_HIT_MARGIN) * SOUND_HIT_GAIN);
+      // The ring of light that runs out from the sounding node starts on each fresh hit.
+      sound.age = onset > 0.5 && sound.hit < 0.3 ? 0 : Math.min(9, sound.age + delta);
       sound.hit = Math.max(sound.hit * Math.exp(-delta * SOUND_HIT_FADE), onset);
 
       // A region does not swell (the graph itself shows the sound); a plain star pulses.

@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { REGION } from './graphConstants';
+import { GHOST, REGION } from './graphConstants';
 import { buildGraph, growRegions, nearestNode } from './graphLayout';
 import { getRegions } from './graphRegistry';
 
@@ -22,6 +22,8 @@ const SHARED_GLSL = /* glsl */ `
   uniform float uLevel[${MAX_REGIONS}];
   uniform float uHigh[${MAX_REGIONS}];
   uniform float uHit[${MAX_REGIONS}];
+  uniform float uAge[${MAX_REGIONS}];
+  uniform vec3 uSeed[${MAX_REGIONS}];
   attribute vec3 aPos;
   attribute float aSeed;
   attribute float aRegion;
@@ -48,6 +50,22 @@ const SHARED_GLSL = /* glsl */ `
     return strength;
   }
 
+  // How much of the plain white graph shows here: only near a colored region.
+  float ghost() {
+    float nearest = 1000.0;
+    for (int i = 0; i < ${MAX_REGIONS}; i++) {
+      if (uLevel[i] > 0.0) nearest = min(nearest, distance(aPos, uSeed[i]));
+    }
+    return ${GHOST.VISIBILITY.toFixed(2)} * (1.0 - smoothstep(${GHOST.FULL_WITHIN.toFixed(1)}, ${GHOST.GONE_BEYOND.toFixed(1)}, nearest));
+  }
+
+  // A ring that runs outward from the sounding node on each new hit, link by link.
+  float wave(int r) {
+    float hop = (1.0 - aAmount) * ${(REGION.HOPS + 1).toFixed(1)};
+    float front = uAge[r] * 7.0;
+    return exp(-pow(hop - front, 2.0) * 1.2) * exp(-uAge[r] * 1.6) * aAmount;
+  }
+
   float depthDim(float dist) {
     return mix(1.0, 0.18, smoothstep(${FAR_DIM[0].toFixed(1)}, ${FAR_DIM[1].toFixed(1)}, dist));
   }
@@ -66,11 +84,12 @@ const NODE_VERTEX = /* glsl */ `
     int r = int(aRegion + 0.5);
     float high = r >= 0 ? uHigh[r] * (1.0 - aAmount) : 0.0;
     float hit = r >= 0 ? uHit[r] * aAmount : 0.0;
+    float ring = r >= 0 ? wave(r) : 0.0;
     float sparkle = high * (0.5 + 0.5 * sin(uTime * 14.0 + aSeed * 60.0));
-    float size = aSize * (1.0 + strength * 1.4 + sparkle * 1.3 + hit * 0.6);
+    float size = aSize * (1.0 + strength * 1.4 + sparkle * 1.3 + hit * 0.6 + ring * 1.2);
     size = min(size, dist * ${MAX_SCREEN_SIZE.toFixed(3)});
-    vColor *= (1.0 + hit * 0.6 + sparkle);
-    vAlpha = (0.42 + strength * 0.58) * mix(depthDim(dist), 1.0, strength * 0.7) * nearFade(dist);
+    vColor *= (1.0 + hit * 0.6 + sparkle + ring * 0.9);
+    vAlpha = mix(ghost(), 1.0, strength) * mix(depthDim(dist), 1.0, strength * 0.7) * nearFade(dist);
     viewPosition.xy += position.xy * size;
     gl_Position = projectionMatrix * viewPosition;
     vUv = position.xy + 0.5;
@@ -123,8 +142,9 @@ const LINK_VERTEX = /* glsl */ `
     float strength = tint(0.55);
     int r = int(aRegion + 0.5);
     float hit = r >= 0 ? uHit[r] * aAmount : 0.0;
-    vColor *= (1.0 + hit * 0.5);
-    vAlpha = (0.15 + strength * 0.75) * mix(depthDim(dist), 1.0, strength * 0.7) * nearFade(dist);
+    float ring = r >= 0 ? wave(r) : 0.0;
+    vColor *= (1.0 + hit * 0.5 + ring * 0.8);
+    vAlpha = mix(ghost() * 0.36, 0.9, strength) * mix(depthDim(dist), 1.0, strength * 0.7) * nearFade(dist);
     gl_Position = projectionMatrix * viewPosition;
   }
 `;
@@ -150,6 +170,8 @@ const graphUniforms = {
   uLevel: { value: new Array(MAX_REGIONS).fill(0) },
   uHigh: { value: new Array(MAX_REGIONS).fill(0) },
   uHit: { value: new Array(MAX_REGIONS).fill(0) },
+  uAge: { value: new Array(MAX_REGIONS).fill(9) },
+  uSeed: { value: Array.from({ length: MAX_REGIONS }, () => new THREE.Vector3()) },
 };
 
 // What the frame loop reads and writes. Rebuilt with the graph (the graph is built once).
@@ -381,6 +403,9 @@ export function WhiteGraph() {
       );
       graphUniforms.uHigh.value[index] = sound.current.high;
       graphUniforms.uHit.value[index] = sound.current.hit;
+      graphUniforms.uAge.value[index] = sound.current.age;
+      const seed = store.seeds[index];
+      if (seed >= 0) graphUniforms.uSeed.value[index].fromArray(graph.nodes[seed].position);
     });
     for (let i = entries.length; i < MAX_REGIONS; i += 1) graphUniforms.uLevel.value[i] = 0;
   });

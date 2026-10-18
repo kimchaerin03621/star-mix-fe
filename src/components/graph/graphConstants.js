@@ -20,6 +20,16 @@ export const GRAPH = {
   NODE_SIZE_RANDOM: 0.02,
 };
 
+// How much of the plain white graph shows. Only the parts near a colored region are drawn,
+// fading out with distance, so the rest of the space is empty dark. VISIBILITY 0 hides the
+// white graph completely (only the colored regions remain); 1 is as bright as the region
+// edges.
+export const GHOST = {
+  VISIBILITY: 0.36, // brightness of the white graph right beside a region (0 = hidden)
+  FULL_WITHIN: 1.0, // fully shown this close to a region's sounding node (meters)
+  GONE_BEYOND: 2.8, // and gone beyond this
+};
+
 // Region colors. The graph is white, so a white-ish instrument color would look empty;
 // each instrument gets a clearly colored one here instead.
 export const REGION_COLORS = {
