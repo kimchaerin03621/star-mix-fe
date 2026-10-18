@@ -519,7 +519,7 @@ const NEBULA_SHAPE = { rest: 0, hovered: 1, grabbed: 1 };
 // A nebula is grabbed anywhere within this distance of its center (a bit inside its edge),
 // and stars are kept this far apart so two never overlap into one.
 const NEBULA_GRAB_RADIUS = NEBULA_RADIUS * 0.85;
-const STAR_MIN_DISTANCE = 1.5;
+const STAR_MIN_DISTANCE = 1.7;
 // How much louder music swells a star: the nebula's own nodes and links already pulse.
 const NEBULA_PULSE_SCALE = 0.3;
 

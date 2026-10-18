@@ -5,8 +5,8 @@ import { installQuestEmulator } from './xr.js';
 // Stars that are close reach toward each other and are joined by short threads, as
 // if about to merge; they must never actually overlap into one.
 const THREAD_MAX_LENGTH = 1.2;
-const BRIDGE_START = 3.0;
-const STAR_MIN_DISTANCE = 1.5;
+const BRIDGE_START = 3.2;
+const STAR_MIN_DISTANCE = 1.7;
 
 const showHands = (page, hands) => page.evaluate((list) => {
   const now = performance.now();

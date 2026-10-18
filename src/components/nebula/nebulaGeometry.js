@@ -6,18 +6,18 @@ import { sampleInstrumentOutline } from '../instrumentIcons';
 // cloud, and a spot on the outline of its instrument. The shader blends between
 // them, so the cluster can wriggle freely and gather into the instrument.
 
-const NODE_COUNT = 300;
+const NODE_COUNT = 150;
 const HUB_SHARE = 0.07;
-const CLOUD_RADIUS = 0.85; // overall size of the free-form cluster (nodes spread apart, not enlarged)
+const CLOUD_RADIUS = 1.05; // overall size of the free-form cluster
 export const NEBULA_RADIUS = CLOUD_RADIUS;
 const SUB_CLUSTERS = 4; // dense clumps inside it, tied together by a few long links
 const SHAPE_SIZE = 1.6; // size of the instrument outline
-const CLOUD_LINKS_PER_NODE = 3;
-const OUTLINE_NODES = 110; // nodes that draw the instrument; the rest scatter around it as dust
-const DUST_SPREAD = 0.1;
+const CLOUD_LINKS_PER_NODE = 2;
+const OUTLINE_NODES = 80; // nodes that draw the instrument; the rest scatter around it as dust
+const DUST_SPREAD = 0.14;
 const SHAPE_LINKS_PER_NODE = 2;
-const SHAPE_LINK_MAX_LENGTH = 0.38;
-const LONG_LINKS = 24;
+const SHAPE_LINK_MAX_LENGTH = 0.5;
+const LONG_LINKS = 10;
 
 // Small deterministic random generator, so a star looks the same every time.
 function seededRandom(seedText) {
@@ -108,7 +108,7 @@ export function buildNebula({ instrument, seedKey, color }) {
     );
     return {
       seed: random(),
-      size: isHub ? 0.075 + random() * 0.03 : 0.022 + random() * 0.024,
+      size: isHub ? 0.11 + random() * 0.04 : 0.04 + random() * 0.035,
       color: tone,
       index: i,
     };

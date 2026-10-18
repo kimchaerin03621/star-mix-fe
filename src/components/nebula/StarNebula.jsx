@@ -7,9 +7,9 @@ import { registerNebula, unregisterNebula } from './nebulaRegistry';
 
 // How fast the cluster follows `shape`, how much it wriggles, how bright the links are.
 const SHAPE_EASE_PER_SECOND = 5;
-const WOBBLE_FREE = 0.1;
+const WOBBLE_FREE = 0.12;
 const WOBBLE_IN_SHAPE = 0.016;
-const LINK_OPACITY = 0.3;
+const LINK_OPACITY = 0.24;
 
 // Both shaders place a node the same way, so a link always meets its two nodes.
 const PLACEMENT = PLACEMENT_GLSL;
