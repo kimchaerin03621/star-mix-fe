@@ -25,6 +25,8 @@ const NODE_VERTEX = /* glsl */ `
   attribute float aSeed;
   attribute float aSize;
   attribute vec3 aColor;
+  uniform float uHigh;
+  uniform float uHit;
   varying vec2 vUv;
   varying vec3 vColor;
   void main() {
@@ -32,12 +34,15 @@ const NODE_VERTEX = /* glsl */ `
     float twinkle = 0.8 + 0.2 * sin(uTime * 2.0 + aSeed * 40.0);
     // Nodes nearer the viewer (local +z) are bigger and brighter, farther ones smaller and dimmer.
     float depth = clamp(center.z / 1.4, -1.0, 1.0);
-    float size = aSize * twinkle * (1.0 + uPulse * 0.9) * (1.0 + depth * 0.25);
+    // Outer nodes sparkle with the high end; every node flashes on a hit.
+    float edge = smoothstep(0.4, 1.0, length(center) / 1.4);
+    float sparkle = uHigh * edge * (0.6 + 0.4 * sin(uTime * 14.0 + aSeed * 60.0));
+    float size = aSize * twinkle * (1.0 + uPulse * 0.9 + sparkle * 1.2 + uHit * 0.5) * (1.0 + depth * 0.25);
     vec4 viewPosition = modelViewMatrix * vec4(center, 1.0);
     viewPosition.xy += position.xy * size;
     gl_Position = projectionMatrix * viewPosition;
     vUv = position.xy + 0.5;
-    vColor = aColor * (1.0 + uPulse * 0.8) * (1.0 + depth * 0.3);
+    vColor = aColor * (1.0 + uPulse * 0.8 + sparkle * 1.4 + uHit * 0.6) * (1.0 + depth * 0.3);
   }
 `;
 
@@ -125,11 +130,13 @@ const baseUniforms = () => ({
   uPulse: { value: 0 },
   uPullDir: { value: new THREE.Vector3(1, 0, 0) },
   uPull: { value: 0 },
+  uHigh: { value: 0 },
+  uHit: { value: 0 },
 });
 
 // An Obsidian-graph style star: nodes joined by thin lines, always wriggling, that
 // gather into the instrument's outline as `shapeTarget` goes from 0 to 1.
-export function StarNebula({ instrument, seedKey, color, shapeTarget, volumeRef }) {
+export function StarNebula({ instrument, seedKey, color, shapeTarget, soundRef }) {
   const groupRef = useRef();
   const shapeRef = useRef(0);
   const targetRef = useRef(shapeTarget);
@@ -220,7 +227,7 @@ export function StarNebula({ instrument, seedKey, color, shapeTarget, volumeRef 
 
   // Shared with the bridges between neighbouring stars: the star's live state, and the
   // direction/strength of the neighbour it is reaching toward (set from outside).
-  const stateRef = useRef({ time: 0, shape: 0, wobble: WOBBLE_FREE, pulse: 0, pullDir: new THREE.Vector3(1, 0, 0), pull: 0 });
+  const stateRef = useRef({ time: 0, shape: 0, wobble: WOBBLE_FREE, pulse: 0, pullDir: new THREE.Vector3(1, 0, 0), pull: 0, vol: 0, low: 0, high: 0, hit: 0 });
   const pullInputRef = useRef({ dir: new THREE.Vector3(1, 0, 0), amount: 0 });
   const inverseRotation = useRef(new THREE.Quaternion());
   const starPosition = useRef(new THREE.Vector3());
@@ -252,7 +259,10 @@ export function StarNebula({ instrument, seedKey, color, shapeTarget, volumeRef 
 
     shapeRef.current += (targetRef.current - shapeRef.current) * (1 - Math.exp(-delta * SHAPE_EASE_PER_SECOND));
     const wobble = THREE.MathUtils.lerp(WOBBLE_FREE, WOBBLE_IN_SHAPE, shapeRef.current);
-    const pulse = volumeRef?.current ?? 0;
+    // The body swells with the overall level and, more heavily, the low end; the outer
+    // nodes sparkle with the high end; every new hit sets off a brief flash.
+    const sound = soundRef?.current;
+    const pulse = sound ? Math.min(1, sound.vol * 0.7 + sound.low * 0.4) : 0;
 
     // The neighbour's direction arrives in world space; the nodes live in this star's
     // own (viewer-facing) space.
@@ -266,12 +276,18 @@ export function StarNebula({ instrument, seedKey, color, shapeTarget, volumeRef 
     shared.shape = shapeRef.current;
     shared.wobble = wobble;
     shared.pulse = pulse;
+    shared.vol = sound?.vol ?? 0;
+    shared.low = sound?.low ?? 0;
+    shared.high = sound?.high ?? 0;
+    shared.hit = sound?.hit ?? 0;
 
     [nodeMaterial, linkMaterial, gasMaterial].forEach((material) => {
       material.uniforms.uTime.value = shared.time;
       material.uniforms.uShape.value = shared.shape;
       material.uniforms.uWobble.value = wobble;
       material.uniforms.uPulse.value = pulse;
+      material.uniforms.uHigh.value = shared.high;
+      material.uniforms.uHit.value = shared.hit;
       material.uniforms.uPullDir.value.copy(shared.pullDir);
       material.uniforms.uPull.value = shared.pull;
     });

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { getNebulae } from './nebula/nebulaRegistry';
@@ -11,7 +11,9 @@ const MAX_STARS = 8;
 const SKY_RADIUS = 45;
 const REST_LEVEL = 0.12; // a star lights its patch of sky a little even when quiet
 const SOUND_LEVEL_GAIN = 1.6; // how much its current loudness adds on top
-const LEVEL_EASE_PER_SECOND = 6;
+const HIT_GAIN = 1.4; // extra light on each new hit
+const LEVEL_RISE_PER_SECOND = 16; // light comes up fast so a hit is seen...
+const LEVEL_FALL_PER_SECOND = 4; // ...and fades slowly
 
 const VERTEX = /* glsl */ `
   varying vec3 vDir;
@@ -97,16 +99,31 @@ export function SkyBackdrop() {
 
   const scratch = useMemo(() => ({ position: new THREE.Vector3() }), []);
 
+  // Dev-only: lets the tests read what each star sounds like right now.
+  useEffect(() => {
+    if (!import.meta.env.DEV) return undefined;
+    window.__starMixSound = () => [...getNebulae().entries()].map(([key, entry]) => ({
+      key,
+      pulse: entry.state.pulse,
+      vol: entry.state.vol,
+      low: entry.state.low,
+      high: entry.state.high,
+      hit: entry.state.hit,
+    }));
+    return () => { delete window.__starMixSound; };
+  }, []);
+
   useFrame((state, delta) => {
     const { uTime, uStarDir, uStarColor, uStarLevel } = skyUniforms;
     uTime.value = state.clock.elapsedTime;
-    const ease = 1 - Math.exp(-delta * LEVEL_EASE_PER_SECOND);
+    const rise = 1 - Math.exp(-delta * LEVEL_RISE_PER_SECOND);
+    const fall = 1 - Math.exp(-delta * LEVEL_FALL_PER_SECOND);
 
     const entries = [...getNebulae().values()].filter((entry) => entry.group.current);
     for (let i = 0; i < MAX_STARS; i += 1) {
       const entry = entries[i];
       if (!entry) {
-        uStarLevel.value[i] += (0 - uStarLevel.value[i]) * ease;
+        uStarLevel.value[i] += (0 - uStarLevel.value[i]) * fall;
         continue;
       }
       entry.group.current.getWorldPosition(scratch.position);
@@ -115,8 +132,8 @@ export function SkyBackdrop() {
       const color = colorOf(entry.color);
       const luma = color.r * 0.3 + color.g * 0.59 + color.b * 0.11;
       uStarColor.value[i].copy(color).multiplyScalar(1 - 0.55 * THREE.MathUtils.smoothstep(luma, 0.45, 0.85));
-      const target = REST_LEVEL + entry.state.pulse * SOUND_LEVEL_GAIN;
-      uStarLevel.value[i] += (target - uStarLevel.value[i]) * ease;
+      const target = REST_LEVEL + entry.state.pulse * SOUND_LEVEL_GAIN + (entry.state.hit ?? 0) * HIT_GAIN;
+      uStarLevel.value[i] += (target - uStarLevel.value[i]) * (target > uStarLevel.value[i] ? rise : fall);
     }
   });
 

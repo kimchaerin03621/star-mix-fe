@@ -527,6 +527,16 @@ const NEBULA_GRAB_RADIUS = NEBULA_RADIUS * 0.85;
 const STAR_MIN_DISTANCE = 2.2;
 // How much louder music swells a star: the nebula's own nodes and links already pulse.
 const NEBULA_PULSE_SCALE = 0.4;
+const NEBULA_HIT_SCALE = 0.12; // extra pop of the whole star on each new hit
+// Reading a stem's sound (the analyser has 128 bins of about 190 Hz each).
+const SOUND_LOW_BINS = 4; // below ~750 Hz: the weight of drums and bass
+const SOUND_HIGH_FROM_BIN = 24; // above ~4.5 kHz: the sparkle of cymbals and plucks
+const SOUND_LOW_FLOOR = 0.5; // the low bins always carry some energy; only what is above this counts
+const SOUND_HIGH_GAIN = 0.9;
+const SOUND_SLOW_FOLLOW = 3; // how fast the "usual level" follows the real one
+const SOUND_HIT_MARGIN = 0.01; // how far above the usual level counts as a hit
+const SOUND_HIT_GAIN = 8;
+const SOUND_HIT_FADE = 6; // per second
 
 // Instrument silhouette opacity/size (world units) for each interaction state.
 const ICON_STATE = {
@@ -602,7 +612,10 @@ function InteractiveOrb({
   const nebulaShape = isHandGrabbed || isDragging
     ? NEBULA_SHAPE.grabbed
     : isVisualHovered ? NEBULA_SHAPE.hovered : NEBULA_SHAPE.rest;
-  const volumeRef = useRef(0);
+  // What this star's stem sounds like right now: overall level, low and high parts, and
+  // a short flash on each new hit (a drum stroke, a plucked note).
+  const soundRef = useRef({ vol: 0, low: 0, high: 0, hit: 0, slow: 0 });
+  const spectrumRef = useRef(null);
 
   // The instrument silhouette is faint at rest, clear on hover, brightest once grabbed.
   useFrame((_, delta) => {
@@ -701,7 +714,7 @@ function InteractiveOrb({
   };
 
   // 60fps/90fps frame loop: Continuously update position and check VR controller joystick input!
-  useFrame((state) => {
+  useFrame((state, delta) => {
     const xr = state.gl.xr;
 
     // Billboard camera alignment for borderless volumetric light cloud quad
@@ -715,25 +728,39 @@ function InteractiveOrb({
     if (meshRef.current && analysersRef && analysersRef.current && analysersRef.current[orbKey]) {
       const analyser = analysersRef.current[orbKey];
       const bufferLength = analyser.frequencyBinCount;
-      const dataArray = new Uint8Array(bufferLength);
+      if (!spectrumRef.current || spectrumRef.current.length !== bufferLength) {
+        spectrumRef.current = new Uint8Array(bufferLength);
+      }
+      const dataArray = spectrumRef.current;
       analyser.getByteFrequencyData(dataArray);
 
       let sum = 0;
+      let lowSum = 0;
+      let highSum = 0;
       for (let i = 0; i < bufferLength; i++) {
         sum += dataArray[i];
+        if (i < SOUND_LOW_BINS) lowSum += dataArray[i];
+        else if (i >= SOUND_HIGH_FROM_BIN) highSum += dataArray[i];
       }
       const avg = sum / (bufferLength || 1);
       currentVol = Math.pow(avg / 255, 1.2);
 
+      const sound = soundRef.current;
+      sound.vol = currentVol;
+      sound.low = Math.min(1, Math.max(0, (lowSum / (SOUND_LOW_BINS * 255) - SOUND_LOW_FLOOR) / (1 - SOUND_LOW_FLOOR)));
+      sound.high = Math.min(1, Math.pow(highSum / ((bufferLength - SOUND_HIGH_FROM_BIN) * 255), 1.2) * SOUND_HIGH_GAIN);
+      // A hit = the level jumping above its own slow average; it flashes, then fades quickly.
+      sound.slow += (currentVol - sound.slow) * Math.min(1, delta * SOUND_SLOW_FOLLOW);
+      const onset = Math.min(1, Math.max(0, currentVol - sound.slow - SOUND_HIT_MARGIN) * SOUND_HIT_GAIN);
+      sound.hit = Math.max(sound.hit * Math.exp(-delta * SOUND_HIT_FADE), onset);
+
       const baseScale = isVisualHovered && !usesNebula ? 1.25 : 1.0;
-      const pulseScale = baseScale + currentVol * (usesNebula ? NEBULA_PULSE_SCALE : 0.95);
+      const pulseScale = baseScale + currentVol * (usesNebula ? NEBULA_PULSE_SCALE : 0.95) + (usesNebula ? soundRef.current.hit * NEBULA_HIT_SCALE : 0);
       meshRef.current.scale.set(pulseScale, pulseScale, pulseScale);
     } else if (meshRef.current) {
       const baseScale = isVisualHovered && !usesNebula ? 1.25 : 1.0;
       meshRef.current.scale.set(baseScale, baseScale, baseScale);
     }
-
-    volumeRef.current = currentVol;
 
     // VR Ray Pointer & Proximity Detection, Hover Feedback, and Auto-Grab (60/90fps frame loop)
     if (xr && xr.isPresenting && meshRef.current) {
@@ -910,7 +937,7 @@ function InteractiveOrb({
             seedKey={orbKey}
             color={color}
             shapeTarget={nebulaShape}
-            volumeRef={volumeRef}
+            soundRef={soundRef}
           />
         )}
 
@@ -1157,7 +1184,8 @@ function VRAudioExperience({
 
         // Create AnalyserNode for dynamic waveform pulse effect!
         const analyser = ctx.createAnalyser();
-        analyser.fftSize = 64;
+        analyser.fftSize = 256;
+        analyser.smoothingTimeConstant = 0.5; // quicker than the default so hits are not smeared out
 
         const panner = ctx.createPanner();
         panner.panningModel = 'HRTF'; // Web Audio API HRTF (Binaural 3D Spatial Audio)
