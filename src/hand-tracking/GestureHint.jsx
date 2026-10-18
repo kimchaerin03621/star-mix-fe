@@ -25,7 +25,7 @@ export function GestureHint({ lines }) {
         const { text, horns } = typeof line === 'string' ? { text: line } : line;
         return (
           <span key={text} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {horns && <HornsIcon size={18} />}
+            {horns && <HornsIcon size={22} />}
             {text}
           </span>
         );
