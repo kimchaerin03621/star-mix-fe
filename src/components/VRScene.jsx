@@ -5,6 +5,7 @@ import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { SONG_STEMS, getStemColor } from '../audio/songStems';
 import { getInstrumentTexture } from './instrumentIcons';
+import { StarNebula } from './nebula/StarNebula';
 import { ENTRY_CAMERA_POSITION, ENTRY_CAMERA_TARGET } from '../audio/stemLayout';
 import { WebcamGestureController } from '../hand-tracking/WebcamGestureController';
 
@@ -507,6 +508,13 @@ function getThumbstickY(gamepad) {
   return Number.isFinite(value) ? value : 0;
 }
 
+// Instruments drawn as an Obsidian-graph style nebula so far (the rest keep the glowing star).
+const NEBULA_INSTRUMENTS = ['vocal'];
+// How much of its instrument's outline the nebula holds in each state: 0 = free-form
+// wriggle, 1 = fully the instrument. Make hovered/grabbed 0 for a wriggle-only star,
+// or rest 1 for one that always shows its instrument.
+const NEBULA_SHAPE = { rest: 0, hovered: 1, grabbed: 1 };
+
 // Instrument silhouette opacity/size (world units) for each interaction state.
 const ICON_STATE = {
   rest: { opacity: 0.6, scale: 0.46 },
@@ -581,6 +589,11 @@ function InteractiveOrb({
   const [isDragging, setIsDragging] = useState(false);
   const [hovered, setHovered] = useState(false);
   const isVisualHovered = hovered || isHandHovered || isHandGrabbed;
+  const usesNebula = NEBULA_INSTRUMENTS.includes(instrument);
+  const nebulaShape = isHandGrabbed || isDragging
+    ? NEBULA_SHAPE.grabbed
+    : isVisualHovered ? NEBULA_SHAPE.hovered : NEBULA_SHAPE.rest;
+  const volumeRef = useRef(0);
 
   // The instrument silhouette is faint at rest, clear on hover, brightest once grabbed.
   useFrame((_, delta) => {
@@ -710,6 +723,8 @@ function InteractiveOrb({
       const baseScale = isVisualHovered ? 1.25 : 1.0;
       meshRef.current.scale.set(baseScale, baseScale, baseScale);
     }
+
+    volumeRef.current = currentVol;
 
     // Concentric Ripple Wave animation
     const waveSpeed = 0.007 * (1.0 + currentVol * 2.5);
@@ -938,17 +953,32 @@ function InteractiveOrb({
       >
         {/* Invisible Hit-Test Proxy Sphere for 100% Precise Mouse/Raycast Drag Interaction */}
         <mesh visible={false}>
-          <sphereGeometry args={[0.22, 16, 16]} />
+          <sphereGeometry args={[usesNebula ? 0.55 : 0.22, 16, 16]} />
           <meshBasicMaterial />
         </mesh>
 
         {/* Volumetric Soft-Glow Celestial Star Sprite (Compact Toned-Down Pastel Glow) */}
+        {usesNebula && (
+          <StarNebula
+            instrument={instrument}
+            seedKey={orbKey}
+            color={color}
+            shapeTarget={nebulaShape}
+            volumeRef={volumeRef}
+          />
+        )}
+
         {starTexture && (
-          <sprite raycast={() => null} scale={isVisualHovered ? [1.45, 1.45, 1.45] : [1.15, 1.15, 1.15]}>
+          <sprite
+            raycast={() => null}
+            scale={usesNebula
+              ? (isVisualHovered ? [2.1, 2.1, 2.1] : [1.8, 1.8, 1.8])
+              : (isVisualHovered ? [1.45, 1.45, 1.45] : [1.15, 1.15, 1.15])}
+          >
             <spriteMaterial
               map={starTexture}
               transparent={true}
-              opacity={isVisualHovered ? 0.95 : 0.82}
+              opacity={usesNebula ? 0.3 : (isVisualHovered ? 0.95 : 0.82)}
               blending={THREE.AdditiveBlending}
               depthWrite={false}
             />
@@ -956,7 +986,7 @@ function InteractiveOrb({
         )}
 
         {/* Instrument silhouette cut into the star's glowing core */}
-        {instrumentTexture && (
+        {!usesNebula && instrumentTexture && (
           <sprite ref={iconRef} raycast={() => null} scale={[ICON_STATE.rest.scale, ICON_STATE.rest.scale, ICON_STATE.rest.scale]} renderOrder={10}>
             <spriteMaterial
               map={instrumentTexture}
