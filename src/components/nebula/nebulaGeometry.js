@@ -6,17 +6,18 @@ import { sampleInstrumentOutline } from '../instrumentIcons';
 // cloud, and a spot on the outline of its instrument. The shader blends between
 // them, so the cluster can wriggle freely and gather into the instrument.
 
-const NODE_COUNT = 240;
+const NODE_COUNT = 300;
 const HUB_SHARE = 0.07;
-const CLOUD_RADIUS = 0.5; // overall size of the free-form cluster
+const CLOUD_RADIUS = 0.85; // overall size of the free-form cluster (nodes spread apart, not enlarged)
+export const NEBULA_RADIUS = CLOUD_RADIUS;
 const SUB_CLUSTERS = 4; // dense clumps inside it, tied together by a few long links
-const SHAPE_SIZE = 1.1; // size of the instrument outline
+const SHAPE_SIZE = 1.6; // size of the instrument outline
 const CLOUD_LINKS_PER_NODE = 3;
-const OUTLINE_NODES = 85; // nodes that draw the instrument; the rest scatter around it as dust
-const DUST_SPREAD = 0.07;
+const OUTLINE_NODES = 110; // nodes that draw the instrument; the rest scatter around it as dust
+const DUST_SPREAD = 0.1;
 const SHAPE_LINKS_PER_NODE = 2;
-const SHAPE_LINK_MAX_LENGTH = 0.26;
-const LONG_LINKS = 16;
+const SHAPE_LINK_MAX_LENGTH = 0.38;
+const LONG_LINKS = 24;
 
 // Small deterministic random generator, so a star looks the same every time.
 function seededRandom(seedText) {
@@ -135,7 +136,16 @@ export function buildNebula({ instrument, seedKey, color }) {
       .forEach(({ other }) => addLink(nodeIndex, outlineIndices[other], 1));
   });
 
-  return { cloud, shape, nodes, links };
+  return { cloud, shape, nodes, links, outerNodes: outermostNodes(cloud, 50) };
+}
+
+// The nodes farthest from the center: the ones that can reach toward a neighbour.
+function outermostNodes(cloud, count) {
+  return cloud
+    .map((point, index) => ({ index, r: Math.hypot(point[0], point[1], point[2]) }))
+    .sort((a, b) => b.r - a.r)
+    .slice(0, count)
+    .map(({ index }) => index);
 }
 
 // Node data for instanced quads (one instance per node).

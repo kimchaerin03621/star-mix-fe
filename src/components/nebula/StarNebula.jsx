@@ -2,30 +2,17 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { buildNebula, linkAttributes, nodeAttributes } from './nebulaGeometry';
+import { PLACEMENT_GLSL } from './nebulaPlacement';
+import { registerNebula, unregisterNebula } from './nebulaRegistry';
 
 // How fast the cluster follows `shape`, how much it wriggles, how bright the links are.
 const SHAPE_EASE_PER_SECOND = 5;
-const WOBBLE_FREE = 0.07;
-const WOBBLE_IN_SHAPE = 0.012;
+const WOBBLE_FREE = 0.1;
+const WOBBLE_IN_SHAPE = 0.016;
 const LINK_OPACITY = 0.3;
 
-// Both shaders place a node the same way, so a link always meets its two nodes:
-// blend its two homes (organic cloud / instrument outline) and add a slow wriggle.
-const PLACEMENT = /* glsl */ `
-  uniform float uTime;
-  uniform float uShape;
-  uniform float uWobble;
-  uniform float uPulse;
-  vec3 place(vec3 cloud, vec3 shape, float seed) {
-    float t = uTime * (0.35 + seed * 0.5);
-    vec3 wriggle = vec3(
-      sin(t + seed * 13.0),
-      sin(t * 1.27 + seed * 29.0),
-      sin(t * 0.83 + seed * 47.0)
-    ) * uWobble;
-    return mix(cloud, shape, uShape) * (1.0 + uPulse * 0.18) + wriggle;
-  }
-`;
+// Both shaders place a node the same way, so a link always meets its two nodes.
+const PLACEMENT = PLACEMENT_GLSL;
 
 const NODE_VERTEX = /* glsl */ `
   ${PLACEMENT}
@@ -91,6 +78,8 @@ const baseUniforms = () => ({
   uShape: { value: 0 },
   uWobble: { value: WOBBLE_FREE },
   uPulse: { value: 0 },
+  uPullDir: { value: new THREE.Vector3(1, 0, 0) },
+  uPull: { value: 0 },
 });
 
 // An Obsidian-graph style star: nodes joined by thin lines, always wriggling, that
@@ -104,7 +93,7 @@ export function StarNebula({ instrument, seedKey, color, shapeTarget, volumeRef 
     targetRef.current = shapeTarget;
   }, [shapeTarget]);
 
-  const { nodeGeometry, nodeMaterial, linkGeometry, linkMaterial } = useMemo(() => {
+  const { layout, nodeGeometry, nodeMaterial, linkGeometry, linkMaterial } = useMemo(() => {
     const layout = buildNebula({ instrument, seedKey, color });
 
     const quad = new THREE.PlaneGeometry(1, 1);
@@ -147,8 +136,19 @@ export function StarNebula({ instrument, seedKey, color, shapeTarget, volumeRef 
     });
 
     quad.dispose();
-    return { nodeGeometry, nodeMaterial, linkGeometry, linkMaterial };
+    return { layout, nodeGeometry, nodeMaterial, linkGeometry, linkMaterial };
   }, [instrument, seedKey, color]);
+
+  // Shared with the bridges between neighbouring stars: the star's live state, and the
+  // direction/strength of the neighbour it is reaching toward (set from outside).
+  const stateRef = useRef({ time: 0, shape: 0, wobble: WOBBLE_FREE, pulse: 0, pullDir: new THREE.Vector3(1, 0, 0), pull: 0 });
+  const pullInputRef = useRef({ dir: new THREE.Vector3(1, 0, 0), amount: 0 });
+  const inverseRotation = useRef(new THREE.Quaternion());
+
+  useEffect(() => {
+    registerNebula(seedKey, { layout, group: groupRef, state: stateRef.current, pullInput: pullInputRef.current, color });
+    return () => unregisterNebula(seedKey);
+  }, [seedKey, layout, color]);
 
   useEffect(() => () => {
     nodeGeometry.dispose();
@@ -165,11 +165,26 @@ export function StarNebula({ instrument, seedKey, color, shapeTarget, volumeRef 
     const wobble = THREE.MathUtils.lerp(WOBBLE_FREE, WOBBLE_IN_SHAPE, shapeRef.current);
     const pulse = volumeRef?.current ?? 0;
 
+    // The neighbour's direction arrives in world space; the nodes live in this star's
+    // own (viewer-facing) space.
+    const shared = stateRef.current;
+    if (groupRef.current) {
+      inverseRotation.current.copy(groupRef.current.quaternion).invert();
+      shared.pullDir.copy(pullInputRef.current.dir).applyQuaternion(inverseRotation.current).normalize();
+    }
+    shared.pull += (pullInputRef.current.amount - shared.pull) * (1 - Math.exp(-delta * 4));
+    shared.time = state.clock.elapsedTime;
+    shared.shape = shapeRef.current;
+    shared.wobble = wobble;
+    shared.pulse = pulse;
+
     [nodeMaterial, linkMaterial].forEach((material) => {
-      material.uniforms.uTime.value = state.clock.elapsedTime;
-      material.uniforms.uShape.value = shapeRef.current;
+      material.uniforms.uTime.value = shared.time;
+      material.uniforms.uShape.value = shared.shape;
       material.uniforms.uWobble.value = wobble;
       material.uniforms.uPulse.value = pulse;
+      material.uniforms.uPullDir.value.copy(shared.pullDir);
+      material.uniforms.uPull.value = shared.pull;
     });
   });
 

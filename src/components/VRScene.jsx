@@ -6,6 +6,8 @@ import * as THREE from 'three';
 import { SONG_STEMS, getStemColor } from '../audio/songStems';
 import { getInstrumentTexture } from './instrumentIcons';
 import { StarNebula } from './nebula/StarNebula';
+import { NebulaBridges } from './nebula/NebulaBridges';
+import { NEBULA_RADIUS } from './nebula/nebulaGeometry';
 import { ENTRY_CAMERA_POSITION, ENTRY_CAMERA_TARGET } from '../audio/stemLayout';
 import { WebcamGestureController } from '../hand-tracking/WebcamGestureController';
 
@@ -514,6 +516,12 @@ const NEBULA_INSTRUMENTS = ['vocal', 'drum', 'bass', 'piano', 'guitar'];
 // wriggle, 1 = fully the instrument. Make hovered/grabbed 0 for a wriggle-only star,
 // or rest 1 for one that always shows its instrument.
 const NEBULA_SHAPE = { rest: 0, hovered: 1, grabbed: 1 };
+// A nebula is grabbed anywhere within this distance of its center (a bit inside its edge),
+// and stars are kept this far apart so two never overlap into one.
+const NEBULA_GRAB_RADIUS = NEBULA_RADIUS * 0.85;
+const STAR_MIN_DISTANCE = 1.5;
+// How much louder music swells a star: the nebula's own nodes and links already pulse.
+const NEBULA_PULSE_SCALE = 0.3;
 
 // Instrument silhouette opacity/size (world units) for each interaction state.
 const ICON_STATE = {
@@ -712,11 +720,11 @@ function InteractiveOrb({
       const avg = sum / (bufferLength || 1);
       currentVol = Math.pow(avg / 255, 1.2);
 
-      const baseScale = isVisualHovered ? 1.25 : 1.0;
-      const pulseScale = baseScale + currentVol * 0.95;
+      const baseScale = isVisualHovered && !usesNebula ? 1.25 : 1.0;
+      const pulseScale = baseScale + currentVol * (usesNebula ? NEBULA_PULSE_SCALE : 0.95);
       meshRef.current.scale.set(pulseScale, pulseScale, pulseScale);
     } else if (meshRef.current) {
-      const baseScale = isVisualHovered ? 1.25 : 1.0;
+      const baseScale = isVisualHovered && !usesNebula ? 1.25 : 1.0;
       meshRef.current.scale.set(baseScale, baseScale, baseScale);
     }
 
@@ -750,7 +758,7 @@ function InteractiveOrb({
             const perpDist = orbPos.distanceTo(nearestPointOnRay);
             
             // Tight, precise Ray Cone targeting tolerance
-            const rayTolerance = Math.max(0.28, t * 0.05 + 0.18);
+            const rayTolerance = Math.max(usesNebula ? NEBULA_GRAB_RADIUS : 0.28, t * 0.05 + 0.18);
             if (perpDist < rayTolerance) {
               isTargeted = true;
               grabDistance = Math.max(0.4, t);
@@ -758,7 +766,7 @@ function InteractiveOrb({
           }
 
           // Physical touch proximity: within 0.3m of controller position
-          if (distToCtrl < 0.3) {
+          if (distToCtrl < (usesNebula ? NEBULA_GRAB_RADIUS * 0.6 : 0.3)) {
             isTargeted = true;
             grabDistance = Math.max(0.3, distToCtrl);
           }
@@ -886,7 +894,7 @@ function InteractiveOrb({
       >
         {/* Invisible Hit-Test Proxy Sphere for 100% Precise Mouse/Raycast Drag Interaction */}
         <mesh visible={false}>
-          <sphereGeometry args={[usesNebula ? 0.55 : 0.22, 16, 16]} />
+          <sphereGeometry args={[usesNebula ? NEBULA_GRAB_RADIUS : 0.22, 16, 16]} />
           <meshBasicMaterial />
         </mesh>
 
@@ -905,7 +913,7 @@ function InteractiveOrb({
           <sprite
             raycast={() => null}
             scale={usesNebula
-              ? (isVisualHovered ? [2.1, 2.1, 2.1] : [1.8, 1.8, 1.8])
+              ? (isVisualHovered ? [3.4, 3.4, 3.4] : [3.0, 3.0, 3.0])
               : (isVisualHovered ? [1.45, 1.45, 1.45] : [1.15, 1.15, 1.15])}
           >
             <spriteMaterial
@@ -1229,7 +1237,7 @@ function VRAudioExperience({
   useFrame((state) => {
     // 0. Sphere Collision & Repulsion: Prevent stars from colliding/merging with each other
     const stemKeys = Object.keys(orbCoordsRef.current);
-    const minDistance = 0.75; // 0.75m minimum distance between star centers to prevent overlap
+    const minDistance = STAR_MIN_DISTANCE; // minimum distance between star centers, so two never overlap
 
     for (let pass = 0; pass < 2; pass++) {
       for (let i = 0; i < stemKeys.length; i++) {
@@ -1354,6 +1362,7 @@ function VRAudioExperience({
           isHandGrabbed={handInteraction.grabbedOrbKey === stem.key}
         />
       ))}
+      <NebulaBridges />
     </>
   );
 }
