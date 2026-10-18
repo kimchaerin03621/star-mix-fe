@@ -97,3 +97,21 @@
   font-size: 0.95rem;
   letter-spacing: 0.04em;
 }
+
+/* Hand cursor in the exhibition palette (pink / white) instead of teal. */
+.palm-cursor {
+  border-color: rgba(255, 190, 215, 0.9);
+  background: rgba(255, 150, 190, 0.1);
+  box-shadow: 0 0 9px rgba(255, 150, 190, 0.4), inset 0 0 5px rgba(255, 255, 255, 0.18);
+}
+
+.palm-cursor.hover {
+  border-color: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 12px rgba(255, 190, 215, 0.6);
+}
+
+.palm-cursor.grabbed {
+  border-color: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 150, 190, 0.5);
+  box-shadow: 0 0 11px rgba(255, 150, 190, 0.6);
+}

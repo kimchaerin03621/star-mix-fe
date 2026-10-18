@@ -549,11 +549,11 @@ function getMenuStarTexture(colorHex, dimCore = false) {
 
   const grad = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
   if (dimCore) {
-    grad.addColorStop(0.0, colorHex + '33');
-    grad.addColorStop(0.3, colorHex + '66');
-    grad.addColorStop(0.5, colorHex + '99');
-    grad.addColorStop(0.7, colorHex + '33');
-    grad.addColorStop(0.88, 'rgba(0, 0, 0, 0)');
+    grad.addColorStop(0.0, colorHex + '55');
+    grad.addColorStop(0.35, colorHex + '44');
+    grad.addColorStop(0.6, colorHex + '22');
+    grad.addColorStop(0.8, colorHex + '0a');
+    grad.addColorStop(1.0, 'rgba(0, 0, 0, 0)');
   } else {
     grad.addColorStop(0.0, '#ffffff');
     grad.addColorStop(0.18, 'rgba(255, 255, 255, 0.92)');
@@ -1415,139 +1415,6 @@ function CameraRig({ vrCameraPos, vrCameraRot }) {
   return null;
 }
 
-// Sleek Custom 3D Axis Indicator (Arrowless, Smooth Gradient Fade-out at Tips)
-// X Axis: Vivid Pink (#ff007f)
-// Y Axis: Milky Soft Pastel Pink (#ffa4c4)
-// Z Axis: Pure White (#ffffff)
-function SleekAxes3D({ length = 6.5, segments = 24 }) {
-  const xAxisData = useMemo(() => {
-    const pos = new Float32Array((segments + 1) * 3);
-    const col = new Float32Array((segments + 1) * 3);
-    const base = new THREE.Color('#ff007f');
-
-    for (let i = 0; i <= segments; i++) {
-      const t = i / segments;
-      const i3 = i * 3;
-      pos[i3] = length * t;
-      pos[i3 + 1] = 0;
-      pos[i3 + 2] = 0;
-
-      const fade = Math.pow(1 - t, 1.3);
-      col[i3] = base.r * fade;
-      col[i3 + 1] = base.g * fade;
-      col[i3 + 2] = base.b * fade;
-    }
-    return { pos, col };
-  }, [length, segments]);
-
-  const yAxisData = useMemo(() => {
-    const pos = new Float32Array((segments + 1) * 3);
-    const col = new Float32Array((segments + 1) * 3);
-    const base = new THREE.Color('#ffa4c4');
-
-    for (let i = 0; i <= segments; i++) {
-      const t = i / segments;
-      const i3 = i * 3;
-      pos[i3] = 0;
-      pos[i3 + 1] = length * t;
-      pos[i3 + 2] = 0;
-
-      const fade = Math.pow(1 - t, 1.3);
-      col[i3] = base.r * fade;
-      col[i3 + 1] = base.g * fade;
-      col[i3 + 2] = base.b * fade;
-    }
-    return { pos, col };
-  }, [length, segments]);
-
-  const zAxisData = useMemo(() => {
-    const pos = new Float32Array((segments + 1) * 3);
-    const col = new Float32Array((segments + 1) * 3);
-    const base = new THREE.Color('#ffffff');
-
-    for (let i = 0; i <= segments; i++) {
-      const t = i / segments;
-      const i3 = i * 3;
-      pos[i3] = 0;
-      pos[i3 + 1] = 0;
-      pos[i3 + 2] = length * t;
-
-      const fade = Math.pow(1 - t, 1.3);
-      col[i3] = base.r * fade;
-      col[i3 + 1] = base.g * fade;
-      col[i3 + 2] = base.b * fade;
-    }
-    return { pos, col };
-  }, [length, segments]);
-
-  return (
-    <group raycast={() => null}>
-      {/* Sleek Origin Center Node */}
-      <mesh position={[0, 0, 0]}>
-        <sphereGeometry args={[0.045, 16, 16]} />
-        <meshBasicMaterial color="#ffffff" transparent opacity={0.95} />
-      </mesh>
-
-      {/* X Axis - Pink (#ff007f) Smooth Fade-Out Line */}
-      <line>
-        <bufferGeometry>
-          <bufferAttribute
-            attach="attributes-position"
-            count={segments + 1}
-            array={xAxisData.pos}
-            itemSize={3}
-          />
-          <bufferAttribute
-            attach="attributes-color"
-            count={segments + 1}
-            array={xAxisData.col}
-            itemSize={3}
-          />
-        </bufferGeometry>
-        <lineBasicMaterial vertexColors={true} transparent opacity={0.9} blending={THREE.AdditiveBlending} />
-      </line>
-
-      {/* Y Axis - Milky Soft Pastel Pink (#ffa4c4) Smooth Fade-Out Line */}
-      <line>
-        <bufferGeometry>
-          <bufferAttribute
-            attach="attributes-position"
-            count={segments + 1}
-            array={yAxisData.pos}
-            itemSize={3}
-          />
-          <bufferAttribute
-            attach="attributes-color"
-            count={segments + 1}
-            array={yAxisData.col}
-            itemSize={3}
-          />
-        </bufferGeometry>
-        <lineBasicMaterial vertexColors={true} transparent opacity={0.9} blending={THREE.AdditiveBlending} />
-      </line>
-
-      {/* Z Axis - Pure White (#ffffff) Smooth Fade-Out Line */}
-      <line>
-        <bufferGeometry>
-          <bufferAttribute
-            attach="attributes-position"
-            count={segments + 1}
-            array={zAxisData.pos}
-            itemSize={3}
-          />
-          <bufferAttribute
-            attach="attributes-color"
-            count={segments + 1}
-            array={zAxisData.col}
-            itemSize={3}
-          />
-        </bufferGeometry>
-        <lineBasicMaterial vertexColors={true} transparent opacity={0.9} blending={THREE.AdditiveBlending} />
-      </line>
-    </group>
-  );
-}
-
 // Tells the page when the 3D canvas and its XR connection are up. Asking for a VR
 // session before that fails ("not connected to three.js"), and a headset is slow to
 // get here. The short delay lets the XR component finish connecting first.
@@ -1591,8 +1458,6 @@ export function VRScene({ store, starColors, handData, isInVR, isDesktopVR, acti
             <CameraRig vrCameraPos={vrCameraPos} vrCameraRot={vrCameraRot} />
             <color attach="background" args={['#111111']} />
             
-            {/* Sleek Custom 3D Origin Axes Indicator (X: Pink, Y: White, Z: Soft Pink) */}
-            <SleekAxes3D length={6} />
             {isVRActive && vrModeType === 2 && <ambientLight intensity={0.5} />}
             
             {/* Giant black sphere to block WebXR passthrough - Raycast disabled */}

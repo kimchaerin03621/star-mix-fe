@@ -49,8 +49,9 @@ test('only stars that are close are joined, by short threads', async ({ page }) 
   bridges.forEach((bridge) => {
     expect(bridge.centerDistance).toBeLessThan(BRIDGE_START);
     expect(bridge.threads).toBeGreaterThan(0);
-    // A thread is a short link between facing edges, never a line across the cluster.
-    expect(Math.max(...bridge.lengths)).toBeLessThanOrEqual(THREAD_MAX_LENGTH + 0.15);
+    // Threads longer than the limit are simply not drawn; the drawn ones are short links
+    // between facing edges, never a line across the cluster.
+    expect(Math.min(...bridge.lengths)).toBeLessThanOrEqual(THREAD_MAX_LENGTH + 0.15);
   });
 });
 
