@@ -85,11 +85,14 @@ test('releasing the trigger leaves the star where it was dropped', async ({ page
 });
 
 test('pushing the thumbstick forward sends a held star away, up to 10 m', async ({ page }) => {
+  test.setTimeout(90_000);
   await setButton(page, 'right', 'trigger', 1);
   await page.waitForTimeout(300);
 
   await setThumbstick(page, 'right', 0, -1);
-  await expect.poll(async () => distance(await drums(page), CONTROLLER_AT), { timeout: 15_000 })
+  // The push moves a fixed step per frame, and this test browser draws in software (slow),
+  // so the full 10 m can take a while here; a real headset does it in a couple of seconds.
+  await expect.poll(async () => distance(await drums(page), CONTROLLER_AT), { timeout: 45_000 })
     .toBeGreaterThan(MAX_DRAG_DISTANCE - 0.3);
 
   await page.waitForTimeout(1000);
