@@ -9,6 +9,7 @@ import { StarNebula } from './nebula/StarNebula';
 import { NebulaBridges } from './nebula/NebulaBridges';
 import { getNebulae } from './nebula/nebulaRegistry';
 import { NEBULA_RADIUS } from './nebula/nebulaGeometry';
+import { SkyBackdrop } from './SkyBackdrop';
 import { ENTRY_CAMERA_POSITION, ENTRY_CAMERA_TARGET } from '../audio/stemLayout';
 import { WebcamGestureController } from '../hand-tracking/WebcamGestureController';
 
@@ -50,13 +51,16 @@ function Stars3D() {
 
   const colors = useMemo(() => {
     const col = new Float32Array(count * 3);
-    const whiteColor = new THREE.Color('#ffffff');
+    // Mostly white, some tinted pale pink or pale blue, and varied brightness for depth.
+    const tints = ['#ffffff', '#ffffff', '#ffffff', '#ffd9e6', '#cfe0ff'].map((hex) => new THREE.Color(hex));
 
     for (let i = 0; i < count; i++) {
       const i3 = i * 3;
-      col[i3] = whiteColor.r;
-      col[i3 + 1] = whiteColor.g;
-      col[i3 + 2] = whiteColor.b;
+      const tint = tints[Math.floor(Math.random() * tints.length)];
+      const brightness = 0.35 + Math.random() * 0.65;
+      col[i3] = tint.r * brightness;
+      col[i3 + 1] = tint.g * brightness;
+      col[i3 + 2] = tint.b * brightness;
     }
     return col;
   }, []);
@@ -1456,15 +1460,12 @@ export function VRScene({ store, starColors, handData, isInVR, isDesktopVR, acti
         <XR store={store}>
             {onSceneReady && <SceneReadySignal onReady={onSceneReady} />}
             <CameraRig vrCameraPos={vrCameraPos} vrCameraRot={vrCameraRot} />
-            <color attach="background" args={['#111111']} />
+            <color attach="background" args={['#03040a']} />
             
             {isVRActive && vrModeType === 2 && <ambientLight intensity={0.5} />}
             
-            {/* Giant black sphere to block WebXR passthrough - Raycast disabled */}
-            <mesh scale={[50, 50, 50]} raycast={() => null}>
-              <sphereGeometry args={[1, 32, 32]} />
-              <meshBasicMaterial color="#111111" side={THREE.BackSide} />
-            </mesh>
+            {/* Night-sky dome: blocks WebXR passthrough and lights up around sounding stars */}
+            <SkyBackdrop />
             
             {/* Background 3000 ambient particle stars - Always rendered in 3D Space */}
             {isVRActive && (
