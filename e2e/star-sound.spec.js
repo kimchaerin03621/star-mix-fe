@@ -7,7 +7,7 @@ test('stars react to their own sound', async ({ page }) => {
   await installQuestEmulator(page);
   await page.goto('/?demo');
   await page.locator('.minimal-intro-arrow').click();
-  await page.getByText('🤘 1초 유지 — 소리가 풀려요').waitFor();
+  await page.getByText('1초 유지 — 소리가 풀려요').waitFor();
   await page.keyboard.press('u');
   await page.waitForFunction(() => window.__starMixSound, undefined, { timeout: 20_000, polling: 100 });
 

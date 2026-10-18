@@ -87,7 +87,7 @@ test('record the exhibition demo with sound', async ({ page }) => {
   await page.locator('.minimal-intro-arrow').click();
   // The click leaves the mouse "inside" the page, which the galaxy draws as a stray glow.
   await page.evaluate(() => window.dispatchEvent(new Event('mouseleave')));
-  await page.getByText('🤘 1초 유지 — 소리가 풀려요').waitFor({ timeout: 20_000 });
+  await page.getByText('1초 유지 — 소리가 풀려요').waitFor({ timeout: 20_000 });
   await page.waitForTimeout(1800);
 
   // --- Galaxy: stir the stars with open palms ---------------------------------

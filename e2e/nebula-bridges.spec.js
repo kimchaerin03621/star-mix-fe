@@ -35,7 +35,7 @@ test.beforeEach(async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('/?demo');
   await page.locator('.minimal-intro-arrow').click();
-  await page.getByText('🤘 1초 유지 — 소리가 풀려요').waitFor();
+  await page.getByText('1초 유지 — 소리가 풀려요').waitFor();
   await page.keyboard.press('u');
   await page.waitForFunction(() => window.__starMixTest, undefined, { timeout: 20_000, polling: 100 });
   await page.waitForTimeout(4000);

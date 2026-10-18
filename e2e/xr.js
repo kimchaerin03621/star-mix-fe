@@ -25,7 +25,7 @@ export async function enterSpaceInHeadset(page) {
   await page.locator('.minimal-intro-arrow').click();
   // The fake camera is accepted, so the galaxy shows its gesture hint rather than
   // the "start camera" button.
-  await expect(page.getByText('🤘 1초 유지 — 소리가 풀려요')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText('1초 유지 — 소리가 풀려요')).toBeVisible({ timeout: 15_000 });
 
   // U toggles galaxy <-> spatial scene, and a keypress occasionally does not
   // reach the page right after load, so press again only while still in the galaxy.
