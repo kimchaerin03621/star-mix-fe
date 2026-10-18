@@ -7,8 +7,8 @@ import { placeNode } from './nebulaPlacement';
 // When two stars come close, the sides facing each other reach toward one another
 // (see `uPull` in StarNebula) and thin threads join their nearest nodes, as if the
 // two were about to merge. They never do: the stars keep their own space.
-const BRIDGE_START = 3.2; // distance between star centers where they start to notice each other
-const BRIDGE_FULL = 1.8; // distance where the connection is at its strongest
+const BRIDGE_START = 3.6; // distance between star centers where they start to notice each other
+const BRIDGE_FULL = 2.1; // distance where the connection is at its strongest
 const THREADS_PER_PAIR = 16;
 const SEGMENTS = 6; // each thread is a slightly curved line of this many pieces
 const MAX_PAIRS = 10;
@@ -17,8 +17,8 @@ const MAX_USES_PER_NODE = 2;
 const THREAD_BRIGHTNESS = 0.85;
 const THREAD_SWAY = 0.06;
 const FACING_CANDIDATES = 40; // per star: the nodes nearest the neighbour are the ones that can join
-const THREAD_FADE_FROM = 0.45; // threads longer than this start to fade...
-const THREAD_MAX_LENGTH = 1.2; // ...and are not drawn beyond this
+const THREAD_FADE_FROM = 0.55; // threads longer than this start to fade...
+const THREAD_MAX_LENGTH = 1.4; // ...and are not drawn beyond this
 
 const smoothstep = (edge0, edge1, x) => {
   const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0)));

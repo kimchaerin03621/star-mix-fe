@@ -8,15 +8,15 @@ import { sampleInstrumentOutline } from '../instrumentIcons';
 
 const NODE_COUNT = 150;
 const HUB_SHARE = 0.07;
-const CLOUD_RADIUS = 1.05; // overall size of the free-form cluster
+const CLOUD_RADIUS = 1.4; // overall size of the free-form cluster
 export const NEBULA_RADIUS = CLOUD_RADIUS;
 const SUB_CLUSTERS = 4; // dense clumps inside it, tied together by a few long links
-const SHAPE_SIZE = 1.6; // size of the instrument outline
+const SHAPE_SIZE = 2.0; // size of the instrument outline
 const CLOUD_LINKS_PER_NODE = 2;
 const OUTLINE_NODES = 80; // nodes that draw the instrument; the rest scatter around it as dust
 const DUST_SPREAD = 0.14;
 const SHAPE_LINKS_PER_NODE = 2;
-const SHAPE_LINK_MAX_LENGTH = 0.5;
+const SHAPE_LINK_MAX_LENGTH = 0.6;
 const LONG_LINKS = 10;
 
 // Small deterministic random generator, so a star looks the same every time.
@@ -53,14 +53,14 @@ export function buildNebula({ instrument, seedKey, color }) {
   const clumpCenters = Array.from({ length: SUB_CLUSTERS }, () => [
     gaussian(random) * CLOUD_RADIUS * 0.7,
     gaussian(random) * CLOUD_RADIUS * 0.7,
-    gaussian(random) * CLOUD_RADIUS * 0.5,
+    gaussian(random) * CLOUD_RADIUS * 0.65,
   ]);
   const cloud = Array.from({ length: NODE_COUNT }, () => {
     const center = clumpCenters[Math.floor(random() * SUB_CLUSTERS)];
     return [
       center[0] + gaussian(random) * CLOUD_RADIUS * 0.4,
       center[1] + gaussian(random) * CLOUD_RADIUS * 0.4,
-      center[2] + gaussian(random) * CLOUD_RADIUS * 0.3,
+      center[2] + gaussian(random) * CLOUD_RADIUS * 0.45,
     ];
   });
 
@@ -108,7 +108,7 @@ export function buildNebula({ instrument, seedKey, color }) {
     );
     return {
       seed: random(),
-      size: isHub ? 0.11 + random() * 0.04 : 0.04 + random() * 0.035,
+      size: isHub ? 0.13 + random() * 0.05 : 0.048 + random() * 0.04,
       color: tone,
       index: i,
     };

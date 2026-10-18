@@ -21,7 +21,7 @@ export const PLACEMENT_GLSL = /* glsl */ `
       sin(t * 1.27 + seed * 29.0),
       sin(t * 0.83 + seed * 47.0)
     ) * uWobble;
-    vec3 base = mix(cloud, shape, uShape) * (1.0 + uPulse * 0.18);
+    vec3 base = mix(cloud, shape, uShape) * (1.0 + uPulse * 0.24);
     float facing = max(dot(normalize(base + vec3(0.0001)), uPullDir), 0.0);
     return base + uPullDir * (uPull * ${PULL_REACH.toFixed(3)} * facing * facing) + wriggle;
   }
@@ -32,7 +32,7 @@ const scratch = new THREE.Vector3();
 // JS twin of `place()`. `state` = { time, shape, wobble, pulse, pullDir, pull }.
 export function placeNode(out, cloud, shape, seed, state) {
   const t = state.time * (0.35 + seed * 0.5);
-  const grow = 1 + state.pulse * 0.18;
+  const grow = 1 + state.pulse * 0.24;
   out.set(
     (cloud[0] + (shape[0] - cloud[0]) * state.shape) * grow,
     (cloud[1] + (shape[1] - cloud[1]) * state.shape) * grow,
