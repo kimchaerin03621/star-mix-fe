@@ -73,6 +73,8 @@ const LINK_FRAGMENT = /* glsl */ `
   }
 `;
 
+const WORLD_UP = new THREE.Vector3(0, 1, 0);
+
 const baseUniforms = () => ({
   uTime: { value: 0 },
   uShape: { value: 0 },
@@ -144,6 +146,8 @@ export function StarNebula({ instrument, seedKey, color, shapeTarget, volumeRef 
   const stateRef = useRef({ time: 0, shape: 0, wobble: WOBBLE_FREE, pulse: 0, pullDir: new THREE.Vector3(1, 0, 0), pull: 0 });
   const pullInputRef = useRef({ dir: new THREE.Vector3(1, 0, 0), amount: 0 });
   const inverseRotation = useRef(new THREE.Quaternion());
+  const starPosition = useRef(new THREE.Vector3());
+  const facingMatrix = useRef(new THREE.Matrix4());
 
   useEffect(() => {
     registerNebula(seedKey, { layout, group: groupRef, state: stateRef.current, pullInput: pullInputRef.current, color });
@@ -158,8 +162,14 @@ export function StarNebula({ instrument, seedKey, color, shapeTarget, volumeRef 
   }, [nodeGeometry, nodeMaterial, linkGeometry, linkMaterial]);
 
   useFrame((state, delta) => {
-    // Face the viewer so the instrument outline always reads front-on.
-    if (groupRef.current) groupRef.current.quaternion.copy(state.camera.quaternion);
+    // Face the viewer, so the instrument outline always reads front-on. This turns the star
+    // toward the camera's *position*: inside a headset session the camera's own orientation
+    // is not reliable (it is a special two-eye camera), but its position is.
+    if (groupRef.current) {
+      groupRef.current.getWorldPosition(starPosition.current);
+      facingMatrix.current.lookAt(state.camera.position, starPosition.current, WORLD_UP);
+      groupRef.current.quaternion.setFromRotationMatrix(facingMatrix.current);
+    }
 
     shapeRef.current += (targetRef.current - shapeRef.current) * (1 - Math.exp(-delta * SHAPE_EASE_PER_SECOND));
     const wobble = THREE.MathUtils.lerp(WOBBLE_FREE, WOBBLE_IN_SHAPE, shapeRef.current);

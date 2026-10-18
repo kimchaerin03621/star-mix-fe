@@ -7,6 +7,7 @@ import { SONG_STEMS, getStemColor } from '../audio/songStems';
 import { getInstrumentTexture } from './instrumentIcons';
 import { StarNebula } from './nebula/StarNebula';
 import { NebulaBridges } from './nebula/NebulaBridges';
+import { getNebulae } from './nebula/nebulaRegistry';
 import { NEBULA_RADIUS } from './nebula/nebulaGeometry';
 import { ENTRY_CAMERA_POSITION, ENTRY_CAMERA_TARGET } from '../audio/stemLayout';
 import { WebcamGestureController } from '../hand-tracking/WebcamGestureController';
@@ -1028,6 +1029,27 @@ function VRAudioExperience({
       ),
       endSession: () => gl.xr.getSession()?.end(),
       getRenderStats: () => ({ ...gl.info.render }),
+      getFacingInfo: () => {
+        const forward = (q) => new THREE.Vector3(0, 0, -1).applyQuaternion(q).toArray().map((v) => +v.toFixed(2));
+        const xrCamera = gl.xr.getCamera();
+        const eyes = xrCamera.cameras?.map((eye) => {
+          const q = new THREE.Quaternion();
+          eye.matrixWorld.decompose(new THREE.Vector3(), q, new THREE.Vector3());
+          return forward(q);
+        });
+        // How squarely each nebula faces the camera (1 = straight at it).
+        const nebulae = Object.fromEntries([...getNebulae()].map(([key, entry]) => {
+          const group = entry.group.current;
+          const normal = new THREE.Vector3(0, 0, 1).applyQuaternion(group.quaternion);
+          const viewer = gl.xr.isPresenting ? gl.xr.getCamera() : camera;
+          const toCamera = viewer.position.clone().sub(group.getWorldPosition(new THREE.Vector3())).normalize();
+          return [key, +normal.dot(toCamera).toFixed(3)];
+        }));
+        return { presenting: gl.xr.isPresenting, mainCameraForward: forward(camera.quaternion), eyes, nebulae };
+      },
+      getNebulaShapes: () => Object.fromEntries(
+        [...getNebulae()].map(([key, entry]) => [key, +entry.state.shape.toFixed(2)]),
+      ),
       getControllerState: () => {
         const session = gl.xr.getSession();
         return {
