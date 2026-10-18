@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { getNebulae } from './nebula/nebulaRegistry';
@@ -97,6 +97,7 @@ export function SkyBackdrop() {
     depthWrite: false,
   }), []);
 
+  const domeRef = useRef();
   const scratch = useMemo(() => ({ position: new THREE.Vector3() }), []);
 
   // Dev-only: lets the tests read what each star sounds like right now.
@@ -116,6 +117,10 @@ export function SkyBackdrop() {
   useFrame((state, delta) => {
     const { uTime, uStarDir, uStarColor, uStarLevel } = skyUniforms;
     uTime.value = state.clock.elapsedTime;
+    // The dome travels with the viewer (it is the far sky), and each star's glow is measured
+    // from where the viewer actually is, so it sits right behind the star from any angle.
+    const viewer = state.camera.position;
+    if (domeRef.current) domeRef.current.position.copy(viewer);
     const rise = 1 - Math.exp(-delta * LEVEL_RISE_PER_SECOND);
     const fall = 1 - Math.exp(-delta * LEVEL_FALL_PER_SECOND);
 
@@ -127,7 +132,7 @@ export function SkyBackdrop() {
         continue;
       }
       entry.group.current.getWorldPosition(scratch.position);
-      uStarDir.value[i].copy(scratch.position).normalize();
+      uStarDir.value[i].copy(scratch.position).sub(viewer).normalize();
       // Pale stars (white, silver) would turn the sky milky grey, so their light is dimmed.
       const color = colorOf(entry.color);
       const luma = color.r * 0.3 + color.g * 0.59 + color.b * 0.11;
@@ -138,7 +143,7 @@ export function SkyBackdrop() {
   });
 
   return (
-    <mesh scale={[SKY_RADIUS, SKY_RADIUS, SKY_RADIUS]} raycast={() => null} renderOrder={-10}>
+    <mesh ref={domeRef} scale={[SKY_RADIUS, SKY_RADIUS, SKY_RADIUS]} raycast={() => null} renderOrder={-10}>
       <sphereGeometry args={[1, 48, 32]} />
       <primitive object={material} attach="material" />
     </mesh>
