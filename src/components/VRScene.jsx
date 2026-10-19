@@ -5,6 +5,11 @@ import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { SONG_STEMS, getStemColor } from '../audio/songStems';
 import { getInstrumentTexture } from './instrumentIcons';
+import { StarNebula } from './nebula/StarNebula';
+import { NebulaBridges } from './nebula/NebulaBridges';
+import { getNebulae } from './nebula/nebulaRegistry';
+import { NEBULA_RADIUS } from './nebula/nebulaGeometry';
+import { SkyBackdrop } from './SkyBackdrop';
 import { ENTRY_CAMERA_POSITION, ENTRY_CAMERA_TARGET } from '../audio/stemLayout';
 import { WebcamGestureController } from '../hand-tracking/WebcamGestureController';
 
@@ -46,13 +51,16 @@ function Stars3D() {
 
   const colors = useMemo(() => {
     const col = new Float32Array(count * 3);
-    const whiteColor = new THREE.Color('#ffffff');
+    // Mostly white, some tinted pale pink or pale blue, and varied brightness for depth.
+    const tints = ['#ffffff', '#ffffff', '#ffffff', '#ffd9e6', '#cfe0ff'].map((hex) => new THREE.Color(hex));
 
     for (let i = 0; i < count; i++) {
       const i3 = i * 3;
-      col[i3] = whiteColor.r;
-      col[i3 + 1] = whiteColor.g;
-      col[i3 + 2] = whiteColor.b;
+      const tint = tints[Math.floor(Math.random() * tints.length)];
+      const brightness = 0.35 + Math.random() * 0.65;
+      col[i3] = tint.r * brightness;
+      col[i3 + 1] = tint.g * brightness;
+      col[i3 + 2] = tint.b * brightness;
     }
     return col;
   }, []);
@@ -507,6 +515,29 @@ function getThumbstickY(gamepad) {
   return Number.isFinite(value) ? value : 0;
 }
 
+// Instruments drawn as an Obsidian-graph style nebula (any other keeps the plain glowing star).
+const NEBULA_INSTRUMENTS = ['vocal', 'drum', 'bass', 'piano', 'guitar'];
+// How much of its instrument's outline the nebula holds in each state: 0 = free-form
+// wriggle, 1 = fully the instrument. Make hovered/grabbed 0 for a wriggle-only star,
+// or rest 1 for one that always shows its instrument.
+const NEBULA_SHAPE = { rest: 0, hovered: 1, grabbed: 1 };
+// A nebula is grabbed anywhere within this distance of its center (a bit inside its edge),
+// and stars are kept this far apart so two never overlap into one.
+const NEBULA_GRAB_RADIUS = NEBULA_RADIUS * 0.85;
+const STAR_MIN_DISTANCE = 2.2;
+// How much louder music swells a star: the nebula's own nodes and links already pulse.
+const NEBULA_PULSE_SCALE = 0.4;
+const NEBULA_HIT_SCALE = 0.12; // extra pop of the whole star on each new hit
+// Reading a stem's sound (the analyser has 128 bins of about 190 Hz each).
+const SOUND_LOW_BINS = 4; // below ~750 Hz: the weight of drums and bass
+const SOUND_HIGH_FROM_BIN = 24; // above ~4.5 kHz: the sparkle of cymbals and plucks
+const SOUND_LOW_FLOOR = 0.5; // the low bins always carry some energy; only what is above this counts
+const SOUND_HIGH_GAIN = 0.9;
+const SOUND_SLOW_FOLLOW = 3; // how fast the "usual level" follows the real one
+const SOUND_HIT_MARGIN = 0.01; // how far above the usual level counts as a hit
+const SOUND_HIT_GAIN = 8;
+const SOUND_HIT_FADE = 6; // per second
+
 // Instrument silhouette opacity/size (world units) for each interaction state.
 const ICON_STATE = {
   rest: { opacity: 0.6, scale: 0.46 },
@@ -532,11 +563,11 @@ function getMenuStarTexture(colorHex, dimCore = false) {
 
   const grad = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
   if (dimCore) {
-    grad.addColorStop(0.0, colorHex + '33');
-    grad.addColorStop(0.3, colorHex + '66');
-    grad.addColorStop(0.5, colorHex + '99');
-    grad.addColorStop(0.7, colorHex + '33');
-    grad.addColorStop(0.88, 'rgba(0, 0, 0, 0)');
+    grad.addColorStop(0.0, colorHex + '55');
+    grad.addColorStop(0.35, colorHex + '44');
+    grad.addColorStop(0.6, colorHex + '22');
+    grad.addColorStop(0.8, colorHex + '0a');
+    grad.addColorStop(1.0, 'rgba(0, 0, 0, 0)');
   } else {
     grad.addColorStop(0.0, '#ffffff');
     grad.addColorStop(0.18, 'rgba(255, 255, 255, 0.92)');
@@ -570,10 +601,6 @@ function InteractiveOrb({
   const meshRef = useRef();
   const iconRef = useRef();
   const auraRef = useRef();
-  const waveRef1 = useRef();
-  const waveRef2 = useRef();
-  const waveRef3 = useRef();
-  const waveTimeRef = useRef(0);
   
   const instrumentTexture = useMemo(() => getInstrumentTexture(instrument, color), [instrument, color]);
   const starTexture = useMemo(() => getMenuStarTexture(color, Boolean(instrumentTexture)), [color, instrumentTexture]);
@@ -581,6 +608,14 @@ function InteractiveOrb({
   const [isDragging, setIsDragging] = useState(false);
   const [hovered, setHovered] = useState(false);
   const isVisualHovered = hovered || isHandHovered || isHandGrabbed;
+  const usesNebula = NEBULA_INSTRUMENTS.includes(instrument);
+  const nebulaShape = isHandGrabbed || isDragging
+    ? NEBULA_SHAPE.grabbed
+    : isVisualHovered ? NEBULA_SHAPE.hovered : NEBULA_SHAPE.rest;
+  // What this star's stem sounds like right now: overall level, low and high parts, and
+  // a short flash on each new hit (a drum stroke, a plucked note).
+  const soundRef = useRef({ vol: 0, low: 0, high: 0, hit: 0, slow: 0 });
+  const spectrumRef = useRef(null);
 
   // The instrument silhouette is faint at rest, clear on hover, brightest once grabbed.
   useFrame((_, delta) => {
@@ -679,7 +714,7 @@ function InteractiveOrb({
   };
 
   // 60fps/90fps frame loop: Continuously update position and check VR controller joystick input!
-  useFrame((state) => {
+  useFrame((state, delta) => {
     const xr = state.gl.xr;
 
     // Billboard camera alignment for borderless volumetric light cloud quad
@@ -693,45 +728,39 @@ function InteractiveOrb({
     if (meshRef.current && analysersRef && analysersRef.current && analysersRef.current[orbKey]) {
       const analyser = analysersRef.current[orbKey];
       const bufferLength = analyser.frequencyBinCount;
-      const dataArray = new Uint8Array(bufferLength);
+      if (!spectrumRef.current || spectrumRef.current.length !== bufferLength) {
+        spectrumRef.current = new Uint8Array(bufferLength);
+      }
+      const dataArray = spectrumRef.current;
       analyser.getByteFrequencyData(dataArray);
 
       let sum = 0;
+      let lowSum = 0;
+      let highSum = 0;
       for (let i = 0; i < bufferLength; i++) {
         sum += dataArray[i];
+        if (i < SOUND_LOW_BINS) lowSum += dataArray[i];
+        else if (i >= SOUND_HIGH_FROM_BIN) highSum += dataArray[i];
       }
       const avg = sum / (bufferLength || 1);
       currentVol = Math.pow(avg / 255, 1.2);
 
-      const baseScale = isVisualHovered ? 1.25 : 1.0;
-      const pulseScale = baseScale + currentVol * 0.95;
+      const sound = soundRef.current;
+      sound.vol = currentVol;
+      sound.low = Math.min(1, Math.max(0, (lowSum / (SOUND_LOW_BINS * 255) - SOUND_LOW_FLOOR) / (1 - SOUND_LOW_FLOOR)));
+      sound.high = Math.min(1, Math.pow(highSum / ((bufferLength - SOUND_HIGH_FROM_BIN) * 255), 1.2) * SOUND_HIGH_GAIN);
+      // A hit = the level jumping above its own slow average; it flashes, then fades quickly.
+      sound.slow += (currentVol - sound.slow) * Math.min(1, delta * SOUND_SLOW_FOLLOW);
+      const onset = Math.min(1, Math.max(0, currentVol - sound.slow - SOUND_HIT_MARGIN) * SOUND_HIT_GAIN);
+      sound.hit = Math.max(sound.hit * Math.exp(-delta * SOUND_HIT_FADE), onset);
+
+      const baseScale = isVisualHovered && !usesNebula ? 1.25 : 1.0;
+      const pulseScale = baseScale + currentVol * (usesNebula ? NEBULA_PULSE_SCALE : 0.95) + (usesNebula ? soundRef.current.hit * NEBULA_HIT_SCALE : 0);
       meshRef.current.scale.set(pulseScale, pulseScale, pulseScale);
     } else if (meshRef.current) {
-      const baseScale = isVisualHovered ? 1.25 : 1.0;
+      const baseScale = isVisualHovered && !usesNebula ? 1.25 : 1.0;
       meshRef.current.scale.set(baseScale, baseScale, baseScale);
     }
-
-    // Concentric Ripple Wave animation
-    const waveSpeed = 0.007 * (1.0 + currentVol * 2.5);
-    waveTimeRef.current += waveSpeed;
-
-    const waveRings = [
-      { ref: waveRef1, offset: 0.0 },
-      { ref: waveRef2, offset: 0.33 },
-      { ref: waveRef3, offset: 0.66 }
-    ];
-
-    waveRings.forEach(({ ref, offset }) => {
-      if (ref.current && ref.current.material) {
-        ref.current.quaternion.copy(state.camera.quaternion);
-        const rawProgress = (waveTimeRef.current + offset) % 1.0;
-        const scaleVal = 1.0 + rawProgress * 3.2;
-        ref.current.scale.set(scaleVal, scaleVal, scaleVal);
-        const baseOpacity = 0.05 + currentVol * 0.65;
-        const opacityVal = Math.max(0, baseOpacity * (1.0 - rawProgress) * Math.sin(rawProgress * Math.PI));
-        ref.current.material.opacity = currentVol > 0.02 ? opacityVal : 0;
-      }
-    });
 
     // VR Ray Pointer & Proximity Detection, Hover Feedback, and Auto-Grab (60/90fps frame loop)
     if (xr && xr.isPresenting && meshRef.current) {
@@ -761,7 +790,7 @@ function InteractiveOrb({
             const perpDist = orbPos.distanceTo(nearestPointOnRay);
             
             // Tight, precise Ray Cone targeting tolerance
-            const rayTolerance = Math.max(0.28, t * 0.05 + 0.18);
+            const rayTolerance = Math.max(usesNebula ? NEBULA_GRAB_RADIUS : 0.28, t * 0.05 + 0.18);
             if (perpDist < rayTolerance) {
               isTargeted = true;
               grabDistance = Math.max(0.4, t);
@@ -769,7 +798,7 @@ function InteractiveOrb({
           }
 
           // Physical touch proximity: within 0.3m of controller position
-          if (distToCtrl < 0.3) {
+          if (distToCtrl < (usesNebula ? NEBULA_GRAB_RADIUS * 0.6 : 0.3)) {
             isTargeted = true;
             grabDistance = Math.max(0.3, distToCtrl);
           }
@@ -812,13 +841,10 @@ function InteractiveOrb({
     }
 
     if (!isDragging) {
-      // Synchronize mesh & wave ring positions with collision-resolved coordsRef
+      // Synchronize the mesh position with the collision-resolved coordsRef
       if (meshRef.current && coordsRef.current && coordsRef.current[orbKey]) {
         const solvedPos = coordsRef.current[orbKey];
         meshRef.current.position.copy(solvedPos);
-        if (waveRef1.current) waveRef1.current.position.copy(solvedPos);
-        if (waveRef2.current) waveRef2.current.position.copy(solvedPos);
-        if (waveRef3.current) waveRef3.current.position.copy(solvedPos);
       }
       return;
     }
@@ -866,9 +892,6 @@ function InteractiveOrb({
         meshRef.current.position.copy(targetPos);
         coordsRef.current[orbKey].copy(targetPos);
 
-        if (waveRef1.current) waveRef1.current.position.copy(targetPos);
-        if (waveRef2.current) waveRef2.current.position.copy(targetPos);
-        if (waveRef3.current) waveRef3.current.position.copy(targetPos);
       }
     } else if (meshRef.current) {
       // Desktop Mouse Ray Position Update
@@ -887,46 +910,11 @@ function InteractiveOrb({
       meshRef.current.position.copy(nextPoint);
       coordsRef.current[orbKey].copy(nextPoint);
 
-      if (waveRef1.current) waveRef1.current.position.copy(nextPoint);
-      if (waveRef2.current) waveRef2.current.position.copy(nextPoint);
-      if (waveRef3.current) waveRef3.current.position.copy(nextPoint);
     }
   });
 
   return (
     <group>
-      {/* Concentric Ripple Wave Rings */}
-      <mesh ref={waveRef1} position={initialPos}>
-        <ringGeometry args={[0.3, 0.34, 48]} />
-        <meshBasicMaterial
-          color={color}
-          transparent={true}
-          opacity={0}
-          depthWrite={false}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
-      <mesh ref={waveRef2} position={initialPos}>
-        <ringGeometry args={[0.3, 0.34, 48]} />
-        <meshBasicMaterial
-          color={color}
-          transparent={true}
-          opacity={0}
-          depthWrite={false}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
-      <mesh ref={waveRef3} position={initialPos}>
-        <ringGeometry args={[0.3, 0.34, 48]} />
-        <meshBasicMaterial
-          color={color}
-          transparent={true}
-          opacity={0}
-          depthWrite={false}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
-
       {/* Main Interactive Celestial Star Group (Borderless Volumetric Glowing Light Cloud) */}
       <group
         ref={meshRef}
@@ -938,17 +926,32 @@ function InteractiveOrb({
       >
         {/* Invisible Hit-Test Proxy Sphere for 100% Precise Mouse/Raycast Drag Interaction */}
         <mesh visible={false}>
-          <sphereGeometry args={[0.22, 16, 16]} />
+          <sphereGeometry args={[usesNebula ? NEBULA_GRAB_RADIUS : 0.22, 16, 16]} />
           <meshBasicMaterial />
         </mesh>
 
         {/* Volumetric Soft-Glow Celestial Star Sprite (Compact Toned-Down Pastel Glow) */}
+        {usesNebula && (
+          <StarNebula
+            instrument={instrument}
+            seedKey={orbKey}
+            color={color}
+            shapeTarget={nebulaShape}
+            soundRef={soundRef}
+          />
+        )}
+
         {starTexture && (
-          <sprite raycast={() => null} scale={isVisualHovered ? [1.45, 1.45, 1.45] : [1.15, 1.15, 1.15]}>
+          <sprite
+            raycast={() => null}
+            scale={usesNebula
+              ? (isVisualHovered ? [4.6, 4.6, 4.6] : [4.2, 4.2, 4.2])
+              : (isVisualHovered ? [1.45, 1.45, 1.45] : [1.15, 1.15, 1.15])}
+          >
             <spriteMaterial
               map={starTexture}
               transparent={true}
-              opacity={isVisualHovered ? 0.95 : 0.82}
+              opacity={usesNebula ? 0.3 : (isVisualHovered ? 0.95 : 0.82)}
               blending={THREE.AdditiveBlending}
               depthWrite={false}
             />
@@ -956,7 +959,7 @@ function InteractiveOrb({
         )}
 
         {/* Instrument silhouette cut into the star's glowing core */}
-        {instrumentTexture && (
+        {!usesNebula && instrumentTexture && (
           <sprite ref={iconRef} raycast={() => null} scale={[ICON_STATE.rest.scale, ICON_STATE.rest.scale, ICON_STATE.rest.scale]} renderOrder={10}>
             <spriteMaterial
               map={instrumentTexture}
@@ -1056,6 +1059,28 @@ function VRAudioExperience({
         Object.entries(orbCoordsRef.current).map(([key, position]) => [key, position.toArray()]),
       ),
       endSession: () => gl.xr.getSession()?.end(),
+      getRenderStats: () => ({ ...gl.info.render }),
+      getFacingInfo: () => {
+        const forward = (q) => new THREE.Vector3(0, 0, -1).applyQuaternion(q).toArray().map((v) => +v.toFixed(2));
+        const xrCamera = gl.xr.getCamera();
+        const eyes = xrCamera.cameras?.map((eye) => {
+          const q = new THREE.Quaternion();
+          eye.matrixWorld.decompose(new THREE.Vector3(), q, new THREE.Vector3());
+          return forward(q);
+        });
+        // How squarely each nebula faces the camera (1 = straight at it).
+        const nebulae = Object.fromEntries([...getNebulae()].map(([key, entry]) => {
+          const group = entry.group.current;
+          const normal = new THREE.Vector3(0, 0, 1).applyQuaternion(group.quaternion);
+          const viewer = gl.xr.isPresenting ? gl.xr.getCamera() : camera;
+          const toCamera = viewer.position.clone().sub(group.getWorldPosition(new THREE.Vector3())).normalize();
+          return [key, +normal.dot(toCamera).toFixed(3)];
+        }));
+        return { presenting: gl.xr.isPresenting, mainCameraForward: forward(camera.quaternion), eyes, nebulae };
+      },
+      getNebulaShapes: () => Object.fromEntries(
+        [...getNebulae()].map(([key, entry]) => [key, +entry.state.shape.toFixed(2)]),
+      ),
       getControllerState: () => {
         const session = gl.xr.getSession();
         return {
@@ -1159,7 +1184,8 @@ function VRAudioExperience({
 
         // Create AnalyserNode for dynamic waveform pulse effect!
         const analyser = ctx.createAnalyser();
-        analyser.fftSize = 64;
+        analyser.fftSize = 256;
+        analyser.smoothingTimeConstant = 0.5; // quicker than the default so hits are not smeared out
 
         const panner = ctx.createPanner();
         panner.panningModel = 'HRTF'; // Web Audio API HRTF (Binaural 3D Spatial Audio)
@@ -1265,7 +1291,7 @@ function VRAudioExperience({
   useFrame((state) => {
     // 0. Sphere Collision & Repulsion: Prevent stars from colliding/merging with each other
     const stemKeys = Object.keys(orbCoordsRef.current);
-    const minDistance = 0.75; // 0.75m minimum distance between star centers to prevent overlap
+    const minDistance = STAR_MIN_DISTANCE; // minimum distance between star centers, so two never overlap
 
     for (let pass = 0; pass < 2; pass++) {
       for (let i = 0; i < stemKeys.length; i++) {
@@ -1390,6 +1416,7 @@ function VRAudioExperience({
           isHandGrabbed={handInteraction.grabbedOrbKey === stem.key}
         />
       ))}
+      <NebulaBridges />
     </>
   );
 }
@@ -1418,139 +1445,6 @@ function CameraRig({ vrCameraPos, vrCameraRot }) {
     }
   });
   return null;
-}
-
-// Sleek Custom 3D Axis Indicator (Arrowless, Smooth Gradient Fade-out at Tips)
-// X Axis: Vivid Pink (#ff007f)
-// Y Axis: Milky Soft Pastel Pink (#ffa4c4)
-// Z Axis: Pure White (#ffffff)
-function SleekAxes3D({ length = 6.5, segments = 24 }) {
-  const xAxisData = useMemo(() => {
-    const pos = new Float32Array((segments + 1) * 3);
-    const col = new Float32Array((segments + 1) * 3);
-    const base = new THREE.Color('#ff007f');
-
-    for (let i = 0; i <= segments; i++) {
-      const t = i / segments;
-      const i3 = i * 3;
-      pos[i3] = length * t;
-      pos[i3 + 1] = 0;
-      pos[i3 + 2] = 0;
-
-      const fade = Math.pow(1 - t, 1.3);
-      col[i3] = base.r * fade;
-      col[i3 + 1] = base.g * fade;
-      col[i3 + 2] = base.b * fade;
-    }
-    return { pos, col };
-  }, [length, segments]);
-
-  const yAxisData = useMemo(() => {
-    const pos = new Float32Array((segments + 1) * 3);
-    const col = new Float32Array((segments + 1) * 3);
-    const base = new THREE.Color('#ffa4c4');
-
-    for (let i = 0; i <= segments; i++) {
-      const t = i / segments;
-      const i3 = i * 3;
-      pos[i3] = 0;
-      pos[i3 + 1] = length * t;
-      pos[i3 + 2] = 0;
-
-      const fade = Math.pow(1 - t, 1.3);
-      col[i3] = base.r * fade;
-      col[i3 + 1] = base.g * fade;
-      col[i3 + 2] = base.b * fade;
-    }
-    return { pos, col };
-  }, [length, segments]);
-
-  const zAxisData = useMemo(() => {
-    const pos = new Float32Array((segments + 1) * 3);
-    const col = new Float32Array((segments + 1) * 3);
-    const base = new THREE.Color('#ffffff');
-
-    for (let i = 0; i <= segments; i++) {
-      const t = i / segments;
-      const i3 = i * 3;
-      pos[i3] = 0;
-      pos[i3 + 1] = 0;
-      pos[i3 + 2] = length * t;
-
-      const fade = Math.pow(1 - t, 1.3);
-      col[i3] = base.r * fade;
-      col[i3 + 1] = base.g * fade;
-      col[i3 + 2] = base.b * fade;
-    }
-    return { pos, col };
-  }, [length, segments]);
-
-  return (
-    <group raycast={() => null}>
-      {/* Sleek Origin Center Node */}
-      <mesh position={[0, 0, 0]}>
-        <sphereGeometry args={[0.045, 16, 16]} />
-        <meshBasicMaterial color="#ffffff" transparent opacity={0.95} />
-      </mesh>
-
-      {/* X Axis - Pink (#ff007f) Smooth Fade-Out Line */}
-      <line>
-        <bufferGeometry>
-          <bufferAttribute
-            attach="attributes-position"
-            count={segments + 1}
-            array={xAxisData.pos}
-            itemSize={3}
-          />
-          <bufferAttribute
-            attach="attributes-color"
-            count={segments + 1}
-            array={xAxisData.col}
-            itemSize={3}
-          />
-        </bufferGeometry>
-        <lineBasicMaterial vertexColors={true} transparent opacity={0.9} blending={THREE.AdditiveBlending} />
-      </line>
-
-      {/* Y Axis - Milky Soft Pastel Pink (#ffa4c4) Smooth Fade-Out Line */}
-      <line>
-        <bufferGeometry>
-          <bufferAttribute
-            attach="attributes-position"
-            count={segments + 1}
-            array={yAxisData.pos}
-            itemSize={3}
-          />
-          <bufferAttribute
-            attach="attributes-color"
-            count={segments + 1}
-            array={yAxisData.col}
-            itemSize={3}
-          />
-        </bufferGeometry>
-        <lineBasicMaterial vertexColors={true} transparent opacity={0.9} blending={THREE.AdditiveBlending} />
-      </line>
-
-      {/* Z Axis - Pure White (#ffffff) Smooth Fade-Out Line */}
-      <line>
-        <bufferGeometry>
-          <bufferAttribute
-            attach="attributes-position"
-            count={segments + 1}
-            array={zAxisData.pos}
-            itemSize={3}
-          />
-          <bufferAttribute
-            attach="attributes-color"
-            count={segments + 1}
-            array={zAxisData.col}
-            itemSize={3}
-          />
-        </bufferGeometry>
-        <lineBasicMaterial vertexColors={true} transparent opacity={0.9} blending={THREE.AdditiveBlending} />
-      </line>
-    </group>
-  );
 }
 
 // Tells the page when the 3D canvas and its XR connection are up. Asking for a VR
@@ -1594,17 +1488,12 @@ export function VRScene({ store, starColors, handData, isInVR, isDesktopVR, acti
         <XR store={store}>
             {onSceneReady && <SceneReadySignal onReady={onSceneReady} />}
             <CameraRig vrCameraPos={vrCameraPos} vrCameraRot={vrCameraRot} />
-            <color attach="background" args={['#111111']} />
+            <color attach="background" args={['#03040a']} />
             
-            {/* Sleek Custom 3D Origin Axes Indicator (X: Pink, Y: White, Z: Soft Pink) */}
-            <SleekAxes3D length={6} />
             {isVRActive && vrModeType === 2 && <ambientLight intensity={0.5} />}
             
-            {/* Giant black sphere to block WebXR passthrough - Raycast disabled */}
-            <mesh scale={[50, 50, 50]} raycast={() => null}>
-              <sphereGeometry args={[1, 32, 32]} />
-              <meshBasicMaterial color="#111111" side={THREE.BackSide} />
-            </mesh>
+            {/* Night-sky dome: blocks WebXR passthrough and lights up around sounding stars */}
+            <SkyBackdrop />
             
             {/* Background 3000 ambient particle stars - Always rendered in 3D Space */}
             {isVRActive && (

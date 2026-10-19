@@ -1453,7 +1453,7 @@ function App() {
           </div>
 
           {cameraActive && (
-            <GestureHint lines={['손으로 별을 휘저어 소리를 섞어 보세요', '🤘 1초 유지 — 소리가 풀려요']} />
+            <GestureHint lines={['손으로 별을 휘저어 소리를 섞어 보세요', { text: '1초 유지 — 소리가 풀려요', horns: true }]} />
           )}
 
           {SHOW_FUTURE_FEATURE_CONTROLS && (
@@ -1670,7 +1670,7 @@ function App() {
       )}
 
       {isInSpace && cameraActive && !isInVR && (
-        <GestureHint lines={['주먹을 쥐어 별을 잡고 옮겨 보세요', '🤘 1초 유지 — 은하로 돌아가요']} />
+        <GestureHint lines={['주먹을 쥐어 별을 잡고 옮겨 보세요', { text: '1초 유지 — 은하로 돌아가요', horns: true }]} />
       )}
 
       <UnmixProgress

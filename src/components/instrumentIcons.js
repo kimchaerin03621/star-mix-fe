@@ -155,3 +155,54 @@ export function getInstrumentTexture(instrument, color) {
   textureCache[cacheKey] = texture;
   return texture;
 }
+
+// Evenly spaced points along the instrument's outline, as x/y in -0.5..0.5 (y up),
+// used to lay a constellation of stars out in the shape of the instrument.
+export function sampleInstrumentOutline(instrument, count, random) {
+  if (typeof document === 'undefined') return null;
+  const draw = DRAWERS[instrument];
+  if (!draw) return null;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = SIZE;
+  canvas.height = SIZE;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.strokeStyle = '#ffffff';
+  ctx.fillStyle = '#ffffff';
+  ctx.lineWidth = 6;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  draw(ctx);
+
+  const { data } = ctx.getImageData(0, 0, SIZE, SIZE);
+  const inked = [];
+  for (let y = 0; y < SIZE; y += 1) {
+    for (let x = 0; x < SIZE; x += 1) {
+      if (data[(y * SIZE + x) * 4 + 3] > 128) inked.push(x, y);
+    }
+  }
+  if (inked.length === 0) return null;
+
+  // Farthest-point sampling: each new point is the inked pixel farthest from all
+  // chosen so far, which spaces them evenly along the strokes.
+  const pixelCount = inked.length / 2;
+  const nearestChosen = new Float32Array(pixelCount).fill(Infinity);
+  const points = [];
+  let pick = Math.floor(random() * pixelCount);
+  for (let n = 0; n < count; n += 1) {
+    const px = inked[pick * 2];
+    const py = inked[pick * 2 + 1];
+    points.push([px / SIZE - 0.5, 0.5 - py / SIZE]);
+    let farthest = 0;
+    let farthestDistance = -1;
+    for (let i = 0; i < pixelCount; i += 1) {
+      const dx = inked[i * 2] - px;
+      const dy = inked[i * 2 + 1] - py;
+      const d = dx * dx + dy * dy;
+      if (d < nearestChosen[i]) nearestChosen[i] = d;
+      if (nearestChosen[i] > farthestDistance) { farthestDistance = nearestChosen[i]; farthest = i; }
+    }
+    pick = farthest;
+  }
+  return points;
+}

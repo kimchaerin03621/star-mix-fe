@@ -10,9 +10,9 @@ import {
 } from './xr.js';
 
 const CONTROLLER_AT = [0.4, 1.5, 0];
-const DRUMS_START = [2.5, 1.6, -2];
+const DRUMS_START = [3.22, 1.3, -2.7];
 const AIM_ELSEWHERE = [1.8, 2.0, -3];
-const HELD_DISTANCE = 2.9;
+const HELD_DISTANCE = 3.97;
 const MAX_DRAG_DISTANCE = 10;
 
 const pointAlong = (from, toward, length) => {
