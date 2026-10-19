@@ -330,6 +330,43 @@ function getMenuStarTexture(colorHex, dimCore = false) {
   return texture;
 }
 
+// Stars that can be picked with a controller, and which star each controller is holding.
+// When several stars line up along the controller's ray, only the front one can be picked,
+// and a controller that already holds a star cannot pick a second one.
+const grabTargets = new Map(); // star key -> { group (ref), rayRadius, touchRadius }
+const controllerHolds = [null, null]; // controller index -> star key it holds
+
+const pickScratch = { to: new THREE.Vector3(), onRay: new THREE.Vector3() };
+
+// The star this controller would pick right now: one touching the controller (the nearest),
+// else the nearest one along the ray. Returns { key, grabDistance } or null.
+function pickGrabTarget(origin, direction) {
+  let touched = null;
+  let touchedDistance = Infinity;
+  let aimed = null;
+  let aimedDistance = Infinity;
+  grabTargets.forEach((target, key) => {
+    const position = target.group.current?.position;
+    if (!position) return;
+    const distance = origin.distanceTo(position);
+    if (distance < target.touchRadius && distance < touchedDistance) {
+      touched = { key, grabDistance: Math.max(0.3, distance) };
+      touchedDistance = distance;
+    }
+    pickScratch.to.subVectors(position, origin);
+    const along = pickScratch.to.dot(direction);
+    if (along > 0.1 && along < 15.0 && along < aimedDistance) {
+      pickScratch.onRay.copy(direction).multiplyScalar(along).add(origin);
+      const tolerance = Math.max(target.rayRadius, along * 0.05 + 0.18);
+      if (position.distanceTo(pickScratch.onRay) < tolerance) {
+        aimed = { key, grabDistance: Math.max(0.4, along) };
+        aimedDistance = along;
+      }
+    }
+  });
+  return touched ?? aimed;
+}
+
 // 3D Interactive Audio Orb (Main Menu Volumetric Celestial Star Style)
 function InteractiveOrb({
   color,
@@ -370,6 +407,19 @@ function InteractiveOrb({
   useEffect(() => {
     interactionRef.current = { hovered: isVisualHovered, grabbed: isHandGrabbed || isDragging };
   }, [isVisualHovered, isHandGrabbed, isDragging]);
+
+  // Lets the controller picking logic know where this star is and how big a target it is.
+  useEffect(() => {
+    grabTargets.set(orbKey, {
+      group: meshRef,
+      rayRadius: usesRegion ? REGION_GRAB_RADIUS : 0.28,
+      touchRadius: usesRegion ? REGION_GRAB_RADIUS * 0.6 : 0.3,
+    });
+    return () => {
+      grabTargets.delete(orbKey);
+      controllerHolds.forEach((key, index) => { if (key === orbKey) controllerHolds[index] = null; });
+    };
+  }, [orbKey, usesRegion]);
 
   // The instrument silhouette is faint at rest, clear on hover, brightest once grabbed.
   useFrame((_, delta) => {
@@ -522,7 +572,6 @@ function InteractiveOrb({
     // VR Ray Pointer & Proximity Detection, Hover Feedback, and Auto-Grab (60/90fps frame loop)
     if (xr && xr.isPresenting && meshRef.current) {
       const session = (typeof xr.getSession === 'function') ? xr.getSession() : null;
-      const orbPos = meshRef.current.position;
       let isAnyCtrlHovering = false;
 
       for (let i = 0; i < 2; i++) {
@@ -535,30 +584,11 @@ function InteractiveOrb({
           ctrl.getWorldQuaternion(worldQuat);
           const rayDir = new THREE.Vector3(0, 0, -1).applyQuaternion(worldQuat).normalize();
 
-          const v = new THREE.Vector3().subVectors(orbPos, rayOrigin);
-          const t = v.dot(rayDir);
-          const distToCtrl = rayOrigin.distanceTo(orbPos);
-
-          let isTargeted = false;
-          let grabDistance = 2.5;
-
-          if (t > 0.1 && t < 15.0) {
-            const nearestPointOnRay = rayOrigin.clone().add(rayDir.clone().multiplyScalar(t));
-            const perpDist = orbPos.distanceTo(nearestPointOnRay);
-            
-            // Tight, precise Ray Cone targeting tolerance
-            const rayTolerance = Math.max(usesRegion ? REGION_GRAB_RADIUS : 0.28, t * 0.05 + 0.18);
-            if (perpDist < rayTolerance) {
-              isTargeted = true;
-              grabDistance = Math.max(0.4, t);
-            }
-          }
-
-          // Physical touch proximity: within 0.3m of controller position
-          if (distToCtrl < (usesRegion ? REGION_GRAB_RADIUS * 0.6 : 0.3)) {
-            isTargeted = true;
-            grabDistance = Math.max(0.3, distToCtrl);
-          }
+          // Only the front star under this controller counts, and not while it holds another.
+          const holder = controllerHolds[i];
+          const pick = holder === null || holder === orbKey ? pickGrabTarget(rayOrigin, rayDir) : null;
+          const isTargeted = pick !== null && pick.key === orbKey;
+          const grabDistance = isTargeted ? pick.grabDistance : 2.5;
 
           if (isTargeted) {
             isAnyCtrlHovering = true;
@@ -579,6 +609,7 @@ function InteractiveOrb({
 
               if (isButtonPressed) {
                 activeControllerRef.current = i;
+                controllerHolds[i] = orbKey;
                 dragDistanceRef.current = grabDistance;
                 setIsDragging(true);
                 setIsDraggingOrb(true);
@@ -622,6 +653,7 @@ function InteractiveOrb({
           const pressed1 = btn1 ? (btn1.pressed || btn1.value > 0.15) : false;
 
           if (!pressed0 && !pressed1) {
+            if (controllerHolds[idx] === orbKey) controllerHolds[idx] = null;
             setIsDragging(false);
             setIsDraggingOrb(false);
             return;
@@ -838,6 +870,8 @@ function VRAudioExperience({
         Object.entries(orbCoordsRef.current).map(([key, position]) => [key, position.toArray()]),
       ),
       endSession: () => gl.xr.getSession()?.end(),
+      setStemPosition: (key, position) => orbCoordsRef.current[key]?.set(...position),
+      getControllerHolds: () => [...controllerHolds],
       getRenderStats: () => ({ ...gl.info.render }),
       getControllerState: () => {
         const session = gl.xr.getSession();
