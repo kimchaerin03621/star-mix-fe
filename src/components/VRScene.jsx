@@ -983,6 +983,26 @@ const SPATIAL_OUTPUT_GAIN = 0.3;
 // Stems closer than this to the listener play at full volume (inverse model).
 const SPATIAL_REF_DISTANCE = 4.0;
 
+// Where the listener's head is and which way it faces. In a headset session the scene camera's
+// own rotation can be wrong (it is a two-eye camera), so the pose is read from the eyes;
+// otherwise the camera itself is the head.
+const eyeScratch = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion(), scale: new THREE.Vector3(), other: new THREE.Vector3() };
+function readHeadPose(state, out) {
+  const eyes = state.gl.xr.isPresenting ? state.gl.xr.getCamera().cameras : null;
+  if (eyes && eyes.length > 0) {
+    eyes[0].matrixWorld.decompose(out.position, out.quaternion, eyeScratch.scale);
+    if (eyes[1]) {
+      eyes[1].matrixWorld.decompose(eyeScratch.other, eyeScratch.quaternion, eyeScratch.scale);
+      out.position.add(eyeScratch.other).multiplyScalar(0.5);
+    }
+  } else {
+    out.position.copy(state.camera.position);
+    out.quaternion.copy(state.camera.quaternion);
+  }
+  return out;
+}
+const headPose = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion() };
+
 // 3D VR Spatial Audio Experience (다이내믹 멀티트랙 스템 믹서 엔진)
 function VRAudioExperience({
   starColors,
@@ -1015,6 +1035,21 @@ function VRAudioExperience({
   const audioCtxRef = useRef(null);
   const audioElementsRef = useRef({});
   const pannersRef = useRef({});
+
+  // Dev-only: lets the tests read how the sound is currently placed around the listener.
+  useEffect(() => {
+    if (!import.meta.env.DEV) return undefined;
+    window.__starMixAudio = () => {
+      const listener = audioCtxRef.current?.listener;
+      if (!listener?.forwardX) return null;
+      return {
+        position: [listener.positionX.value, listener.positionY.value, listener.positionZ.value],
+        forward: [listener.forwardX.value, listener.forwardY.value, listener.forwardZ.value],
+        panners: Object.fromEntries(Object.entries(pannersRef.current).map(([key, panner]) => [key, [panner.positionX.value, panner.positionY.value, panner.positionZ.value]])),
+      };
+    };
+    return () => { delete window.__starMixAudio; };
+  }, []);
   const gainsRef = useRef({});
   const analysersRef = useRef({});
   const eqFiltersRef = useRef({ low: null, mid: null, high: null });
@@ -1329,7 +1364,6 @@ function VRAudioExperience({
       }
     }
 
-    const camera = state.camera;
     const ctx = audioCtxRef.current;
     if (!ctx) return;
 
@@ -1342,15 +1376,17 @@ function VRAudioExperience({
 
     const webAudioTime = ctx.currentTime;
 
-    // 1. Sync Audio Listener with VR Camera position and orientation (Using setValueAtTime to prevent WebAudio queue accumulation)
+    // 1. Sync Audio Listener with the head's position and orientation (Using setValueAtTime to prevent WebAudio queue accumulation).
+    // In a headset the scene camera's own rotation is not reliable, so the head pose is read from the eyes.
+    const head = readHeadPose(state, headPose);
     const listener = ctx.listener;
     if (listener.positionX) {
-      listener.positionX.setValueAtTime(camera.position.x, webAudioTime);
-      listener.positionY.setValueAtTime(camera.position.y, webAudioTime);
-      listener.positionZ.setValueAtTime(camera.position.z, webAudioTime);
+      listener.positionX.setValueAtTime(head.position.x, webAudioTime);
+      listener.positionY.setValueAtTime(head.position.y, webAudioTime);
+      listener.positionZ.setValueAtTime(head.position.z, webAudioTime);
 
-      const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-      const up = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
+      const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(head.quaternion);
+      const up = new THREE.Vector3(0, 1, 0).applyQuaternion(head.quaternion);
 
       listener.forwardX.setValueAtTime(forward.x, webAudioTime);
       listener.forwardY.setValueAtTime(forward.y, webAudioTime);
@@ -1360,7 +1396,7 @@ function VRAudioExperience({
       listener.upY.setValueAtTime(up.y, webAudioTime);
       listener.upZ.setValueAtTime(up.z, webAudioTime);
     } else {
-      listener.setPosition(camera.position.x, camera.position.y, camera.position.z);
+      listener.setPosition(head.position.x, head.position.y, head.position.z);
     }
 
     // 2. Loop through all active stems and update their panners & BPM rates! (Dummy 스템 제외)
