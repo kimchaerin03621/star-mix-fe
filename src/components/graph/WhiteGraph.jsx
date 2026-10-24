@@ -11,8 +11,9 @@ import { getRegions } from './graphRegistry';
 const MAX_REGIONS = 8;
 const WOBBLE = 0.05; // how far a node drifts (meters), so the graph breathes
 const NEAR_FADE = [1.2, 3.2]; // nodes closer to the eye than this fade out (a big blurry dot in your face is only a smudge)
-const MAX_SCREEN_SIZE = 0.035; // no node is drawn bigger than this share of its distance to the eye
+const MAX_SCREEN_SIZE = 0.09; // no node is drawn bigger than this share of its distance to the eye
 const FAR_DIM = [2.5, 12]; // and nodes dim between these distances, for depth
+const GLOW_SIZE = 4.2; // a node's soft glow is drawn this many times wider than the node itself
 const HALO_SIZE = 7; // glow around a colored node, in node sizes
 const HALO_ALPHA = 0.16
 
@@ -80,13 +81,15 @@ const NODE_VERTEX = /* glsl */ `
   void main() {
     vec4 viewPosition = modelViewMatrix * vec4(drift(aPos, aSeed), 1.0);
     float dist = length(viewPosition.xyz);
-    float strength = tint(0.62);
+    float strength = tint(0.85);
     int r = int(aRegion + 0.5);
     float high = r >= 0 ? uHigh[r] * (1.0 - aAmount) : 0.0;
     float hit = r >= 0 ? uHit[r] * aAmount : 0.0;
     float ring = r >= 0 ? wave(r) : 0.0;
     float sparkle = high * (0.5 + 0.5 * sin(uTime * 14.0 + aSeed * 60.0));
-    float size = aSize * (1.0 + strength * 1.4 + sparkle * 1.3 + hit * 0.6 + ring * 1.2);
+    // Nodes twinkle gently, like the nebula stars.
+    float twinkle = 0.8 + 0.2 * sin(uTime * 2.0 + aSeed * 40.0);
+    float size = aSize * twinkle * ${GLOW_SIZE.toFixed(1)} * (1.0 + strength * 1.1 + sparkle * 1.3 + hit * 0.6 + ring * 1.2);
     size = min(size, dist * ${MAX_SCREEN_SIZE.toFixed(3)});
     vColor *= (1.0 + hit * 0.6 + sparkle + ring * 0.9);
     vAlpha = mix(ghost(), 1.0, strength) * mix(depthDim(dist), 1.0, strength * 0.7) * nearFade(dist);
@@ -101,9 +104,11 @@ const NODE_FRAGMENT = /* glsl */ `
   varying float vAlpha;
   varying vec2 vUv;
   void main() {
+    // A soft glow with a brighter core (the same look as the nebula stars' nodes).
     float d = length(vUv - 0.5) * 2.0;
-    float disc = 1.0 - smoothstep(0.7, 1.0, d);
-    gl_FragColor = vec4(vColor, disc * vAlpha);
+    float glow = pow(clamp(1.0 - d, 0.0, 1.0), 1.6);
+    float core = smoothstep(0.35, 0.0, d);
+    gl_FragColor = vec4(vColor * (0.7 + core * 0.9), glow * vAlpha);
   }
 `;
 
@@ -139,7 +144,7 @@ const LINK_VERTEX = /* glsl */ `
   void main() {
     vec4 viewPosition = modelViewMatrix * vec4(drift(aPos, aSeed), 1.0);
     float dist = length(viewPosition.xyz);
-    float strength = tint(0.55);
+    float strength = tint(0.75);
     int r = int(aRegion + 0.5);
     float hit = r >= 0 ? uHit[r] * aAmount : 0.0;
     float ring = r >= 0 ? wave(r) : 0.0;
@@ -246,6 +251,7 @@ export function WhiteGraph() {
       fragmentShader: NODE_FRAGMENT,
       transparent: true,
       depthWrite: false,
+      blending: THREE.AdditiveBlending,
     });
     const linkMaterial = new THREE.ShaderMaterial({
       uniforms: graphUniforms,
@@ -253,6 +259,7 @@ export function WhiteGraph() {
       fragmentShader: LINK_FRAGMENT,
       transparent: true,
       depthWrite: false,
+      blending: THREE.AdditiveBlending,
     });
 
     const haloMaterial = new THREE.ShaderMaterial({

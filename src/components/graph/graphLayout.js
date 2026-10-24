@@ -88,12 +88,20 @@ export function buildGraph(seedText = 'white-graph') {
   const adjacency = Array.from({ length: count }, () => []);
   links.forEach(([a, b]) => { adjacency[a].push(b); adjacency[b].push(a); });
 
-  // Hubs (nodes with many links) are drawn a little bigger.
-  const nodes = positions.map((position, i) => ({
-    position,
-    seed: random(),
-    size: GRAPH.NODE_SIZE + adjacency[i].length * GRAPH.NODE_SIZE_PER_LINK + random() * GRAPH.NODE_SIZE_RANDOM,
-  }));
+  // Hubs (the best-connected nodes) are drawn big and bright; the rest stay small.
+  const degrees = adjacency.map((list) => list.length).sort((a, b) => b - a);
+  const hubDegree = degrees[Math.floor(count * GRAPH.HUB_SHARE)] ?? Infinity;
+  const nodes = positions.map((position, i) => {
+    const isHub = adjacency[i].length > hubDegree;
+    return {
+      position,
+      seed: random(),
+      isHub,
+      size: isHub
+        ? GRAPH.HUB_SIZE + random() * GRAPH.HUB_SIZE_RANDOM
+        : GRAPH.NODE_SIZE + adjacency[i].length * GRAPH.NODE_SIZE_PER_LINK * 0.5 + random() * GRAPH.NODE_SIZE_RANDOM,
+    };
+  });
 
   return { count, nodes, links, adjacency };
 }

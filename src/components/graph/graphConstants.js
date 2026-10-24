@@ -18,6 +18,10 @@ export const GRAPH = {
   NODE_SIZE: 0.045,
   NODE_SIZE_PER_LINK: 0.008,
   NODE_SIZE_RANDOM: 0.02,
+  // The best-connected nodes are drawn as big bright hubs, like the nebula stars.
+  HUB_SHARE: 0.07,
+  HUB_SIZE: 0.13,
+  HUB_SIZE_RANDOM: 0.05,
 };
 
 // How much of the plain white graph shows. Only the parts near a colored region are drawn,
