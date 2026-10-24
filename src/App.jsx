@@ -12,6 +12,7 @@ import { UnmixProgress } from './hand-tracking/UnmixProgress';
 import { GestureHint } from './hand-tracking/GestureHint';
 import { useIdleReturn } from './hand-tracking/useIdleReturn';
 import { GroupAudio } from './audio/GroupAudio';
+import { isStillMode } from './stillMode';
 import { EXHIBITION_SONG, SONG_STEMS, getStemGroupUrls } from './audio/songStems';
 
 const xrStore = createXRStore({ 
@@ -776,7 +777,7 @@ function App() {
   const handTrackingEnabled =
     (isDesktopVR && vrModeType === 2) ||
     (viewMode !== 'menu' && viewMode !== 'intro');
-  const trackedHands = useHandTracking(videoRef, handTrackingEnabled && !isVrStation, !isVrStation);
+  const trackedHands = useHandTracking(videoRef, handTrackingEnabled && !isVrStation && !isStillMode, !isVrStation && !isStillMode);
 
   // Demo recordings drive the app with scripted hands, shaped exactly like the
   // tracker's output (dev builds only; production never exposes this).
@@ -846,7 +847,7 @@ function App() {
 
   // Nobody around for a while: send the next visitor back to the galaxy.
   // (Not while someone is inside the headset: no webcam hands or mouse there.)
-  useIdleReturn(handData, isInSpace && !isInVR, returnToGalaxy, SPACE_IDLE_RETURN_MS);
+  useIdleReturn(handData, isInSpace && !isInVR && !isStillMode, returnToGalaxy, SPACE_IDLE_RETURN_MS);
 
   const unmixProgress = useUnmixGesture(
     handData,
@@ -1358,7 +1359,7 @@ function App() {
   };
 
   return (
-    <div className="app-container">
+    <div className={`app-container${isStillMode && isDesktopVR ? ' still-space' : ''}`}>
       {/* Permanent Fixed Top Header (WOOJOO PLAY Title & Action Buttons) */}
       {viewMode !== 'intro' && (
         <header className="global-header">

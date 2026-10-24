@@ -8,6 +8,7 @@ import { getInstrumentTexture } from './instrumentIcons';
 import { WhiteGraph } from './graph/WhiteGraph';
 import { REGION_COLORS } from './graph/graphConstants';
 import { registerRegion, unregisterRegion } from './graph/graphRegistry';
+import { isStillMode } from '../stillMode';
 import { ENTRY_CAMERA_POSITION, ENTRY_CAMERA_TARGET } from '../audio/stemLayout';
 import { WebcamGestureController } from '../hand-tracking/WebcamGestureController';
 
@@ -1015,7 +1016,7 @@ function VRAudioExperience({
           // Play all active stems, catching AbortError individually to prevent unhandled promise rejections on song changes
           await Promise.all(
             Object.values(elements).map(audio =>
-              audio.play().catch(err => {
+              (isStillMode ? Promise.resolve() : audio.play()).catch(err => {
                 if (err.name !== 'AbortError') {
                   console.warn("Spatial stem play failed:", err);
                 }

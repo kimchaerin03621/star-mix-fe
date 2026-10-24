@@ -1,3 +1,4 @@
+import { isStillMode } from '../stillMode';
 const DRIFT_TOLERANCE_SECONDS = 0.04;
 const DRIFT_CHECK_MS = 1500;
 
@@ -48,6 +49,7 @@ export class GroupAudio {
   }
 
   play() {
+    if (isStillMode) return Promise.resolve(); // still mode: no music
     this._alignFollowers();
     this._startSync();
     return Promise.all(this.elements.map((audio) => audio.play()));

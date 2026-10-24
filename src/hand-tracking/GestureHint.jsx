@@ -4,6 +4,7 @@ import { HornsIcon } from './HornsIcon';
 export function GestureHint({ lines }) {
   return (
     <div
+      className="gesture-hint"
       aria-hidden="true"
       style={{
         position: 'fixed',

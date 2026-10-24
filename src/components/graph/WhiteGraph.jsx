@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { GHOST, REGION } from './graphConstants';
 import { buildGraph, growRegions, nearestNode } from './graphLayout';
 import { getRegions } from './graphRegistry';
+import { isStillMode } from '../../stillMode';
 
 // The space itself: a huge white Obsidian-style graph around the listener, in 3D. Each
 // instrument colors one region of it (the nodes within a few links of its sounding node);
@@ -402,7 +403,8 @@ export function WhiteGraph() {
     // 4. Each region's color and how loud it is right now.
     entries.forEach(([, entry], index) => {
       const { sound, interaction } = entry;
-      const active = interaction.current.hovered || interaction.current.grabbed ? REGION.HOVER_STRENGTH : 0;
+      // (Still mode: pointing at a region does not light it up.)
+      const active = !isStillMode && (interaction.current.hovered || interaction.current.grabbed) ? REGION.HOVER_STRENGTH : 0;
       graphUniforms.uColor.value[index].copy(colorOf(entry.color));
       graphUniforms.uLevel.value[index] = Math.min(
         1.4,
