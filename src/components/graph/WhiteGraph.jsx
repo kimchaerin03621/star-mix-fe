@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { OCCLUDER, PLAIN, REGION } from './graphConstants';
 import { buildGraph, growRegions, nearestNode } from './graphLayout';
-import { getRegions } from './graphRegistry';
+import { getRegions, regionShapes } from './graphRegistry';
 import { isStillMode } from '../../stillMode';
 
 // The space itself: a huge white Obsidian-style graph around the listener, in 3D. Each
@@ -359,6 +359,7 @@ export function WhiteGraph() {
       graph.nodes.forEach((node) => node.position.forEach((value, axis) => { centroid[axis] += value / graph.count; }));
       return {
         centroid,
+        shapes: Object.fromEntries([...regionShapes].map(([key, shape]) => [key, { center: shape.center.map((v) => +v.toFixed(2)), radius: +shape.radius.toFixed(2) }])),
         nodeCount: graph.count,
         linkCount: graph.links.length,
         coloredNodes: colored,
@@ -441,6 +442,19 @@ export function WhiteGraph() {
         }
         distances.sort((x, y) => x - y);
         return (distances[Math.floor(distances.length * OCCLUDER.PERCENTILE)] ?? 0) + OCCLUDER.EXTRA_RADIUS;
+      });
+      // The click area of each region: around the middle of its colored nodes, out to nearly all of them.
+      regionShapes.clear();
+      seeds.forEach((seed, regionIndex) => {
+        if (seed < 0) return;
+        const members = [];
+        for (let i = 0; i < graph.count; i += 1) if (region[i] === regionIndex) members.push(graph.nodes[i].position);
+        if (members.length === 0) return;
+        const center = [0, 1, 2].map((axis) => members.reduce((sum, p) => sum + p[axis], 0) / members.length);
+        const reach = members
+          .map((p) => Math.hypot(p[0] - center[0], p[1] - center[1], p[2] - center[2]))
+          .sort((x, y) => x - y);
+        regionShapes.set(keys[regionIndex], { center, radius: (reach[Math.floor(reach.length * 0.85)] ?? 0) + 0.2 });
       });
       for (let i = 0; i < graph.count; i += 1) {
         store.targetRegion[i] = region[i];

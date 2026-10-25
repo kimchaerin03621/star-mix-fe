@@ -41,7 +41,7 @@ test('with the view zoomed all the way out, every region can be grabbed without 
 });
 
 test('clicking plain white space grabs nothing', async ({ page }) => {
-  await page.mouse.move(150, 120);
+  await page.mouse.move(800, 810);
   await page.mouse.down();
   await page.waitForTimeout(300);
   const dragging = await page.evaluate(() => window.__starMixTest.getDragging());
@@ -60,7 +60,10 @@ test('the wheel takes a held region out to the far edge of the graph and up to t
   expect(await eyeTo()).toBeGreaterThan(30);
 
   for (let i = 0; i < 12; i += 1) { await page.mouse.wheel(0, 1000); await page.waitForTimeout(60); }
-  expect(await eyeTo()).toBeLessThan(0.5);
+  // It stops just in front of the eye (never behind it), and is still in the picture.
+  expect(await eyeTo()).toBeLessThan(1);
+  expect(await eyeTo()).toBeGreaterThan(0.5);
+  expect((await star(page, 'drums')).visible).toBe(true);
   await page.mouse.up();
 });
 
@@ -81,4 +84,19 @@ test('turning the view pivots around the middle of the whole graph', async ({ pa
   await page.mouse.up();
   const after = await page.evaluate(() => window.__starMixTest.getOrbitTarget());
   expect(distance(after, target)).toBeLessThan(0.01); // the pivot did not wander
+});
+
+test('a press a little off a region still grabs it, and does not turn the view', async ({ page }) => {
+  const { x, y, distance: eye } = await star(page, 'drums');
+  const pixelsPerMeter = 850 / (eye * 1.535); // 75 degree view, 850 px tall
+  const target = await page.evaluate(() => window.__starMixTest.getOrbitTarget());
+  await page.mouse.move(x + 1.3 * pixelsPerMeter, y);
+  await page.waitForTimeout(150);
+  await page.mouse.down();
+  await page.mouse.move(x + 1.3 * pixelsPerMeter + 60, y + 30, { steps: 8 });
+  await page.waitForTimeout(250);
+  const dragging = await page.evaluate(() => window.__starMixTest.getDragging());
+  expect(Object.keys(dragging).filter((k) => dragging[k])).toEqual(['drums']);
+  expect(distance(await page.evaluate(() => window.__starMixTest.getOrbitTarget()), target)).toBeLessThan(0.01);
+  await page.mouse.up();
 });

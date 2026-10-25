@@ -7,7 +7,7 @@ import { SONG_STEMS, getStemColor } from '../audio/songStems';
 import { getInstrumentTexture } from './instrumentIcons';
 import { WhiteGraph } from './graph/WhiteGraph';
 import { REGION_COLORS, WHITE_GRAPH_CENTER } from './graph/graphConstants';
-import { registerRegion, unregisterRegion } from './graph/graphRegistry';
+import { regionShapes, registerRegion, unregisterRegion } from './graph/graphRegistry';
 import { isStillMode } from '../stillMode';
 import { ENTRY_CAMERA_POSITION, ENTRY_CAMERA_TARGET } from '../audio/stemLayout';
 import { WebcamGestureController } from '../hand-tracking/WebcamGestureController';
@@ -275,7 +275,7 @@ const REGION_INSTRUMENTS = ['vocal', 'drum', 'bass', 'piano', 'guitar'];
 const REGION_GRAB_RADIUS = 1.5;
 // Dragging a region with the mouse: how near the eye and how far away (meters) the wheel can take it.
 // The far limit covers the whole graph even when the camera is zoomed all the way out.
-const MOUSE_DRAG_MIN = 0.25;
+const MOUSE_DRAG_MIN = 0.6; // closest the wheel brings a held region: right in front of the eye, still in view
 const MOUSE_DRAG_MAX = 40;
 const MOUSE_WHEEL_SPEED = 0.0015; // per wheel unit; the distance changes by a share, so far and near both feel even
 // Far away, a region is a tiny target; its click area grows with distance so it stays about as easy to hit.
@@ -382,13 +382,13 @@ function isNearestToRay(orbKey, ray) {
   let bestKey = null;
   let bestDistance = Infinity;
   grabTargets.forEach((target, key) => {
-    const position = target.group.current?.position;
+    const position = target.hitCenter ?? target.group.current?.position;
     if (!position) return;
     to.subVectors(position, ray.origin);
     const along = to.dot(ray.direction);
     if (along <= 0) return;
     const side = to.addScaledVector(ray.direction, -along).length();
-    const reach = Math.max(target.rayRadius, along * HIT_RADIUS_PER_METER);
+    const reach = target.hitReach ?? Math.max(target.rayRadius, along * HIT_RADIUS_PER_METER);
     if (side < reach && side < bestDistance) {
       bestDistance = side;
       bestKey = key;
@@ -469,6 +469,7 @@ function InteractiveOrb({
   const dragDistanceRef = useRef(2.5);
   // Where the star was relative to the mouse ray when it was picked, so it does not jump on click.
   const dragOffsetRef = useRef(new THREE.Vector3());
+  const dragStartDistanceRef = useRef(1);
   const hitRef = useRef();
   const activeControllerRef = useRef(null);
   const isHoveredRef = useRef(false);
@@ -541,6 +542,7 @@ function InteractiveOrb({
       // Hold the star where it is: remember how far it is along the ray and how far off the ray it sits.
       const dist = raycaster.ray.origin.distanceTo(meshRef.current.position);
       dragDistanceRef.current = Math.max(MOUSE_DRAG_MIN, Math.min(MOUSE_DRAG_MAX, dist));
+      dragStartDistanceRef.current = dragDistanceRef.current;
       dragOffsetRef.current
         .copy(meshRef.current.position)
         .sub(raycaster.ray.at(dragDistanceRef.current, new THREE.Vector3()));
@@ -610,8 +612,20 @@ function InteractiveOrb({
 
     // Far from the eye the click area grows, so a zoomed-out star is not a tiny target.
     if (hitRef.current && usesRegion && meshRef.current) {
-      const reach = state.camera.position.distanceTo(meshRef.current.position) * HIT_RADIUS_PER_METER;
-      hitRef.current.scale.setScalar(Math.max(1, reach / REGION_GRAB_RADIUS));
+      const shape = regionShapes.get(orbKey);
+      const eyeDistance = state.camera.position.distanceTo(meshRef.current.position);
+      const reach = Math.max(shape ? shape.radius : 0, REGION_GRAB_RADIUS, eyeDistance * HIT_RADIUS_PER_METER);
+      // The click area sits on the colored region itself (not on the star's own point, which can
+      // be up to a meter away) and is as wide as that region looks.
+      if (shape) hitRef.current.position.set(shape.center[0], shape.center[1], shape.center[2]).sub(meshRef.current.position);
+      else hitRef.current.position.set(0, 0, 0);
+      hitRef.current.scale.setScalar(reach / REGION_GRAB_RADIUS);
+      const target = grabTargets.get(orbKey);
+      if (target) {
+        target.hitCenter = target.hitCenter ?? new THREE.Vector3();
+        target.hitCenter.copy(meshRef.current.position).add(hitRef.current.position);
+        target.hitReach = reach;
+      }
     }
 
     // VR Ray Pointer & Proximity Detection, Hover Feedback, and Auto-Grab (60/90fps frame loop)
@@ -729,7 +743,10 @@ function InteractiveOrb({
       }
     } else if (meshRef.current) {
       // Desktop Mouse Ray Position Update: follow the mouse ray, keeping the grab offset.
-      const nextPoint = raycaster.ray.at(dragDistanceRef.current, new THREE.Vector3()).add(dragOffsetRef.current);
+      // The offset scales with the distance: the star stays at the same spot on screen as the
+      // wheel moves it, so it can never slide off to the side or behind the eye.
+      const nextPoint = raycaster.ray.at(dragDistanceRef.current, new THREE.Vector3())
+        .addScaledVector(dragOffsetRef.current, dragDistanceRef.current / dragStartDistanceRef.current);
 
       meshRef.current.position.copy(nextPoint);
       coordsRef.current[orbKey].copy(nextPoint);
@@ -745,8 +762,8 @@ function InteractiveOrb({
         position={initialPos}
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
-        onPointerOver={(e) => { e.stopPropagation(); setHovered(true); }}
-        onPointerOut={(e) => { e.stopPropagation(); setHovered(false); }}
+        onPointerOver={(e) => { e.stopPropagation(); setHovered(true); if (!isDragging) setIsDraggingOrb(true); }}
+        onPointerOut={(e) => { e.stopPropagation(); setHovered(false); if (!isDragging) setIsDraggingOrb(false); }}
       >
         {/* Invisible Hit-Test Proxy Sphere for 100% Precise Mouse/Raycast Drag Interaction */}
         <mesh ref={hitRef} visible={false}>
@@ -921,6 +938,8 @@ function VRAudioExperience({
           x: box.left + (projected.x + 1) / 2 * box.width,
           y: box.top + (1 - projected.y) / 2 * box.height,
           distance: camera.position.distanceTo(position),
+          // In front of the eye and inside the picture.
+          visible: projected.z < 1 && Math.abs(projected.x) <= 1 && Math.abs(projected.y) <= 1,
         };
       },
       getCameraDistanceTo: (key) => (orbCoordsRef.current[key] ? camera.position.distanceTo(orbCoordsRef.current[key]) : null),
