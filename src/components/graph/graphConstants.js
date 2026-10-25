@@ -24,14 +24,19 @@ export const GRAPH = {
   HUB_SIZE_RANDOM: 0.05,
 };
 
-// How much of the plain white graph shows. Only the parts near a colored region are drawn,
-// fading out with distance, so the rest of the space is empty dark. VISIBILITY 0 hides the
-// white graph completely (only the colored regions remain); 1 is as bright as the region
-// edges.
-export const GHOST = {
-  VISIBILITY: 0.36, // brightness of the white graph right beside a region (0 = hidden)
-  FULL_WITHIN: 1.0, // fully shown this close to a region's sounding node (meters)
-  GONE_BEYOND: 2.8, // and gone beyond this
+// The plain nodes and links (everything that is not part of a sounding region): flat, faint, no
+// effects. ALPHA is how visible they are (0.1 = 10%).
+export const PLAIN = {
+  ALPHA: 0.1,
+  SIZE_SCALE: 1.3, // plain dots are drawn this many times the node's size
+};
+
+// Plain nodes that stand between the eye and a colored region are hidden, so they never clutter
+// the view of what is sounding.
+export const OCCLUDER = {
+  PERCENTILE: 0.8, // the region is as wide as this share of its nodes
+  EXTRA_RADIUS: 0.3, // plus this much (meters), so the edge of the region is cleared too
+  DEPTH_FADE: 0.6, // nodes within this distance of the region's depth fade in gradually
 };
 
 // Region colors. The graph is white, so a white-ish instrument color would look empty;
