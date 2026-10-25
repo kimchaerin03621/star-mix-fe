@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { SONG_STEMS, getStemColor } from '../audio/songStems';
 import { getInstrumentTexture } from './instrumentIcons';
 import { WhiteGraph } from './graph/WhiteGraph';
-import { REGION_COLORS } from './graph/graphConstants';
+import { REGION_COLORS, WHITE_GRAPH_CENTER } from './graph/graphConstants';
 import { registerRegion, unregisterRegion } from './graph/graphRegistry';
 import { isStillMode } from '../stillMode';
 import { ENTRY_CAMERA_POSITION, ENTRY_CAMERA_TARGET } from '../audio/stemLayout';
@@ -836,7 +836,9 @@ function VRAudioExperience({
     camera.position.set(...ENTRY_CAMERA_POSITION);
     const controls = orbitControlsRef.current;
     if (controls) {
-      controls.target.set(...ENTRY_CAMERA_TARGET);
+      // Turn the view around the middle of the whole graph (where the listener's head is), not
+      // around a point out in front of the starting camera.
+      controls.target.set(...WHITE_GRAPH_CENTER);
       controls.update();
     } else {
       camera.lookAt(...ENTRY_CAMERA_TARGET);
@@ -908,6 +910,7 @@ function VRAudioExperience({
       setStemPosition: (key, position) => orbCoordsRef.current[key]?.set(...position),
       getControllerHolds: () => [...controllerHolds],
       getDragging: () => ({ ...draggingOrbsRef.current }),
+      getOrbitTarget: () => orbitControlsRef.current?.target.toArray() ?? null,
       // Where a star is on the page (pixels), and how far the eye is from it.
       getStarOnScreen: (key) => {
         const position = orbCoordsRef.current[key];

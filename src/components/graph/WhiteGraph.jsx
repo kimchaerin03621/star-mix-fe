@@ -355,7 +355,10 @@ export function WhiteGraph() {
           colored += 1;
         }
       }
+      const centroid = [0, 0, 0];
+      graph.nodes.forEach((node) => node.position.forEach((value, axis) => { centroid[axis] += value / graph.count; }));
       return {
+        centroid,
         nodeCount: graph.count,
         linkCount: graph.links.length,
         coloredNodes: colored,

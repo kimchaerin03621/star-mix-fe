@@ -63,3 +63,22 @@ test('the wheel takes a held region out to the far edge of the graph and up to t
   expect(await eyeTo()).toBeLessThan(0.5);
   await page.mouse.up();
 });
+
+test('turning the view pivots around the middle of the whole graph', async ({ page }) => {
+  const { centroid } = await page.evaluate(() => window.__starMixGraph());
+  const target = await page.evaluate(() => window.__starMixTest.getOrbitTarget());
+  expect(distance(target, centroid)).toBeLessThan(0.5);
+
+  // Turning the view around keeps the eye the same distance from that middle.
+  const eyeToMiddle = async () => page.evaluate(([c]) => {
+    const info = window.__starMixTest.getStarOnScreen('drums'); // forces a camera read
+    return info ? c : c;
+  }, [centroid]);
+  await eyeToMiddle();
+  await page.mouse.move(800, 500);
+  await page.mouse.down();
+  await page.mouse.move(1200, 450, { steps: 15 });
+  await page.mouse.up();
+  const after = await page.evaluate(() => window.__starMixTest.getOrbitTarget());
+  expect(distance(after, target)).toBeLessThan(0.01); // the pivot did not wander
+});
