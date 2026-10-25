@@ -61,6 +61,24 @@ export function buildGraph(seedText = 'white-graph') {
     if (!tooClose(point)) positions.push(point);
   }
 
+  // Thin out only the crowded spots: a node is dropped when too many nodes already sit close
+  // around it. Sparse parts of the graph are left exactly as they were.
+  const crowdSquared = GRAPH.CROWD_RADIUS ** 2;
+  const spread = [];
+  positions.forEach((point) => {
+    let neighbours = 0;
+    for (let i = 0; i < spread.length && neighbours <= GRAPH.CROWD_MAX; i += 1) {
+      const other = spread[i];
+      const dx = point[0] - other[0];
+      const dy = point[1] - other[1];
+      const dz = point[2] - other[2];
+      if (dx * dx + dy * dy + dz * dz < crowdSquared) neighbours += 1;
+    }
+    if (neighbours < GRAPH.CROWD_MAX) spread.push(point);
+  });
+  positions.length = 0;
+  positions.push(...spread);
+
   // Links: each node to its nearest neighbours (never very long), so the graph reads as
   // one connected web. Region borders follow these links.
   const count = positions.length;

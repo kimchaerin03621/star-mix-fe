@@ -15,6 +15,9 @@ export const GRAPH = {
   LINKS_PER_NODE: 3, // each node is joined to this many nearest neighbours
   MAX_LINK_LENGTH: 1.3,
   EXTRA_LINK_LENGTH: 0.5, // a third link only if that neighbour is this close
+  // Crowded spots are thinned: at most CROWD_MAX nodes within CROWD_RADIUS (meters) of one another.
+  CROWD_RADIUS: 0.5,
+  CROWD_MAX: 9,
   NODE_SIZE: 0.045,
   NODE_SIZE_PER_LINK: 0.008,
   NODE_SIZE_RANDOM: 0.02,
