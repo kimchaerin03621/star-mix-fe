@@ -1,263 +1,16 @@
 import React, { useRef, useMemo, useEffect, Suspense, useState } from 'react';
-import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { XR, IfInSessionMode } from '@react-three/xr';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { SONG_STEMS, getStemColor } from '../audio/songStems';
 import { getInstrumentTexture } from './instrumentIcons';
-import { StarNebula } from './nebula/StarNebula';
-import { NebulaBridges } from './nebula/NebulaBridges';
-import { getNebulae } from './nebula/nebulaRegistry';
-import { NEBULA_RADIUS } from './nebula/nebulaGeometry';
-import { SkyBackdrop } from './SkyBackdrop';
+import { WhiteGraph } from './graph/WhiteGraph';
+import { REGION_COLORS, WHITE_GRAPH_CENTER } from './graph/graphConstants';
+import { regionShapes, registerRegion, unregisterRegion } from './graph/graphRegistry';
+import { isStillMode } from '../stillMode';
 import { ENTRY_CAMERA_POSITION, ENTRY_CAMERA_TARGET } from '../audio/stemLayout';
 import { WebcamGestureController } from '../hand-tracking/WebcamGestureController';
-
-
-function Stars3D() {
-  const count = 3000;
-  const meshRef = useRef();
-  
-  const texture = useLoader(THREE.TextureLoader, '/star.png');
-  
-  const [positions, velocities, originals] = useMemo(() => {
-    const pos = new Float32Array(count * 3);
-    const vel = new Float32Array(count * 3);
-    const orig = new Float32Array(count * 3);
-    const side = new Uint8Array(count);
-    
-    for (let i = 0; i < count; i++) {
-      const i3 = i * 3;
-      const radius = 3.5 + Math.random() * 16.5;
-      const phi = Math.random() * Math.PI * 2;
-      const theta = Math.acos(2 * Math.random() - 1);
-      
-      pos[i3] = radius * Math.sin(theta) * Math.cos(phi);
-      pos[i3 + 1] = radius * Math.sin(theta) * Math.sin(phi);
-      pos[i3 + 2] = radius * Math.cos(theta);
-      
-      orig[i3] = pos[i3];
-      orig[i3 + 1] = pos[i3 + 1];
-      orig[i3 + 2] = pos[i3 + 2];
-      
-      vel[i3] = 0;
-      vel[i3 + 1] = 0;
-      vel[i3 + 2] = 0;
-      
-      side[i] = pos[i3] < 0 ? 0 : 1;
-    }
-    return [pos, vel, orig, side];
-  }, []);
-
-  const colors = useMemo(() => {
-    const col = new Float32Array(count * 3);
-    // Mostly white, some tinted pale pink or pale blue, and varied brightness for depth.
-    const tints = ['#ffffff', '#ffffff', '#ffffff', '#ffd9e6', '#cfe0ff'].map((hex) => new THREE.Color(hex));
-
-    for (let i = 0; i < count; i++) {
-      const i3 = i * 3;
-      const tint = tints[Math.floor(Math.random() * tints.length)];
-      const brightness = 0.35 + Math.random() * 0.65;
-      col[i3] = tint.r * brightness;
-      col[i3 + 1] = tint.g * brightness;
-      col[i3 + 2] = tint.b * brightness;
-    }
-    return col;
-  }, []);
-
-  useEffect(() => {
-    if (meshRef.current && meshRef.current.geometry && meshRef.current.geometry.attributes.color) {
-      const attr = meshRef.current.geometry.attributes.color;
-      attr.array = colors;
-      attr.needsUpdate = true;
-    }
-  }, [colors]);
-  
-  const isMouseDown = useRef(false);
-  const mouseScreenPos = useRef({ x: 0, y: 0 });
-  const prevRayDirs = useRef([new THREE.Vector3(0, 0, -1), new THREE.Vector3(0, 0, -1)]);
-  const prevMouseRayDir = useRef(new THREE.Vector3(0, 0, -1));
-  
-  useEffect(() => {
-    const onDown = () => { isMouseDown.current = true; };
-    const onUp = () => { isMouseDown.current = false; };
-    const onMove = (e) => {
-      mouseScreenPos.current.x = (e.clientX / window.innerWidth) * 2 - 1;
-      mouseScreenPos.current.y = -(e.clientY / window.innerHeight) * 2 + 1;
-    };
-    
-    window.addEventListener('mousedown', onDown);
-    window.addEventListener('mouseup', onUp);
-    window.addEventListener('mousemove', onMove);
-    
-    return () => {
-      window.removeEventListener('mousedown', onDown);
-      window.removeEventListener('mouseup', onUp);
-      window.removeEventListener('mousemove', onMove);
-    };
-  }, []);
-  
-  useFrame((state, delta) => {
-    const geom = meshRef.current.geometry;
-    const posAttr = geom.attributes.position;
-    
-    let pointerRays = [];
-    
-    const xr = state.gl.xr;
-
-    if (xr && xr.isPresenting) {
-      for (let i = 0; i < 2; i++) {
-        const ctrl = xr.getController(i);
-        if (ctrl && ctrl.visible) {
-          const rayOrigin = new THREE.Vector3();
-          ctrl.getWorldPosition(rayOrigin);
-          
-          const worldQuat = new THREE.Quaternion();
-          ctrl.getWorldQuaternion(worldQuat);
-          const rayDir = new THREE.Vector3(0, 0, -1).applyQuaternion(worldQuat).normalize();
-          
-          // Calculate ray sweep speed
-          const prevDir = prevRayDirs.current[i];
-          const sweepDist = rayDir.distanceTo(prevDir);
-          const sweepSpeed = sweepDist / Math.max(delta, 0.001);
-          prevRayDirs.current[i].copy(rayDir);
-          
-          pointerRays.push({
-            origin: rayOrigin,
-            dir: rayDir,
-            speed: sweepSpeed
-          });
-        }
-      }
-    }
-    
-    // Desktop mouse pointer ray (always active on mouse move or drag)
-    const mouseRayOrigin = state.camera.position.clone();
-    const mouse3D = new THREE.Vector3(mouseScreenPos.current.x, mouseScreenPos.current.y, 0.5);
-    mouse3D.unproject(state.camera);
-    const mouseRayDir = mouse3D.sub(state.camera.position).normalize();
-    
-    const mouseSweepDist = mouseRayDir.distanceTo(prevMouseRayDir.current);
-    const mouseSweepSpeed = mouseSweepDist / Math.max(delta, 0.001);
-    prevMouseRayDir.current.copy(mouseRayDir);
-    
-    pointerRays.push({
-      origin: mouseRayOrigin,
-      dir: mouseRayDir,
-      speed: mouseSweepSpeed
-    });
-    
-    // Process pointer rays: affect stars in the path of the pointer ray beam
-    pointerRays.forEach(({ origin, dir, speed }) => {
-      const oX = origin.x;
-      const oY = origin.y;
-      const oZ = origin.z;
-      
-      const dX = dir.x;
-      const dY = dir.y;
-      const dZ = dir.z;
-      
-      // Pointer ray beam radius & speed multiplier
-      const baseBeamRadius = 2.5;
-      const beamRadius = baseBeamRadius + Math.min(speed * 0.4, 2.5);
-      const speedMultiplier = 1.0 + Math.min(speed * 0.6, 3.0);
-
-      for (let i = 0; i < count; i++) {
-        const i3 = i * 3;
-        const sX = posAttr.array[i3];
-        const sY = posAttr.array[i3 + 1];
-        const sZ = posAttr.array[i3 + 2];
-        
-        // Vector from ray origin to star particle
-        const vX = sX - oX;
-        const vY = sY - oY;
-        const vZ = sZ - oZ;
-        
-        // Distance along pointer ray
-        const t = vX * dX + vY * dY + vZ * dZ;
-        
-        // Only affect stars in front along the pointer ray beam (between 0.5m and 35m)
-        if (t > 0.5 && t < 35.0) {
-          // Point on ray line nearest to star
-          const nX = oX + t * dX;
-          const nY = oY + t * dY;
-          const nZ = oZ + t * dZ;
-          
-          // Perpendicular vector from ray line to star
-          const perpX = sX - nX;
-          const perpY = sY - nY;
-          const perpZ = sZ - nZ;
-          const perpDist = Math.sqrt(perpX * perpX + perpY * perpY + perpZ * perpZ);
-          
-          if (perpDist < beamRadius) {
-            const forceFactor = 1 - (perpDist / beamRadius);
-            
-            // Push star outward from the ray axis
-            const pushX = perpX / (perpDist || 1);
-            const pushY = perpY / (perpDist || 1);
-            const pushZ = perpZ / (perpDist || 1);
-            
-            const forceMagnitude = forceFactor * 0.3 * speedMultiplier;
-            
-            velocities[i3]     += pushX * forceMagnitude;
-            velocities[i3 + 1] += pushY * forceMagnitude;
-            velocities[i3 + 2] += pushZ * forceMagnitude;
-          }
-        }
-      }
-    });
-    
-    // Physics update: spring return to original space positions & velocity damping
-    for (let i = 0; i < count; i++) {
-      const i3 = i * 3;
-      
-      const springPower = 0.0003;
-      velocities[i3] += (originals[i3] - posAttr.array[i3]) * springPower;
-      velocities[i3 + 1] += (originals[i3 + 1] - posAttr.array[i3 + 1]) * springPower;
-      velocities[i3 + 2] += (originals[i3 + 2] - posAttr.array[i3 + 2]) * springPower;
-      
-      posAttr.array[i3] += velocities[i3];
-      posAttr.array[i3 + 1] += velocities[i3 + 1];
-      posAttr.array[i3 + 2] += velocities[i3 + 2];
-      
-      velocities[i3] *= 0.95;
-      velocities[i3 + 1] *= 0.95;
-      velocities[i3 + 2] *= 0.95;
-    }
-    
-    posAttr.needsUpdate = true;
-  });
-
-  return (
-    <points ref={meshRef} raycast={() => null}>
-      <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          count={count}
-          array={positions}
-          itemSize={3}
-        />
-        <bufferAttribute
-          attach="attributes-color"
-          count={count}
-          array={colors}
-          itemSize={3}
-        />
-      </bufferGeometry>
-      <pointsMaterial 
-        size={0.2} 
-        vertexColors={true} 
-        sizeAttenuation={true}
-        transparent={true}
-        opacity={0.8}
-        map={texture}
-        alphaTest={0.01}
-        depthWrite={false}
-        blending={THREE.AdditiveBlending}
-      />
-    </points>
-  );
-}
 
 
 function ControllerHelpers() {
@@ -515,19 +268,19 @@ function getThumbstickY(gamepad) {
   return Number.isFinite(value) ? value : 0;
 }
 
-// Instruments drawn as an Obsidian-graph style nebula (any other keeps the plain glowing star).
-const NEBULA_INSTRUMENTS = ['vocal', 'drum', 'bass', 'piano', 'guitar'];
-// How much of its instrument's outline the nebula holds in each state: 0 = free-form
-// wriggle, 1 = fully the instrument. Make hovered/grabbed 0 for a wriggle-only star,
-// or rest 1 for one that always shows its instrument.
-const NEBULA_SHAPE = { rest: 0, hovered: 1, grabbed: 1 };
-// A nebula is grabbed anywhere within this distance of its center (a bit inside its edge),
-// and stars are kept this far apart so two never overlap into one.
-const NEBULA_GRAB_RADIUS = NEBULA_RADIUS * 0.85;
+// Instruments shown as a colored region of the white graph (any other keeps the plain glowing star).
+const REGION_INSTRUMENTS = ['vocal', 'drum', 'bass', 'piano', 'guitar'];
+// A region is grabbed anywhere within this distance of its sounding node (a bit inside the
+// colored area's edge), and regions are kept this far apart so two never sit on top of each other.
+const REGION_GRAB_RADIUS = 1.5;
+// Dragging a region with the mouse: how near the eye and how far away (meters) the wheel can take it.
+// The far limit covers the whole graph even when the camera is zoomed all the way out.
+const MOUSE_DRAG_MIN = 0.6; // closest the wheel brings a held region: right in front of the eye, still in view
+const MOUSE_DRAG_MAX = 40;
+const MOUSE_WHEEL_SPEED = 0.0015; // per wheel unit; the distance changes by a share, so far and near both feel even
+// Far away, a region is a tiny target; its click area grows with distance so it stays about as easy to hit.
+const HIT_RADIUS_PER_METER = 0.06;
 const STAR_MIN_DISTANCE = 2.2;
-// How much louder music swells a star: the nebula's own nodes and links already pulse.
-const NEBULA_PULSE_SCALE = 0.4;
-const NEBULA_HIT_SCALE = 0.12; // extra pop of the whole star on each new hit
 // Reading a stem's sound (the analyser has 128 bins of about 190 Hz each).
 const SOUND_LOW_BINS = 4; // below ~750 Hz: the weight of drums and bass
 const SOUND_HIGH_FROM_BIN = 24; // above ~4.5 kHz: the sparkle of cymbals and plucks
@@ -622,6 +375,28 @@ function pickGrabTarget(origin, direction) {
   return touched ?? aimed;
 }
 
+// Several stars can lie along one mouse ray (their click areas overlap, or one is in front of
+// another). The one whose center the ray passes nearest is the one meant; the others let go.
+function isNearestToRay(orbKey, ray) {
+  const to = new THREE.Vector3();
+  let bestKey = null;
+  let bestDistance = Infinity;
+  grabTargets.forEach((target, key) => {
+    const position = target.hitCenter ?? target.group.current?.position;
+    if (!position) return;
+    to.subVectors(position, ray.origin);
+    const along = to.dot(ray.direction);
+    if (along <= 0) return;
+    const side = to.addScaledVector(ray.direction, -along).length();
+    const reach = target.hitReach ?? Math.max(target.rayRadius, along * HIT_RADIUS_PER_METER);
+    if (side < reach && side < bestDistance) {
+      bestDistance = side;
+      bestKey = key;
+    }
+  });
+  return bestKey === null || bestKey === orbKey;
+}
+
 // 3D Interactive Audio Orb (Main Menu Volumetric Celestial Star Style)
 function InteractiveOrb({
   color,
@@ -645,27 +420,36 @@ function InteractiveOrb({
   const [isDragging, setIsDragging] = useState(false);
   const [hovered, setHovered] = useState(false);
   const isVisualHovered = hovered || isHandHovered || isHandGrabbed;
-  const usesNebula = NEBULA_INSTRUMENTS.includes(instrument);
-  const nebulaShape = isHandGrabbed || isDragging
-    ? NEBULA_SHAPE.grabbed
-    : isVisualHovered ? NEBULA_SHAPE.hovered : NEBULA_SHAPE.rest;
+  const usesRegion = REGION_INSTRUMENTS.includes(instrument);
   // What this star's stem sounds like right now: overall level, low and high parts, and
   // a short flash on each new hit (a drum stroke, a plucked note).
-  const soundRef = useRef({ vol: 0, low: 0, high: 0, hit: 0, slow: 0 });
+  const soundRef = useRef({ vol: 0, low: 0, high: 0, hit: 0, slow: 0, age: 9 });
   const spectrumRef = useRef(null);
+  const interactionRef = useRef({ hovered: false, grabbed: false });
+
+  // Tells the white graph where this star is, what color it is and how it sounds and is
+  // being touched, so the graph can color a region around it.
+  useEffect(() => {
+    if (!usesRegion) return undefined;
+    registerRegion(orbKey, { color: REGION_COLORS[instrument] ?? color, group: meshRef, sound: soundRef, interaction: interactionRef });
+    return () => unregisterRegion(orbKey);
+  }, [usesRegion, orbKey, color, instrument]);
+  useEffect(() => {
+    interactionRef.current = { hovered: isVisualHovered, grabbed: isHandGrabbed || isDragging };
+  }, [isVisualHovered, isHandGrabbed, isDragging]);
 
   // Lets the controller picking logic know where this star is and how big a target it is.
   useEffect(() => {
     grabTargets.set(orbKey, {
       group: meshRef,
-      rayRadius: usesNebula ? NEBULA_GRAB_RADIUS : 0.28,
-      touchRadius: usesNebula ? NEBULA_GRAB_RADIUS * 0.6 : 0.3,
+      rayRadius: usesRegion ? REGION_GRAB_RADIUS : 0.28,
+      touchRadius: usesRegion ? REGION_GRAB_RADIUS * 0.6 : 0.3,
     });
     return () => {
       grabTargets.delete(orbKey);
       controllerHolds.forEach((key, index) => { if (key === orbKey) controllerHolds[index] = null; });
     };
-  }, [orbKey, usesNebula]);
+  }, [orbKey, usesRegion]);
 
   // The instrument silhouette is faint at rest, clear on hover, brightest once grabbed.
   useFrame((_, delta) => {
@@ -683,6 +467,10 @@ function InteractiveOrb({
   
   // Track dragging distance and active grabbing controller (0, 1, or 'mouse')
   const dragDistanceRef = useRef(2.5);
+  // Where the star was relative to the mouse ray when it was picked, so it does not jump on click.
+  const dragOffsetRef = useRef(new THREE.Vector3());
+  const dragStartDistanceRef = useRef(1);
+  const hitRef = useRef();
   const activeControllerRef = useRef(null);
   const isHoveredRef = useRef(false);
 
@@ -711,8 +499,8 @@ function InteractiveOrb({
 
     const handleWheel = (e) => {
       e.preventDefault();
-      dragDistanceRef.current += e.deltaY * -0.003;
-      dragDistanceRef.current = Math.max(0.5, Math.min(10.0, dragDistanceRef.current));
+      dragDistanceRef.current *= Math.exp(-e.deltaY * MOUSE_WHEEL_SPEED);
+      dragDistanceRef.current = Math.max(MOUSE_DRAG_MIN, Math.min(MOUSE_DRAG_MAX, dragDistanceRef.current));
     };
 
     window.addEventListener('wheel', handleWheel, { passive: false });
@@ -722,6 +510,8 @@ function InteractiveOrb({
   }, [isDragging]);
 
   const handlePointerDown = (e) => {
+    // Another star is the one the mouse is pointing at: let it take the click.
+    if (!gl.xr.isPresenting && !isNearestToRay(orbKey, raycaster.ray)) return;
     e.stopPropagation();
     if (e.target && typeof e.target.setPointerCapture === 'function' && e.pointerId) {
       try { e.target.setPointerCapture(e.pointerId); } catch { /* Capture is optional. */ }
@@ -749,8 +539,13 @@ function InteractiveOrb({
       dragDistanceRef.current = Math.max(0.3, Math.min(10.0, dist));
     } else {
       activeControllerRef.current = 'mouse';
+      // Hold the star where it is: remember how far it is along the ray and how far off the ray it sits.
       const dist = raycaster.ray.origin.distanceTo(meshRef.current.position);
-      dragDistanceRef.current = Math.max(0.5, Math.min(10.0, dist));
+      dragDistanceRef.current = Math.max(MOUSE_DRAG_MIN, Math.min(MOUSE_DRAG_MAX, dist));
+      dragStartDistanceRef.current = dragDistanceRef.current;
+      dragOffsetRef.current
+        .copy(meshRef.current.position)
+        .sub(raycaster.ray.at(dragDistanceRef.current, new THREE.Vector3()));
     }
     
     setIsDragging(true);
@@ -802,14 +597,35 @@ function InteractiveOrb({
       // A hit = the level jumping above its own slow average; it flashes, then fades quickly.
       sound.slow += (currentVol - sound.slow) * Math.min(1, delta * SOUND_SLOW_FOLLOW);
       const onset = Math.min(1, Math.max(0, currentVol - sound.slow - SOUND_HIT_MARGIN) * SOUND_HIT_GAIN);
+      // The ring of light that runs out from the sounding node starts on each fresh hit.
+      sound.age = onset > 0.5 && sound.hit < 0.3 ? 0 : Math.min(9, sound.age + delta);
       sound.hit = Math.max(sound.hit * Math.exp(-delta * SOUND_HIT_FADE), onset);
 
-      const baseScale = isVisualHovered && !usesNebula ? 1.25 : 1.0;
-      const pulseScale = baseScale + currentVol * (usesNebula ? NEBULA_PULSE_SCALE : 0.95) + (usesNebula ? soundRef.current.hit * NEBULA_HIT_SCALE : 0);
+      // A region does not swell (the graph itself shows the sound); a plain star pulses.
+      const baseScale = isVisualHovered && !usesRegion ? 1.25 : 1.0;
+      const pulseScale = usesRegion ? 1 : baseScale + currentVol * 0.95;
       meshRef.current.scale.set(pulseScale, pulseScale, pulseScale);
     } else if (meshRef.current) {
-      const baseScale = isVisualHovered && !usesNebula ? 1.25 : 1.0;
+      const baseScale = isVisualHovered && !usesRegion ? 1.25 : 1.0;
       meshRef.current.scale.set(baseScale, baseScale, baseScale);
+    }
+
+    // Far from the eye the click area grows, so a zoomed-out star is not a tiny target.
+    if (hitRef.current && usesRegion && meshRef.current) {
+      const shape = regionShapes.get(orbKey);
+      const eyeDistance = state.camera.position.distanceTo(meshRef.current.position);
+      const reach = Math.max(shape ? shape.radius : 0, REGION_GRAB_RADIUS, eyeDistance * HIT_RADIUS_PER_METER);
+      // The click area sits on the colored region itself (not on the star's own point, which can
+      // be up to a meter away) and is as wide as that region looks.
+      if (shape) hitRef.current.position.set(shape.center[0], shape.center[1], shape.center[2]).sub(meshRef.current.position);
+      else hitRef.current.position.set(0, 0, 0);
+      hitRef.current.scale.setScalar(reach / REGION_GRAB_RADIUS);
+      const target = grabTargets.get(orbKey);
+      if (target) {
+        target.hitCenter = target.hitCenter ?? new THREE.Vector3();
+        target.hitCenter.copy(meshRef.current.position).add(hitRef.current.position);
+        target.hitReach = reach;
+      }
     }
 
     // VR Ray Pointer & Proximity Detection, Hover Feedback, and Auto-Grab (60/90fps frame loop)
@@ -926,18 +742,11 @@ function InteractiveOrb({
 
       }
     } else if (meshRef.current) {
-      // Desktop Mouse Ray Position Update
-      const targetPoint = new THREE.Vector3();
-      raycaster.ray.at(dragDistanceRef.current, targetPoint);
-
-      const center = state.camera.position.clone();
-      const dirToTarget = new THREE.Vector3().subVectors(targetPoint, center);
-      const distToTarget = dirToTarget.length();
-
-      const clampedDist = Math.max(0.5, Math.min(10.0, distToTarget));
-      dirToTarget.normalize().multiplyScalar(clampedDist);
-
-      const nextPoint = new THREE.Vector3().addVectors(center, dirToTarget);
+      // Desktop Mouse Ray Position Update: follow the mouse ray, keeping the grab offset.
+      // The offset scales with the distance: the star stays at the same spot on screen as the
+      // wheel moves it, so it can never slide off to the side or behind the eye.
+      const nextPoint = raycaster.ray.at(dragDistanceRef.current, new THREE.Vector3())
+        .addScaledVector(dragOffsetRef.current, dragDistanceRef.current / dragStartDistanceRef.current);
 
       meshRef.current.position.copy(nextPoint);
       coordsRef.current[orbKey].copy(nextPoint);
@@ -953,37 +762,24 @@ function InteractiveOrb({
         position={initialPos}
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
-        onPointerOver={(e) => { e.stopPropagation(); setHovered(true); }}
-        onPointerOut={(e) => { e.stopPropagation(); setHovered(false); }}
+        onPointerOver={(e) => { e.stopPropagation(); setHovered(true); if (!isDragging) setIsDraggingOrb(true); }}
+        onPointerOut={(e) => { e.stopPropagation(); setHovered(false); if (!isDragging) setIsDraggingOrb(false); }}
       >
         {/* Invisible Hit-Test Proxy Sphere for 100% Precise Mouse/Raycast Drag Interaction */}
-        <mesh visible={false}>
-          <sphereGeometry args={[usesNebula ? NEBULA_GRAB_RADIUS : 0.22, 16, 16]} />
+        <mesh ref={hitRef} visible={false}>
+          <sphereGeometry args={[usesRegion ? REGION_GRAB_RADIUS : 0.22, 16, 16]} />
           <meshBasicMaterial />
         </mesh>
 
-        {/* Volumetric Soft-Glow Celestial Star Sprite (Compact Toned-Down Pastel Glow) */}
-        {usesNebula && (
-          <StarNebula
-            instrument={instrument}
-            seedKey={orbKey}
-            color={color}
-            shapeTarget={nebulaShape}
-            soundRef={soundRef}
-          />
-        )}
-
-        {starTexture && (
+        {!usesRegion && starTexture && (
           <sprite
             raycast={() => null}
-            scale={usesNebula
-              ? (isVisualHovered ? [4.6, 4.6, 4.6] : [4.2, 4.2, 4.2])
-              : (isVisualHovered ? [1.45, 1.45, 1.45] : [1.15, 1.15, 1.15])}
+            scale={isVisualHovered ? [1.45, 1.45, 1.45] : [1.15, 1.15, 1.15]}
           >
             <spriteMaterial
               map={starTexture}
               transparent={true}
-              opacity={usesNebula ? 0.3 : (isVisualHovered ? 0.95 : 0.82)}
+              opacity={isVisualHovered ? 0.95 : 0.82}
               blending={THREE.AdditiveBlending}
               depthWrite={false}
             />
@@ -991,7 +787,7 @@ function InteractiveOrb({
         )}
 
         {/* Instrument silhouette cut into the star's glowing core */}
-        {!usesNebula && instrumentTexture && (
+        {!usesRegion && instrumentTexture && (
           <sprite ref={iconRef} raycast={() => null} scale={[ICON_STATE.rest.scale, ICON_STATE.rest.scale, ICON_STATE.rest.scale]} renderOrder={10}>
             <spriteMaterial
               map={instrumentTexture}
@@ -1057,7 +853,9 @@ function VRAudioExperience({
     camera.position.set(...ENTRY_CAMERA_POSITION);
     const controls = orbitControlsRef.current;
     if (controls) {
-      controls.target.set(...ENTRY_CAMERA_TARGET);
+      // Turn the view around the middle of the whole graph (where the listener's head is), not
+      // around a point out in front of the starting camera.
+      controls.target.set(...WHITE_GRAPH_CENTER);
       controls.update();
     } else {
       camera.lookAt(...ENTRY_CAMERA_TARGET);
@@ -1128,28 +926,24 @@ function VRAudioExperience({
       endSession: () => gl.xr.getSession()?.end(),
       setStemPosition: (key, position) => orbCoordsRef.current[key]?.set(...position),
       getControllerHolds: () => [...controllerHolds],
-      getRenderStats: () => ({ ...gl.info.render }),
-      getFacingInfo: () => {
-        const forward = (q) => new THREE.Vector3(0, 0, -1).applyQuaternion(q).toArray().map((v) => +v.toFixed(2));
-        const xrCamera = gl.xr.getCamera();
-        const eyes = xrCamera.cameras?.map((eye) => {
-          const q = new THREE.Quaternion();
-          eye.matrixWorld.decompose(new THREE.Vector3(), q, new THREE.Vector3());
-          return forward(q);
-        });
-        // How squarely each nebula faces the camera (1 = straight at it).
-        const nebulae = Object.fromEntries([...getNebulae()].map(([key, entry]) => {
-          const group = entry.group.current;
-          const normal = new THREE.Vector3(0, 0, 1).applyQuaternion(group.quaternion);
-          const viewer = gl.xr.isPresenting ? gl.xr.getCamera() : camera;
-          const toCamera = viewer.position.clone().sub(group.getWorldPosition(new THREE.Vector3())).normalize();
-          return [key, +normal.dot(toCamera).toFixed(3)];
-        }));
-        return { presenting: gl.xr.isPresenting, mainCameraForward: forward(camera.quaternion), eyes, nebulae };
+      getDragging: () => ({ ...draggingOrbsRef.current }),
+      getOrbitTarget: () => orbitControlsRef.current?.target.toArray() ?? null,
+      // Where a star is on the page (pixels), and how far the eye is from it.
+      getStarOnScreen: (key) => {
+        const position = orbCoordsRef.current[key];
+        if (!position) return null;
+        const projected = position.clone().project(camera);
+        const box = gl.domElement.getBoundingClientRect();
+        return {
+          x: box.left + (projected.x + 1) / 2 * box.width,
+          y: box.top + (1 - projected.y) / 2 * box.height,
+          distance: camera.position.distanceTo(position),
+          // In front of the eye and inside the picture.
+          visible: projected.z < 1 && Math.abs(projected.x) <= 1 && Math.abs(projected.y) <= 1,
+        };
       },
-      getNebulaShapes: () => Object.fromEntries(
-        [...getNebulae()].map(([key, entry]) => [key, +entry.state.shape.toFixed(2)]),
-      ),
+      getCameraDistanceTo: (key) => (orbCoordsRef.current[key] ? camera.position.distanceTo(orbCoordsRef.current[key]) : null),
+      getRenderStats: () => ({ ...gl.info.render }),
       getControllerState: () => {
         const session = gl.xr.getSession();
         return {
@@ -1292,7 +1086,7 @@ function VRAudioExperience({
           // Play all active stems, catching AbortError individually to prevent unhandled promise rejections on song changes
           await Promise.all(
             Object.values(elements).map(audio =>
-              audio.play().catch(err => {
+              (isStillMode ? Promise.resolve() : audio.play()).catch(err => {
                 if (err.name !== 'AbortError') {
                   console.warn("Spatial stem play failed:", err);
                 }
@@ -1486,7 +1280,6 @@ function VRAudioExperience({
           isHandGrabbed={handInteraction.grabbedOrbKey === stem.key}
         />
       ))}
-      <NebulaBridges />
     </>
   );
 }
@@ -1558,20 +1351,17 @@ export function VRScene({ store, starColors, handData, isInVR, isDesktopVR, acti
         <XR store={store}>
             {onSceneReady && <SceneReadySignal onReady={onSceneReady} />}
             <CameraRig vrCameraPos={vrCameraPos} vrCameraRot={vrCameraRot} />
-            <color attach="background" args={['#03040a']} />
+            <color attach="background" args={['#07070a']} />
             
             {isVRActive && vrModeType === 2 && <ambientLight intensity={0.5} />}
             
-            {/* Night-sky dome: blocks WebXR passthrough and lights up around sounding stars */}
-            <SkyBackdrop />
-            
-            {/* Background 3000 ambient particle stars - Always rendered in 3D Space */}
-            {isVRActive && (
-              <Suspense fallback={null}>
-                <Stars3D />
-              </Suspense>
-            )}
-            
+            {/* A plain dark dome (it also blocks WebXR passthrough), and the white graph inside it */}
+            <mesh scale={[45, 45, 45]} raycast={() => null}>
+              <sphereGeometry args={[1, 32, 32]} />
+              <meshBasicMaterial color="#07070a" side={THREE.BackSide} />
+            </mesh>
+            {isVRActive && vrModeType === 2 && <WhiteGraph />}
+
             <ControllerHelpers />
             {isDesktopVR && <OrbitControls ref={orbitControlsRef} enabled={!isDraggingOrb} enableZoom={true} enablePan={false} maxDistance={25} minDistance={1} />}
 

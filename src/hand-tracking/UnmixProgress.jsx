@@ -8,6 +8,7 @@ export function UnmixProgress({ progress, label }) {
 
   return (
     <div
+      className="unmix-progress"
       aria-hidden="true"
       style={{
         position: 'fixed',

@@ -131,3 +131,15 @@ img {
   -webkit-user-drag: none;
   user-drag: none;
 }
+
+/* Still mode (?still) inside the 3D space: no text or controls on screen, only the scene. */
+.still-space .global-header,
+.still-space .global-header-title,
+.still-space .back-arrow-btn,
+.still-space .music-player-hud,
+.still-space .webcam-monitor,
+.still-space .vr-enter-button,
+.still-space .gesture-hint,
+.still-space .unmix-progress {
+  display: none !important;
+}
