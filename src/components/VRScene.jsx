@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { SONG_STEMS, getStemColor } from '../audio/songStems';
 import { getInstrumentTexture } from './instrumentIcons';
 import { WhiteGraph } from './graph/WhiteGraph';
-import { HIT_AREA, REGION_COLORS, REGION_LABELS, WHITE_GRAPH_CENTER } from './graph/graphConstants';
+import { REGION_COLORS, WHITE_GRAPH_CENTER } from './graph/graphConstants';
 import { regionShapes, registerRegion, unregisterRegion } from './graph/graphRegistry';
 import { isStillMode } from '../stillMode';
 import { ENTRY_CAMERA_POSITION, ENTRY_CAMERA_TARGET } from '../audio/stemLayout';
@@ -272,14 +272,14 @@ function getThumbstickY(gamepad) {
 const REGION_INSTRUMENTS = ['vocal', 'drum', 'bass', 'piano', 'guitar'];
 // A region is grabbed anywhere within this distance of its sounding node (a bit inside the
 // colored area's edge), and regions are kept this far apart so two never sit on top of each other.
-const REGION_GRAB_RADIUS = HIT_AREA.MIN_RADIUS;
+const REGION_GRAB_RADIUS = 1.5;
 // Dragging a region with the mouse: how near the eye and how far away (meters) the wheel can take it.
 // The far limit covers the whole graph even when the camera is zoomed all the way out.
 const MOUSE_DRAG_MIN = 0.6; // closest the wheel brings a held region: right in front of the eye, still in view
 const MOUSE_DRAG_MAX = 40;
 const MOUSE_WHEEL_SPEED = 0.0015; // per wheel unit; the distance changes by a share, so far and near both feel even
 // Far away, a region is a tiny target; its click area grows with distance so it stays about as easy to hit.
-const HIT_RADIUS_PER_METER = HIT_AREA.PER_METER;
+const HIT_RADIUS_PER_METER = 0.06;
 const STAR_MIN_DISTANCE = 2.2;
 // Reading a stem's sound (the analyser has 128 bins of about 190 Hz each).
 const SOUND_LOW_BINS = 4; // below ~750 Hz: the weight of drums and bass
@@ -431,7 +431,7 @@ function InteractiveOrb({
   // being touched, so the graph can color a region around it.
   useEffect(() => {
     if (!usesRegion) return undefined;
-    registerRegion(orbKey, { color: REGION_COLORS[instrument] ?? color, label: REGION_LABELS[instrument], group: meshRef, sound: soundRef, interaction: interactionRef });
+    registerRegion(orbKey, { color: REGION_COLORS[instrument] ?? color, group: meshRef, sound: soundRef, interaction: interactionRef });
     return () => unregisterRegion(orbKey);
   }, [usesRegion, orbKey, color, instrument]);
   useEffect(() => {
@@ -928,13 +928,6 @@ function VRAudioExperience({
       getControllerHolds: () => [...controllerHolds],
       getDragging: () => ({ ...draggingOrbsRef.current }),
       getOrbitTarget: () => orbitControlsRef.current?.target.toArray() ?? null,
-      getCameraPosition: () => camera.position.toArray(),
-      // Where a point in the scene is on the page (pixels).
-      getPointOnScreen: (point) => {
-        const projected = new THREE.Vector3(...point).project(camera);
-        const box = gl.domElement.getBoundingClientRect();
-        return { x: box.left + (projected.x + 1) / 2 * box.width, y: box.top + (1 - projected.y) / 2 * box.height };
-      },
       // Where a star is on the page (pixels), and how far the eye is from it.
       getStarOnScreen: (key) => {
         const position = orbCoordsRef.current[key];

@@ -61,21 +61,6 @@ export function buildGraph(seedText = 'white-graph') {
     if (!tooClose(point)) positions.push(point);
   }
 
-  // Fill the hole around the head so a region brought close to the eye has nodes to color. These
-  // come from their own random stream, so the rest of the layout stays exactly as it was.
-  const nearRandom = seededRandom(`${seedText}:near`);
-  for (let i = 0; i < GRAPH.NEAR_COUNT; i += 1) {
-    const direction = [gaussian(nearRandom), gaussian(nearRandom), gaussian(nearRandom)];
-    const length = Math.hypot(...direction) || 1;
-    const inner3 = GRAPH.NEAR_INNER_RADIUS ** 3;
-    const radius = (inner3 + nearRandom() * (GRAPH.NEAR_OUTER_RADIUS ** 3 - inner3)) ** (1 / 3);
-    positions.push([
-      cx + (direction[0] / length) * radius,
-      cy + (direction[1] / length) * radius * GRAPH.FLATTEN,
-      cz + (direction[2] / length) * radius,
-    ]);
-  }
-
   // Thin out only the crowded spots: a node is dropped when too many nodes already sit close
   // around it. Sparse parts of the graph are left exactly as they were.
   const crowdSquared = GRAPH.CROWD_RADIUS ** 2;

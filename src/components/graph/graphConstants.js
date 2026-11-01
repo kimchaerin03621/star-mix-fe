@@ -15,11 +15,6 @@ export const GRAPH = {
   LINKS_PER_NODE: 3, // each node is joined to this many nearest neighbours
   MAX_LINK_LENGTH: 1.3,
   EXTRA_LINK_LENGTH: 0.5, // a third link only if that neighbour is this close
-  // Extra nodes in the ball around the head, where the main layout leaves a hole. Without them a
-  // region brought close to the eye has nothing to color there and cannot look close.
-  NEAR_COUNT: 150,
-  NEAR_INNER_RADIUS: 0.5,
-  NEAR_OUTER_RADIUS: 2.4,
   // Crowded spots are thinned: at most CROWD_MAX nodes within CROWD_RADIUS (meters) of one another.
   CROWD_RADIUS: 0.5,
   CROWD_MAX: 9,
@@ -47,35 +42,6 @@ export const OCCLUDER = {
   DEPTH_FADE: 0.6, // nodes within this distance of the region's depth fade in gradually
 };
 
-// How a region shows that it is pointed at (hand hover, mouse, controller) or held.
-export const FOCUS = {
-  POINTED: 0.7, // how strong the cue is while pointed at (1 = held)
-  EASE_PER_SECOND: 12,
-  GROW: 1.2, // nodes get this much bigger when held
-  BRIGHTEN: 1.3, // and this much brighter
-  HALO: 3.5, // the soft glow behind them gets this much stronger
-  DIM_OTHERS: 0.7, // the other regions dim by this much while one is pointed at or held
-  RING_SCALE: 1.0, // the circle around the region, relative to the region's click area
-  RING_OPACITY: 1.0,
-  LABEL_SIZE: 0.075, // the instrument name, as a share of its distance from the eye
-};
-
-// What each instrument is called on screen while its region is pointed at or held.
-export const REGION_LABELS = {
-  vocal: '보컬',
-  drum: '드럼',
-  bass: '베이스',
-  piano: '피아노',
-  guitar: '기타',
-};
-
-// How close a colored region can come to the eye and still look close: it keeps growing and stays
-// bright (a plain background node fades out well before this).
-export const CLOSE = {
-  FADE: [0.15, 0.6], // meters from the eye where a colored node fades in
-  MAX_SCREEN_SIZE: 0.22, // a colored node may be this share of its distance wide
-};
-
 // Region colors. The graph is white, so a white-ish instrument color would look empty;
 // each instrument gets a clearly colored one here instead.
 export const REGION_COLORS = {
@@ -84,14 +50,6 @@ export const REGION_COLORS = {
   bass: '#9b6bff',
   piano: '#6cc8ff',
   guitar: '#7be0a4',
-};
-
-// How wide a region's click area is (mouse, hand and controller all use it): never smaller than
-// MIN_RADIUS meters, as wide as the colored area looks, and wider with distance so a far region
-// is not a tiny target.
-export const HIT_AREA = {
-  MIN_RADIUS: 1.5,
-  PER_METER: 0.06,
 };
 
 // How a region (one instrument's colored area) is made and looks.
