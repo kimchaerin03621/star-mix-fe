@@ -9,6 +9,7 @@ import { WhiteGraph } from './graph/WhiteGraph';
 import { REGION_COLORS, WHITE_GRAPH_CENTER } from './graph/graphConstants';
 import { regionShapes, registerRegion, unregisterRegion } from './graph/graphRegistry';
 import { isStillMode } from '../stillMode';
+import { distanceCutoff, distanceGain, placeSound } from '../audio/spatialMotion';
 import { ENTRY_CAMERA_POSITION, ENTRY_CAMERA_TARGET } from '../audio/stemLayout';
 import { WebcamGestureController } from '../hand-tracking/WebcamGestureController';
 
@@ -865,6 +866,8 @@ function VRAudioExperience({
   const audioCtxRef = useRef(null);
   const audioElementsRef = useRef({});
   const pannersRef = useRef({});
+  const distanceNodesRef = useRef({});
+  const soundPlaceRef = useRef(new THREE.Vector3());
 
   // Dev-only: lets the tests read how the sound is currently placed around the listener.
   useEffect(() => {
@@ -875,6 +878,7 @@ function VRAudioExperience({
       return {
         position: [listener.positionX.value, listener.positionY.value, listener.positionZ.value],
         forward: [listener.forwardX.value, listener.forwardY.value, listener.forwardZ.value],
+        distance: Object.fromEntries(Object.entries(distanceNodesRef.current).map(([key, nodes]) => [key, { gain: nodes.level.gain.value, cutoff: nodes.filter.frequency.value }])),
         panners: Object.fromEntries(Object.entries(pannersRef.current).map(([key, panner]) => [key, [panner.positionX.value, panner.positionY.value, panner.positionZ.value]])),
       };
     };
@@ -1030,6 +1034,7 @@ function VRAudioExperience({
 
       const elements = {};
       const panners = {};
+      const distanceNodes = {};
       const gains = {};
       const analysers = {};
 
@@ -1058,10 +1063,19 @@ function VRAudioExperience({
 
         const panner = ctx.createPanner();
         panner.panningModel = 'HRTF'; // Web Audio API HRTF (Binaural 3D Spatial Audio)
+        // The panner only places the sound in the room; how loud and bright it is at its distance
+        // is set by the distance gain and lowpass after it (see audio/spatialMotion.js).
         panner.distanceModel = 'inverse';
         panner.refDistance = SPATIAL_REF_DISTANCE;
         panner.maxDistance = 10000;
-        panner.rolloffFactor = 1.0; // Realistic 3D distance attenuation (Dolby Atmos feel)
+        panner.rolloffFactor = 0;
+
+        const distanceFilter = ctx.createBiquadFilter();
+        distanceFilter.type = 'lowpass';
+        distanceFilter.frequency.value = 20000;
+        distanceFilter.Q.value = 0.5;
+        const distanceLevel = ctx.createGain();
+        distanceLevel.gain.value = 1;
 
         // 초기 지정 3D 공간 좌표 주입
         const pos = orbCoordsRef.current[stem.key] || new THREE.Vector3(...stem.initialPos);
@@ -1073,16 +1087,20 @@ function VRAudioExperience({
         source.connect(gain);
         gain.connect(analyser);
         analyser.connect(panner);
-        panner.connect(lowShelf);
+        panner.connect(distanceFilter);
+        distanceFilter.connect(distanceLevel);
+        distanceLevel.connect(lowShelf);
 
         elements[stem.key] = audio;
         panners[stem.key] = panner;
+        distanceNodes[stem.key] = { filter: distanceFilter, level: distanceLevel };
         gains[stem.key] = gain;
         analysers[stem.key] = analyser;
       });
 
       audioElementsRef.current = elements;
       pannersRef.current = panners;
+      distanceNodesRef.current = distanceNodes;
       gainsRef.current = gains;
       analysersRef.current = analysers;
 
@@ -1244,9 +1262,19 @@ function VRAudioExperience({
       const audio = audioElementsRef.current[stem.key];
 
       if (panner && pos) {
-        panner.positionX.setValueAtTime(pos.x, webAudioTime);
-        panner.positionY.setValueAtTime(pos.y, webAudioTime);
-        panner.positionZ.setValueAtTime(pos.z, webAudioTime);
+        // Wider angles than the star's real ones, so moving it swings the sound further.
+        const placed = placeSound(soundPlaceRef.current, pos, head.position, head.quaternion);
+        panner.positionX.setValueAtTime(placed.x, webAudioTime);
+        panner.positionY.setValueAtTime(placed.y, webAudioTime);
+        panner.positionZ.setValueAtTime(placed.z, webAudioTime);
+
+        // Nearer is louder and brighter, farther quieter and duller.
+        const distance = pos.distanceTo(head.position);
+        const nodes = distanceNodesRef.current[stem.key];
+        if (nodes) {
+          nodes.level.gain.setTargetAtTime(distanceGain(distance), webAudioTime, 0.05);
+          nodes.filter.frequency.setTargetAtTime(distanceCutoff(distance), webAudioTime, 0.05);
+        }
       }
 
       if (audio) {
