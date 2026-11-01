@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { OCCLUDER, PLAIN, REGION } from './graphConstants';
+import { FOCUS, OCCLUDER, PLAIN, REGION } from './graphConstants';
 import { buildGraph, growRegions, nearestNode } from './graphLayout';
 import { getRegions, regionShapes } from './graphRegistry';
 import { isStillMode } from '../../stillMode';
@@ -27,6 +27,8 @@ const SHARED_GLSL = /* glsl */ `
   uniform float uHigh[${MAX_REGIONS}];
   uniform float uHit[${MAX_REGIONS}];
   uniform float uAge[${MAX_REGIONS}];
+  uniform float uFocus[${MAX_REGIONS}];
+  uniform float uAnyFocus;
   uniform vec3 uSeed[${MAX_REGIONS}];
   uniform float uRegionRadius[${MAX_REGIONS}];
   attribute vec3 aPos;
@@ -85,6 +87,16 @@ const SHARED_GLSL = /* glsl */ `
     return exp(-pow(hop - front, 2.0) * 1.2) * exp(-uAge[r] * 1.6) * aAmount;
   }
 
+  // How much this point's region is being pointed at (0.55) or held (1). While one region is
+  // pointed at or held, the others dim a little, so it is clear which one it is.
+  float focusOf() {
+    int r = int(aRegion + 0.5);
+    return r >= 0 ? uFocus[r] : 0.0;
+  }
+  float othersDim() {
+    return 1.0 - ${FOCUS.DIM_OTHERS.toFixed(2)} * uAnyFocus * (1.0 - focusOf());
+  }
+
   float depthDim(float dist) {
     return mix(1.0, 0.18, smoothstep(${FAR_DIM[0].toFixed(1)}, ${FAR_DIM[1].toFixed(1)}, dist));
   }
@@ -120,10 +132,11 @@ const NODE_VERTEX = /* glsl */ `
     float sparkle = high * (0.5 + 0.5 * sin(uTime * 14.0 + aSeed * 60.0));
     // Nodes twinkle gently, like the nebula stars.
     float twinkle = 0.8 + 0.2 * sin(uTime * 2.0 + aSeed * 40.0);
-    float size = aSize * twinkle * ${GLOW_SIZE.toFixed(1)} * (1.0 + strength * 1.1 + sparkle * 1.3 + hit * 0.6 + ring * 1.2);
+    float focus = focusOf();
+    float size = aSize * twinkle * ${GLOW_SIZE.toFixed(1)} * (1.0 + strength * 1.1 + sparkle * 1.3 + hit * 0.6 + ring * 1.2 + focus * ${FOCUS.GROW.toFixed(2)});
     size = min(size, dist * ${MAX_SCREEN_SIZE.toFixed(3)});
-    vColor *= (1.0 + hit * 0.6 + sparkle + ring * 0.9);
-    vAlpha = strength * mix(depthDim(dist), 1.0, strength * 0.7) * nearFade(dist);
+    vColor *= (1.0 + hit * 0.6 + sparkle + ring * 0.9 + focus * ${FOCUS.BRIGHTEN.toFixed(2)});
+    vAlpha = strength * mix(depthDim(dist), 1.0, strength * 0.7) * nearFade(dist) * othersDim();
 #endif
     viewPosition.xy += position.xy * size;
     gl_Position = projectionMatrix * viewPosition;
@@ -157,8 +170,9 @@ const HALO_VERTEX = /* glsl */ `
     float strength = tint(0.0);
     vec4 viewPosition = modelViewMatrix * vec4(drift(aPos, aSeed, strength), 1.0);
     float dist = length(viewPosition.xyz);
-    vAlpha = ${HALO_ALPHA.toFixed(2)} * strength * strength * mix(depthDim(dist), 1.0, 0.6) * nearFade(dist);
-    float size = min(aSize * ${HALO_SIZE.toFixed(1)}, dist * 0.12) * step(0.02, strength);
+    float focus = focusOf();
+    vAlpha = ${HALO_ALPHA.toFixed(2)} * (1.0 + focus * ${FOCUS.HALO.toFixed(1)}) * strength * strength * mix(depthDim(dist), 1.0, 0.6) * nearFade(dist) * othersDim();
+    float size = min(aSize * ${HALO_SIZE.toFixed(1)} * (1.0 + focus * 0.5), dist * 0.12) * step(0.02, strength);
     viewPosition.xy += position.xy * size;
     gl_Position = projectionMatrix * viewPosition;
     vUv = position.xy + 0.5;
@@ -191,8 +205,9 @@ const LINK_VERTEX = /* glsl */ `
     int r = int(aRegion + 0.5);
     float hit = r >= 0 ? uHit[r] * aAmount : 0.0;
     float ring = r >= 0 ? wave(r) : 0.0;
-    vColor *= (1.0 + hit * 0.5 + ring * 0.8);
-    vAlpha = strength * 0.9 * mix(depthDim(dist), 1.0, strength * 0.7) * nearFade(dist);
+    float focus = focusOf();
+    vColor *= (1.0 + hit * 0.5 + ring * 0.8 + focus * ${FOCUS.BRIGHTEN.toFixed(2)} * 0.7);
+    vAlpha = strength * 0.9 * (1.0 + focus * 0.4) * mix(depthDim(dist), 1.0, strength * 0.7) * nearFade(dist) * othersDim();
 #endif
     gl_Position = projectionMatrix * viewPosition;
   }
@@ -206,6 +221,7 @@ const LINK_FRAGMENT = /* glsl */ `
   }
 `;
 
+const WHITE = new THREE.Color(1, 1, 1);
 const colorCache = new Map();
 const colorOf = (value) => {
   if (!colorCache.has(value)) colorCache.set(value, new THREE.Color(value));
@@ -219,6 +235,8 @@ const graphUniforms = {
   uLevel: { value: new Array(MAX_REGIONS).fill(0) },
   uHigh: { value: new Array(MAX_REGIONS).fill(0) },
   uHit: { value: new Array(MAX_REGIONS).fill(0) },
+  uFocus: { value: new Array(MAX_REGIONS).fill(0) },
+  uAnyFocus: { value: 0 },
   uAge: { value: new Array(MAX_REGIONS).fill(9) },
   uSeed: { value: Array.from({ length: MAX_REGIONS }, () => new THREE.Vector3()) },
   uRegionRadius: { value: new Array(MAX_REGIONS).fill(1.5) },
@@ -236,8 +254,28 @@ const store = {
   seeds: [],
   seedKeys: [],
   regionRadius: [],
+  focus: [],
   dirty: true,
 };
+
+// A thin circle around the region being pointed at (pulsing) or held (steady), facing the eye.
+const ringGeometry = new THREE.RingGeometry(0.965, 1, 120);
+
+const rings = Array.from({ length: MAX_REGIONS }, () => {
+  const material = new THREE.MeshBasicMaterial({
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+  });
+  const mesh = new THREE.Mesh(ringGeometry, material);
+  mesh.visible = false;
+  mesh.raycast = () => null;
+  mesh.renderOrder = 3;
+  mesh.frustumCulled = false;
+  return mesh;
+});
 
 export function WhiteGraph() {
   const { graph, nodeGeometry, linkGeometry, nodeMaterial, linkMaterial, plainNodeMaterial, plainLinkMaterial, haloMaterial } = useMemo(() => {
@@ -368,6 +406,7 @@ export function WhiteGraph() {
           seedNode: store.seeds[index],
           seedPosition: store.seeds[index] >= 0 ? graph.nodes[store.seeds[index]].position : null,
           nodes: counts.get(index) ?? 0,
+          focus: +(store.focus[index] ?? 0).toFixed(2),
         })),
       };
     };
@@ -498,11 +537,34 @@ export function WhiteGraph() {
       store.dirty = moving;
     }
 
-    // 4. Each region's color and how loud it is right now.
+    // 4. Each region's color and how loud it is right now, and whether it is pointed at or held.
+    let focusMax = 0;
     entries.forEach(([, entry], index) => {
       const { sound, interaction } = entry;
       // (Still mode: pointing at a region does not light it up.)
-      const active = !isStillMode && (interaction.current.hovered || interaction.current.grabbed) ? REGION.HOVER_STRENGTH : 0;
+      const pointed = !isStillMode && interaction.current.hovered;
+      const held = !isStillMode && interaction.current.grabbed;
+      const active = pointed || held ? REGION.HOVER_STRENGTH : 0;
+      // Ease toward 0 (left alone), 0.55 (pointed at) or 1 (held).
+      const focusTarget = held ? 1 : pointed ? FOCUS.POINTED : 0;
+      const focusNow = store.focus[index] ?? 0;
+      store.focus[index] = focusNow + (focusTarget - focusNow) * Math.min(1, delta * FOCUS.EASE_PER_SECOND);
+      graphUniforms.uFocus.value[index] = store.focus[index];
+      focusMax = Math.max(focusMax, store.focus[index]);
+
+      const ring = rings[index];
+      const shape = regionShapes.get(entry.key ?? keys[index]);
+      if (shape && store.focus[index] > 0.01) {
+        const pulse = held ? 1 : 0.75 + 0.25 * Math.sin(state.clock.elapsedTime * 5);
+        ring.visible = true;
+        ring.position.set(shape.center[0], shape.center[1], shape.center[2]);
+        ring.scale.setScalar(shape.radius * FOCUS.RING_SCALE);
+        ring.lookAt(state.camera.position);
+        ring.material.color.copy(colorOf(entry.color)).lerp(WHITE, 0.35);
+        ring.material.opacity = Math.min(1, store.focus[index] * FOCUS.RING_OPACITY * pulse);
+      } else {
+        ring.visible = false;
+      }
       graphUniforms.uColor.value[index].copy(colorOf(entry.color));
       graphUniforms.uLevel.value[index] = Math.min(
         1.4,
@@ -515,7 +577,12 @@ export function WhiteGraph() {
       if (seed >= 0) graphUniforms.uSeed.value[index].fromArray(graph.nodes[seed].position);
       graphUniforms.uRegionRadius.value[index] = store.regionRadius[index] ?? 1.5;
     });
-    for (let i = entries.length; i < MAX_REGIONS; i += 1) graphUniforms.uLevel.value[i] = 0;
+    for (let i = entries.length; i < MAX_REGIONS; i += 1) {
+      graphUniforms.uLevel.value[i] = 0;
+      graphUniforms.uFocus.value[i] = 0;
+      rings[i].visible = false;
+    }
+    graphUniforms.uAnyFocus.value = focusMax;
   });
 
   return (
@@ -525,6 +592,7 @@ export function WhiteGraph() {
       <mesh geometry={nodeGeometry} material={haloMaterial} frustumCulled={false} raycast={() => null} renderOrder={0} />
       <lineSegments geometry={linkGeometry} material={linkMaterial} frustumCulled={false} raycast={() => null} renderOrder={1} />
       <mesh geometry={nodeGeometry} material={nodeMaterial} frustumCulled={false} raycast={() => null} renderOrder={2} />
+      {rings.map((ring, index) => <primitive key={index} object={ring} />)}
     </group>
   );
 }

@@ -42,6 +42,18 @@ export const OCCLUDER = {
   DEPTH_FADE: 0.6, // nodes within this distance of the region's depth fade in gradually
 };
 
+// How a region shows that it is pointed at (hand hover, mouse, controller) or held.
+export const FOCUS = {
+  POINTED: 0.55, // how strong the cue is while pointed at (1 = held)
+  EASE_PER_SECOND: 10,
+  GROW: 0.9, // nodes get this much bigger when held
+  BRIGHTEN: 0.9, // and this much brighter
+  HALO: 2.5, // the soft glow behind them gets this much stronger
+  DIM_OTHERS: 0.45, // the other regions dim by this much while one is pointed at or held
+  RING_SCALE: 1.0, // the circle around the region, relative to the region's click area
+  RING_OPACITY: 0.8,
+};
+
 // Region colors. The graph is white, so a white-ish instrument color would look empty;
 // each instrument gets a clearly colored one here instead.
 export const REGION_COLORS = {
