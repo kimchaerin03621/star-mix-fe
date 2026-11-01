@@ -64,6 +64,14 @@ export const REGION_COLORS = {
   guitar: '#7be0a4',
 };
 
+// How wide a region's click area is (mouse, hand and controller all use it): never smaller than
+// MIN_RADIUS meters, as wide as the colored area looks, and wider with distance so a far region
+// is not a tiny target.
+export const HIT_AREA = {
+  MIN_RADIUS: 1.5,
+  PER_METER: 0.06,
+};
+
 // How a region (one instrument's colored area) is made and looks.
 export const REGION = {
   HOPS: 4, // it spreads this many links from its sounding node

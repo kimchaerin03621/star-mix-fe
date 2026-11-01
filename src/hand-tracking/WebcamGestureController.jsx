@@ -2,6 +2,8 @@ import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { HAND_GESTURE_CONFIG as CONFIG } from './gestureConfig';
+import { HIT_AREA } from '../components/graph/graphConstants';
+import { regionShapes } from '../components/graph/graphRegistry';
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -34,6 +36,7 @@ export function WebcamGestureController({
   const grabRef = useRef(null);
   const hoverMemoryRef = useRef(null);
   const orbitGestureRef = useRef(null);
+  const zoomCandidateRef = useRef(null);
   const interactionRef = useRef({
     hoveredOrbKey: null,
     grabbedOrbKey: null,
@@ -165,14 +168,27 @@ export function WebcamGestureController({
     // Hover is evaluated only when idle. One globally nearest star wins.
     if (!grab) {
       let nearest = null;
+      const aspect = size.width / size.height;
+      const halfTan = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
       hands.filter((hand) => hand.gestures.openPalm).forEach((hand) => {
         const point = toScreenPoint(hand);
         stems.forEach((stem) => {
           const orb = orbCoordsRef.current[stem.key];
           if (!orb) return;
-          projectedRef.current.copy(orb).project(camera);
-          const distance = Math.hypot(projectedRef.current.x - point.ndcX, projectedRef.current.y - point.ndcY);
-          if (distance <= CONFIG.HAND_HOVER_RADIUS && (!nearest || distance < nearest.distance)) {
+          // A palm over the colored region counts, not only over the star's own point: the
+          // region is as wide as its click area (the circle shown around it).
+          const shape = regionShapes.get(stem.key);
+          const center = shape
+            ? targetPointRef.current.set(shape.center[0], shape.center[1], shape.center[2])
+            : targetPointRef.current.copy(orb);
+          const depth = -center.clone().applyMatrix4(camera.matrixWorldInverse).z;
+          if (depth <= 0.05) return;
+          const reach = Math.max(shape ? shape.radius : 0, HIT_AREA.MIN_RADIUS, depth * HIT_AREA.PER_METER);
+          projectedRef.current.copy(center).project(camera);
+          const reachOnScreen = reach / (depth * halfTan); // in half-screen-heights
+          const away = Math.hypot((projectedRef.current.x - point.ndcX) * aspect, projectedRef.current.y - point.ndcY);
+          const distance = away / reachOnScreen; // 1 = on the edge of the click area
+          if (distance <= 1 && (!nearest || distance < nearest.distance)) {
             nearest = { distance, hand, orbKey: stem.key, point };
           }
         });
@@ -233,9 +249,18 @@ export function WebcamGestureController({
     const cameraMoveHand = secondaryDepthActive
       ? null
       : cameraHands.find((hand) => hand.gestures.cameraMove);
-    const zoomHand = grab || cameraMoveHand || secondaryDepthActive
+    // Zoom: only a pose held for a moment, and never while a hand is over a region (or just was):
+    // closing a fist to grab passes through poses that look like zoom.
+    const handIsAtARegion = Boolean(hoveredOrbKey) || (hoverMemoryRef.current && hoverMemoryRef.current.expiresAt >= now);
+    const zoomCandidate = grab || cameraMoveHand || secondaryDepthActive || handIsAtARegion
       ? null
-      : cameraHands.find((hand) => hand.gestures.zoom);
+      : cameraHands.find((hand) => hand.gestures.zoom) ?? null;
+    if (!zoomCandidate) {
+      zoomCandidateRef.current = null;
+    } else if (!zoomCandidateRef.current || zoomCandidateRef.current.handId !== zoomCandidate.trackingId) {
+      zoomCandidateRef.current = { handId: zoomCandidate.trackingId, since: now };
+    }
+    const zoomHand = zoomCandidate && now - zoomCandidateRef.current.since >= CONFIG.ZOOM_HOLD_MS ? zoomCandidate : null;
 
     if (!cameraMoveHand) {
       orbitGestureRef.current = null;
