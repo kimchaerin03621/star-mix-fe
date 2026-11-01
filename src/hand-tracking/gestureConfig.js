@@ -9,6 +9,9 @@ export const HAND_GESTURE_CONFIG = Object.freeze({
   MAX_LISTENER_DISTANCE: 25,
   DEPTH_MOVE_SPEED: 3.2,
   HAND_HOVER_RADIUS: 0.18,
+  // A palm also counts as over a region when it is this close (in half-screen-heights, about
+  // 40 px) to any one of its colored nodes, even outside the region's circle.
+  HAND_NODE_REACH: 0.1,
   HOVER_GRACE_MS: 700,
   HAND_LOST_RELEASE_FRAMES: 10,
   CAMERA_ORBIT_SENSITIVITY: 5.5,

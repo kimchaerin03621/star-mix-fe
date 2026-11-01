@@ -73,3 +73,16 @@ test('a zoom pose held in empty space still zooms, but only after a moment', asy
   await hold(page, [zoomHand(0.5, 0.97, 7)], 1500);
   expect(gap(await camera(page), before)).toBeGreaterThan(0.3); // held: it zooms
 });
+
+test('a palm right on a colored node counts even outside the region circle', async ({ page }) => {
+  const { shapes } = await page.evaluate(() => window.__starMixGraph());
+  const { center, radius, points } = shapes.drums;
+  // The colored node farthest out, which lies beyond or at the edge of the circle.
+  const farthest = points
+    .map((p) => ({ p, d: Math.hypot(p[0] - center[0], p[1] - center[1], p[2] - center[2]) }))
+    .sort((a, b) => b.d - a.d)[0];
+  expect(farthest.d).toBeGreaterThan(radius * 0.9);
+  const spot = await page.evaluate(([pt]) => window.__starMixTest.getPointOnScreen(pt), [farthest.p]);
+  await hold(page, [makeHand({ id: 1, x: spot.x / W, y: spot.y / H, pose: 'openPalm' })], 700);
+  expect(await focusOf(page, 'drums')).toBeGreaterThan(0.4);
+});

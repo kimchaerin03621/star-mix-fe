@@ -397,7 +397,7 @@ export function WhiteGraph() {
       graph.nodes.forEach((node) => node.position.forEach((value, axis) => { centroid[axis] += value / graph.count; }));
       return {
         centroid,
-        shapes: Object.fromEntries([...regionShapes].map(([key, shape]) => [key, { center: shape.center.map((v) => +v.toFixed(2)), radius: +shape.radius.toFixed(2) }])),
+        shapes: Object.fromEntries([...regionShapes].map(([key, shape]) => [key, { center: shape.center.map((v) => +v.toFixed(2)), radius: +shape.radius.toFixed(2), points: shape.points.map((p) => p.map((v) => +v.toFixed(2))) }])),
         nodeCount: graph.count,
         linkCount: graph.links.length,
         coloredNodes: colored,
@@ -493,7 +493,7 @@ export function WhiteGraph() {
         const reach = members
           .map((p) => Math.hypot(p[0] - center[0], p[1] - center[1], p[2] - center[2]))
           .sort((x, y) => x - y);
-        regionShapes.set(keys[regionIndex], { center, radius: (reach[Math.floor(reach.length * 0.85)] ?? 0) + 0.2 });
+        regionShapes.set(keys[regionIndex], { center, radius: (reach[Math.floor(reach.length * 0.85)] ?? 0) + 0.2, points: members });
       });
       for (let i = 0; i < graph.count; i += 1) {
         store.targetRegion[i] = region[i];

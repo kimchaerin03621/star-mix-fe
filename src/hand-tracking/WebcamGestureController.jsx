@@ -187,7 +187,16 @@ export function WebcamGestureController({
           projectedRef.current.copy(center).project(camera);
           const reachOnScreen = reach / (depth * halfTan); // in half-screen-heights
           const away = Math.hypot((projectedRef.current.x - point.ndcX) * aspect, projectedRef.current.y - point.ndcY);
-          const distance = away / reachOnScreen; // 1 = on the edge of the click area
+          let distance = away / reachOnScreen; // 1 = on the edge of the click area
+          // Or right on one of the region's colored nodes, even where they spread past the circle.
+          if (shape && distance > 1) {
+            let closestNode = Infinity;
+            shape.points.forEach((p) => {
+              projectedRef.current.set(p[0], p[1], p[2]).project(camera);
+              closestNode = Math.min(closestNode, Math.hypot((projectedRef.current.x - point.ndcX) * aspect, projectedRef.current.y - point.ndcY));
+            });
+            if (closestNode <= CONFIG.HAND_NODE_REACH) distance = closestNode / CONFIG.HAND_NODE_REACH;
+          }
           if (distance <= 1 && (!nearest || distance < nearest.distance)) {
             nearest = { distance, hand, orbKey: stem.key, point };
           }
