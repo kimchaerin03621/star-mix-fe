@@ -355,20 +355,25 @@ function pickGrabTarget(origin, direction) {
   let aimed = null;
   let aimedDistance = Infinity;
   grabTargets.forEach((target, key) => {
-    const position = target.group.current?.position;
-    if (!position) return;
+    const star = target.group.current?.position;
+    if (!star) return;
+    // Picked where the region is drawn (its center), but held at the star's own point, so it
+    // does not jump when grabbed.
+    const position = target.hitCenter ?? star;
     const distance = origin.distanceTo(position);
-    if (distance < target.touchRadius && distance < touchedDistance) {
-      touched = { key, grabDistance: Math.max(0.3, distance) };
+    const touchRadius = target.hitReach ? target.hitReach * 0.6 : target.touchRadius;
+    if (distance < touchRadius && distance < touchedDistance) {
+      touched = { key, grabDistance: Math.max(0.3, origin.distanceTo(star)) };
       touchedDistance = distance;
     }
     pickScratch.to.subVectors(position, origin);
     const along = pickScratch.to.dot(direction);
     if (along > 0.1 && along < 15.0 && along < aimedDistance) {
       pickScratch.onRay.copy(direction).multiplyScalar(along).add(origin);
-      const tolerance = Math.max(target.rayRadius, along * 0.05 + 0.18);
+      const tolerance = Math.max(target.hitReach ?? target.rayRadius, along * 0.05 + 0.18);
       if (position.distanceTo(pickScratch.onRay) < tolerance) {
-        aimed = { key, grabDistance: Math.max(0.4, along) };
+        pickScratch.to.subVectors(star, origin);
+        aimed = { key, grabDistance: Math.max(0.4, pickScratch.to.dot(direction)) };
         aimedDistance = along;
       }
     }

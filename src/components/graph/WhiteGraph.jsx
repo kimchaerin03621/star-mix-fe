@@ -375,6 +375,8 @@ export function WhiteGraph() {
       graph.nodes.forEach((node) => node.position.forEach((value, axis) => { centroid[axis] += value / graph.count; }));
       return {
         centroid,
+        // Positions of the colored nodes of each region (for tests that click on what is drawn).
+        regionNodes: Object.fromEntries(store.seedKeys.map((key, index) => [key, graph.nodes.filter((_, i) => store.targetRegion[i] === index).map((node) => node.position)])),
         focus: Object.fromEntries([...store.focus].map(([key, value]) => [key, +value.toFixed(2)])),
         shapes: Object.fromEntries([...regionShapes].map(([key, shape]) => [key, { center: shape.center.map((v) => +v.toFixed(2)), radius: +shape.radius.toFixed(2) }])),
         nodeCount: graph.count,
@@ -446,7 +448,7 @@ export function WhiteGraph() {
     if (changed) {
       store.seeds = seeds;
       store.seedKeys = keys;
-      const { region, hops } = growRegions(graph, seeds, REGION.HOPS);
+      const { region, hops, reach: hopReach } = growRegions(graph, seeds, REGION.HOPS, REGION.MIN_NODES, REGION.MAX_HOPS);
       // How wide each region looks from outside (most of its nodes), for hiding what is in front of it.
       store.regionRadius = seeds.map((seed, regionIndex) => {
         if (seed < 0) return 1.5;
@@ -471,11 +473,11 @@ export function WhiteGraph() {
         const reach = members
           .map((p) => Math.hypot(p[0] - center[0], p[1] - center[1], p[2] - center[2]))
           .sort((x, y) => x - y);
-        regionShapes.set(keys[regionIndex], { center, radius: (reach[Math.floor(reach.length * 0.85)] ?? 0) + 0.2 });
+        regionShapes.set(keys[regionIndex], { center, nodes: members, radius: (reach[Math.floor(reach.length * 0.85)] ?? 0) + 0.2 });
       });
       for (let i = 0; i < graph.count; i += 1) {
         store.targetRegion[i] = region[i];
-        store.targetAmount[i] = region[i] >= 0 ? 1 - hops[i] / (REGION.HOPS + 1) : 0;
+        store.targetAmount[i] = region[i] >= 0 ? 1 - hops[i] / (hopReach[region[i]] + 1) : 0;
       }
       store.dirty = true;
     }

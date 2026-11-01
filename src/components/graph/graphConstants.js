@@ -55,6 +55,8 @@ export const REGION_COLORS = {
 // How a region (one instrument's colored area) is made and looks.
 export const REGION = {
   HOPS: 4, // it spreads this many links from its sounding node
+  MIN_NODES: 34, // a region that starts in a sparse spot grows further until it has this many nodes
+  MAX_HOPS: 8, // but never beyond this many links
   REST_STRENGTH: 0.8, // how strongly colored it is while its instrument is quiet
   SOUND_STRENGTH: 0.45, // extra color when it sounds at full level
   HOVER_STRENGTH: 0.2, // extra color while pointed at or held

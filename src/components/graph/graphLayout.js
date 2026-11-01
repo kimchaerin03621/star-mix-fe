@@ -140,27 +140,44 @@ export function nearestNode(graph, point, taken) {
 // Each region grows from its seed node, link by link, up to `maxHops` links away. All regions
 // grow at the same pace and a node goes to whichever reaches it first, so no node ever
 // belongs to two regions. Returns, per node, its region number (-1 = none) and hop count.
-export function growRegions(graph, seeds, maxHops) {
+export function growRegions(graph, seeds, maxHops, minNodes = 0, hardMaxHops = maxHops) {
   const region = new Int8Array(graph.count).fill(-1);
   const hops = new Int8Array(graph.count).fill(-1);
-  let frontier = [];
+  const frontiers = seeds.map(() => []);
+  const sizes = new Array(seeds.length).fill(0);
+  const reach = new Array(seeds.length).fill(0); // the last link count each region grew to
   seeds.forEach((seed, index) => {
     if (seed < 0 || region[seed] !== -1) return;
     region[seed] = index;
     hops[seed] = 0;
-    frontier.push(seed);
+    sizes[index] = 1;
+    frontiers[index].push(seed);
   });
-  for (let hop = 1; hop <= maxHops; hop += 1) {
-    const next = [];
-    frontier.forEach((node) => {
-      graph.adjacency[node].forEach((other) => {
-        if (region[other] !== -1) return;
-        region[other] = region[node];
-        hops[other] = hop;
-        next.push(other);
+  // A region keeps growing past maxHops (up to hardMaxHops) while it has fewer than minNodes
+  // nodes, so one that starts in a sparse part of the graph is not much smaller than the rest.
+  for (let hop = 1; hop <= hardMaxHops; hop += 1) {
+    let grew = false;
+    frontiers.forEach((frontier, owner) => {
+      if (frontier.length === 0) return;
+      if (hop > maxHops && sizes[owner] >= minNodes) {
+        frontiers[owner] = [];
+        return;
+      }
+      const next = [];
+      frontier.forEach((node) => {
+        graph.adjacency[node].forEach((other) => {
+          if (region[other] !== -1) return;
+          region[other] = owner;
+          hops[other] = hop;
+          sizes[owner] += 1;
+          reach[owner] = hop;
+          next.push(other);
+        });
       });
+      frontiers[owner] = next;
+      if (next.length > 0) grew = true;
     });
-    frontier = next;
+    if (!grew) break;
   }
-  return { region, hops };
+  return { region, hops, reach: reach.map((value) => Math.max(value, maxHops)) };
 }

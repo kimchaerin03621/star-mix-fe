@@ -12,7 +12,7 @@ import {
 // sounding node. The graph stays put; only the colored regions move.
 const CONTROLLER_AT = [0.4, 1.5, 0];
 const AIM_ELSEWHERE = [1.0, 2.2, -4.5];
-const EMPTY_SPACE = [0, 4.5, -4]; // nowhere near any instrument
+const EMPTY_SPACE = [0, 7, -4]; // nowhere near any instrument
 
 const graph = (page) => page.evaluate(() => window.__starMixGraph());
 
@@ -68,7 +68,7 @@ test('only a colored region can be picked: pointing at plain white space grabs n
   await aimControllers(page, CONTROLLER_AT, EMPTY_SPACE);
   await setButton(page, 'right', 'trigger', 1);
   await page.waitForTimeout(300);
-  await aimControllers(page, CONTROLLER_AT, [-2, 3.5, -3]);
+  await aimControllers(page, CONTROLLER_AT, [-2, 7, -3]);
   await page.waitForTimeout(500);
   const after = await stemPositions(page);
   Object.keys(before).forEach((key) => expect(distance(after[key], before[key])).toBeLessThan(0.05));

@@ -45,6 +45,7 @@ export function WebcamGestureController({
   const raycasterRef = useRef(new THREE.Raycaster());
   const targetPointRef = useRef(new THREE.Vector3());
   const projectedRef = useRef(new THREE.Vector3());
+  const nodePointRef = useRef(new THREE.Vector3());
   const orbitOffsetRef = useRef(new THREE.Vector3());
   const orbitSphericalRef = useRef(new THREE.Spherical());
 
@@ -185,7 +186,17 @@ export function WebcamGestureController({
           const reach = Math.max(CONFIG.HAND_HOVER_RADIUS, regionReach);
           // Distances in half-screen-heights, so the area is round on screen.
           const distance = Math.hypot((projectedRef.current.x - point.ndcX) * aspect, projectedRef.current.y - point.ndcY);
-          const closeness = distance / reach;
+          let closeness = distance / reach;
+          // Near any drawn node of the region also counts.
+          if (shape?.nodes) {
+            for (let n = 0; n < shape.nodes.length; n += 1) {
+              const node = shape.nodes[n];
+              nodePointRef.current.set(node[0], node[1], node[2]).project(camera);
+              if (nodePointRef.current.z > 1) continue;
+              const nodeDistance = Math.hypot((nodePointRef.current.x - point.ndcX) * aspect, nodePointRef.current.y - point.ndcY);
+              closeness = Math.min(closeness, nodeDistance / CONFIG.HAND_NODE_REACH);
+            }
+          }
           if (closeness <= 1 && (!nearest || closeness < nearest.closeness)) {
             nearest = { distance, closeness, hand, orbKey: stem.key, point };
           }
