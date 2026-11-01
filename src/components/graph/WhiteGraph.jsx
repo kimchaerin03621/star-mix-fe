@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { FOCUS, OCCLUDER, PLAIN, REGION } from './graphConstants';
+import { CLOSE, FOCUS, OCCLUDER, PLAIN, REGION } from './graphConstants';
 import { buildGraph, growRegions, nearestNode } from './graphLayout';
 import { getRegions, regionShapes } from './graphRegistry';
 import { isStillMode } from '../../stillMode';
@@ -103,6 +103,10 @@ const SHARED_GLSL = /* glsl */ `
   float nearFade(float dist) {
     return smoothstep(${NEAR_FADE[0].toFixed(2)}, ${NEAR_FADE[1].toFixed(2)}, dist);
   }
+  // Colored nodes keep growing and stay bright as they come close.
+  float nearFadeColored(float dist) {
+    return smoothstep(${CLOSE.FADE[0].toFixed(2)}, ${CLOSE.FADE[1].toFixed(2)}, dist);
+  }
 `;
 
 // Both the plain material (#define PLAIN) and the colored (glowing) material use these:
@@ -134,9 +138,9 @@ const NODE_VERTEX = /* glsl */ `
     float twinkle = 0.8 + 0.2 * sin(uTime * 2.0 + aSeed * 40.0);
     float focus = focusOf();
     float size = aSize * twinkle * ${GLOW_SIZE.toFixed(1)} * (1.0 + strength * 1.1 + sparkle * 1.3 + hit * 0.6 + ring * 1.2 + focus * ${FOCUS.GROW.toFixed(2)});
-    size = min(size, dist * ${MAX_SCREEN_SIZE.toFixed(3)});
+    size = min(size, dist * ${CLOSE.MAX_SCREEN_SIZE.toFixed(2)});
     vColor *= (1.0 + hit * 0.6 + sparkle + ring * 0.9 + focus * ${FOCUS.BRIGHTEN.toFixed(2)});
-    vAlpha = strength * mix(depthDim(dist), 1.0, strength * 0.7) * nearFade(dist) * othersDim();
+    vAlpha = strength * mix(depthDim(dist), 1.0, strength * 0.7) * nearFadeColored(dist) * othersDim();
 #endif
     viewPosition.xy += position.xy * size;
     gl_Position = projectionMatrix * viewPosition;
@@ -171,8 +175,8 @@ const HALO_VERTEX = /* glsl */ `
     vec4 viewPosition = modelViewMatrix * vec4(drift(aPos, aSeed, strength), 1.0);
     float dist = length(viewPosition.xyz);
     float focus = focusOf();
-    vAlpha = ${HALO_ALPHA.toFixed(2)} * (1.0 + focus * ${FOCUS.HALO.toFixed(1)}) * strength * strength * mix(depthDim(dist), 1.0, 0.6) * nearFade(dist) * othersDim();
-    float size = min(aSize * ${HALO_SIZE.toFixed(1)} * (1.0 + focus * 0.5), dist * 0.12) * step(0.02, strength);
+    vAlpha = ${HALO_ALPHA.toFixed(2)} * (1.0 + focus * ${FOCUS.HALO.toFixed(1)}) * strength * strength * mix(depthDim(dist), 1.0, 0.6) * nearFadeColored(dist) * othersDim();
+    float size = min(aSize * ${HALO_SIZE.toFixed(1)} * (1.0 + focus * 0.5), dist * 0.3) * step(0.02, strength);
     viewPosition.xy += position.xy * size;
     gl_Position = projectionMatrix * viewPosition;
     vUv = position.xy + 0.5;
@@ -207,7 +211,7 @@ const LINK_VERTEX = /* glsl */ `
     float ring = r >= 0 ? wave(r) : 0.0;
     float focus = focusOf();
     vColor *= (1.0 + hit * 0.5 + ring * 0.8 + focus * ${FOCUS.BRIGHTEN.toFixed(2)} * 0.7);
-    vAlpha = strength * 0.9 * (1.0 + focus * 0.4) * mix(depthDim(dist), 1.0, strength * 0.7) * nearFade(dist) * othersDim();
+    vAlpha = strength * 0.9 * (1.0 + focus * 0.4) * mix(depthDim(dist), 1.0, strength * 0.7) * nearFadeColored(dist) * othersDim();
 #endif
     gl_Position = projectionMatrix * viewPosition;
   }
@@ -259,7 +263,7 @@ const store = {
 };
 
 // A thin circle around the region being pointed at (pulsing) or held (steady), facing the eye.
-const ringGeometry = new THREE.RingGeometry(0.965, 1, 120);
+const ringGeometry = new THREE.RingGeometry(0.94, 1, 120);
 
 const rings = Array.from({ length: MAX_REGIONS }, () => {
   const material = new THREE.MeshBasicMaterial({
@@ -275,6 +279,38 @@ const rings = Array.from({ length: MAX_REGIONS }, () => {
   mesh.renderOrder = 3;
   mesh.frustumCulled = false;
   return mesh;
+});
+
+// The instrument's name, in front of the region while it is pointed at or held, so it is clear
+// which one it is.
+const labelTextures = new Map();
+function labelTexture(text) {
+  if (!labelTextures.has(text)) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 160;
+    const ctx = canvas.getContext('2d');
+    ctx.font = "700 96px 'Noto Sans KR', 'Malgun Gothic', sans-serif";
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 14;
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.85)';
+    ctx.strokeText(text, 256, 84);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(text, 256, 84);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    labelTextures.set(text, texture);
+  }
+  return labelTextures.get(text);
+}
+const labels = Array.from({ length: MAX_REGIONS }, () => {
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthTest: false, depthWrite: false }));
+  sprite.visible = false;
+  sprite.raycast = () => null;
+  sprite.renderOrder = 4;
+  return sprite;
 });
 
 export function WhiteGraph() {
@@ -560,10 +596,22 @@ export function WhiteGraph() {
         ring.position.set(shape.center[0], shape.center[1], shape.center[2]);
         ring.scale.setScalar(shape.radius * FOCUS.RING_SCALE);
         ring.lookAt(state.camera.position);
-        ring.material.color.copy(colorOf(entry.color)).lerp(WHITE, 0.35);
+        ring.material.color.copy(colorOf(entry.color)).lerp(WHITE, 0.15);
         ring.material.opacity = Math.min(1, store.focus[index] * FOCUS.RING_OPACITY * pulse);
+
+        const label = labels[index];
+        if (entry.label) {
+          const eye = state.camera.position.distanceTo(scratch.position.set(shape.center[0], shape.center[1], shape.center[2]));
+          label.visible = true;
+          label.material.map = labelTexture(entry.label);
+          label.material.opacity = Math.min(1, store.focus[index] * 1.4);
+          label.position.copy(scratch.position);
+          const height = Math.max(0.2, eye * FOCUS.LABEL_SIZE);
+          label.scale.set(height * (512 / 160), height, 1);
+        }
       } else {
         ring.visible = false;
+        labels[index].visible = false;
       }
       graphUniforms.uColor.value[index].copy(colorOf(entry.color));
       graphUniforms.uLevel.value[index] = Math.min(
@@ -581,6 +629,7 @@ export function WhiteGraph() {
       graphUniforms.uLevel.value[i] = 0;
       graphUniforms.uFocus.value[i] = 0;
       rings[i].visible = false;
+      labels[i].visible = false;
     }
     graphUniforms.uAnyFocus.value = focusMax;
   });
@@ -593,6 +642,7 @@ export function WhiteGraph() {
       <lineSegments geometry={linkGeometry} material={linkMaterial} frustumCulled={false} raycast={() => null} renderOrder={1} />
       <mesh geometry={nodeGeometry} material={nodeMaterial} frustumCulled={false} raycast={() => null} renderOrder={2} />
       {rings.map((ring, index) => <primitive key={index} object={ring} />)}
+      {labels.map((label, index) => <primitive key={`label-${index}`} object={label} />)}
     </group>
   );
 }

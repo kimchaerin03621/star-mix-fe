@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { SONG_STEMS, getStemColor } from '../audio/songStems';
 import { getInstrumentTexture } from './instrumentIcons';
 import { WhiteGraph } from './graph/WhiteGraph';
-import { HIT_AREA, REGION_COLORS, WHITE_GRAPH_CENTER } from './graph/graphConstants';
+import { HIT_AREA, REGION_COLORS, REGION_LABELS, WHITE_GRAPH_CENTER } from './graph/graphConstants';
 import { regionShapes, registerRegion, unregisterRegion } from './graph/graphRegistry';
 import { isStillMode } from '../stillMode';
 import { ENTRY_CAMERA_POSITION, ENTRY_CAMERA_TARGET } from '../audio/stemLayout';
@@ -431,7 +431,7 @@ function InteractiveOrb({
   // being touched, so the graph can color a region around it.
   useEffect(() => {
     if (!usesRegion) return undefined;
-    registerRegion(orbKey, { color: REGION_COLORS[instrument] ?? color, group: meshRef, sound: soundRef, interaction: interactionRef });
+    registerRegion(orbKey, { color: REGION_COLORS[instrument] ?? color, label: REGION_LABELS[instrument], group: meshRef, sound: soundRef, interaction: interactionRef });
     return () => unregisterRegion(orbKey);
   }, [usesRegion, orbKey, color, instrument]);
   useEffect(() => {

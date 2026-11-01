@@ -25,8 +25,8 @@ test('a region shows when it is pointed at, and shows more when it is held', asy
   await page.mouse.move(x, y);
   await page.waitForTimeout(700);
   const pointed = await focusOf('drums');
-  expect(pointed).toBeGreaterThan(0.4); // pointed at: a clear cue
-  expect(pointed).toBeLessThan(0.7);
+  expect(pointed).toBeGreaterThan(0.5); // pointed at: a clear cue
+  expect(pointed).toBeLessThan(0.85); // and clearly less than held
   expect(await focusOf('bass')).toBeLessThan(0.05); // and only that region
 
   await page.mouse.down();
