@@ -927,6 +927,12 @@ function VRAudioExperience({
       setStemPosition: (key, position) => orbCoordsRef.current[key]?.set(...position),
       getControllerHolds: () => [...controllerHolds],
       getDragging: () => ({ ...draggingOrbsRef.current }),
+      getHandInteraction: () => handInteractionRef.current,
+      getPointOnScreen: (point) => {
+        const projected = new THREE.Vector3(...point).project(camera);
+        const box = gl.domElement.getBoundingClientRect();
+        return { x: box.left + (projected.x + 1) / 2 * box.width, y: box.top + (1 - projected.y) / 2 * box.height };
+      },
       getOrbitTarget: () => orbitControlsRef.current?.target.toArray() ?? null,
       // Where a star is on the page (pixels), and how far the eye is from it.
       getStarOnScreen: (key) => {
@@ -1145,7 +1151,9 @@ function VRAudioExperience({
     activeHandId: null,
   });
 
+  const handInteractionRef = useRef(null);
   const handleHandInteractionChange = (interaction) => {
+    handInteractionRef.current = interaction;
     setHandInteraction(interaction);
     onWebcamInteractionChange?.(interaction);
   };

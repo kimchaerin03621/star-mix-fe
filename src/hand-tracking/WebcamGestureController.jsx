@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { HAND_GESTURE_CONFIG as CONFIG } from './gestureConfig';
+import { regionShapes } from '../components/graph/graphRegistry';
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -165,15 +166,28 @@ export function WebcamGestureController({
     // Hover is evaluated only when idle. One globally nearest star wins.
     if (!grab) {
       let nearest = null;
+      const aspect = camera.aspect || 1;
+      const halfHeight = Math.tan(THREE.MathUtils.degToRad((camera.fov || 75) / 2));
       hands.filter((hand) => hand.gestures.openPalm).forEach((hand) => {
         const point = toScreenPoint(hand);
         stems.forEach((stem) => {
           const orb = orbCoordsRef.current[stem.key];
           if (!orb) return;
-          projectedRef.current.copy(orb).project(camera);
-          const distance = Math.hypot(projectedRef.current.x - point.ndcX, projectedRef.current.y - point.ndcY);
-          if (distance <= CONFIG.HAND_HOVER_RADIUS && (!nearest || distance < nearest.distance)) {
-            nearest = { distance, hand, orbKey: stem.key, point };
+          // The palm counts as over a region anywhere on the colored area, the way it looks on
+          // screen: around the middle of the region, out to its edge (not just on the star's point).
+          const shape = regionShapes.get(stem.key);
+          if (shape) targetPointRef.current.set(shape.center[0], shape.center[1], shape.center[2]);
+          else targetPointRef.current.copy(orb);
+          projectedRef.current.copy(targetPointRef.current).project(camera);
+          if (projectedRef.current.z > 1) return; // behind the eye
+          const depth = camera.position.distanceTo(targetPointRef.current);
+          const regionReach = shape ? (shape.radius / (depth * halfHeight)) * CONFIG.HAND_REGION_REACH : 0;
+          const reach = Math.max(CONFIG.HAND_HOVER_RADIUS, regionReach);
+          // Distances in half-screen-heights, so the area is round on screen.
+          const distance = Math.hypot((projectedRef.current.x - point.ndcX) * aspect, projectedRef.current.y - point.ndcY);
+          const closeness = distance / reach;
+          if (closeness <= 1 && (!nearest || closeness < nearest.closeness)) {
+            nearest = { distance, closeness, hand, orbKey: stem.key, point };
           }
         });
       });

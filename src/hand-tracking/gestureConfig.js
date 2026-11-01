@@ -9,6 +9,8 @@ export const HAND_GESTURE_CONFIG = Object.freeze({
   MAX_LISTENER_DISTANCE: 25,
   DEPTH_MOVE_SPEED: 3.2,
   HAND_HOVER_RADIUS: 0.18,
+  // A palm is over a region when it is within this share of the region's drawn width (1 = its edge).
+  HAND_REGION_REACH: 0.9,
   HOVER_GRACE_MS: 450,
   HAND_LOST_RELEASE_FRAMES: 10,
   CAMERA_ORBIT_SENSITIVITY: 5.5,

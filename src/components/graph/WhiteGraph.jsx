@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { OCCLUDER, PLAIN, REGION } from './graphConstants';
+import { FOCUS, OCCLUDER, PLAIN, REGION } from './graphConstants';
 import { buildGraph, growRegions, nearestNode } from './graphLayout';
 import { getRegions, regionShapes } from './graphRegistry';
 import { isStillMode } from '../../stillMode';
@@ -27,6 +27,7 @@ const SHARED_GLSL = /* glsl */ `
   uniform float uHigh[${MAX_REGIONS}];
   uniform float uHit[${MAX_REGIONS}];
   uniform float uAge[${MAX_REGIONS}];
+  uniform float uFocus[${MAX_REGIONS}];
   uniform vec3 uSeed[${MAX_REGIONS}];
   uniform float uRegionRadius[${MAX_REGIONS}];
   attribute vec3 aPos;
@@ -85,6 +86,16 @@ const SHARED_GLSL = /* glsl */ `
     return exp(-pow(hop - front, 2.0) * 1.2) * exp(-uAge[r] * 1.6) * aAmount;
   }
 
+  // How much this point's region is being pointed at (0.6) or held (1).
+  float focusOf() {
+    int r = int(aRegion + 0.5);
+    return r >= 0 ? uFocus[r] : 0.0;
+  }
+  // A pointed-at region breathes a little; a held one is steady.
+  float breath(float focus) {
+    return 1.0 + ${FOCUS.BREATH.toFixed(2)} * sin(uTime * 5.0) * (1.0 - smoothstep(0.7, 0.95, focus));
+  }
+
   float depthDim(float dist) {
     return mix(1.0, 0.18, smoothstep(${FAR_DIM[0].toFixed(1)}, ${FAR_DIM[1].toFixed(1)}, dist));
   }
@@ -120,9 +131,10 @@ const NODE_VERTEX = /* glsl */ `
     float sparkle = high * (0.5 + 0.5 * sin(uTime * 14.0 + aSeed * 60.0));
     // Nodes twinkle gently, like the nebula stars.
     float twinkle = 0.8 + 0.2 * sin(uTime * 2.0 + aSeed * 40.0);
-    float size = aSize * twinkle * ${GLOW_SIZE.toFixed(1)} * (1.0 + strength * 1.1 + sparkle * 1.3 + hit * 0.6 + ring * 1.2);
+    float focus = focusOf();
+    float size = aSize * twinkle * ${GLOW_SIZE.toFixed(1)} * (1.0 + strength * 1.1 + sparkle * 1.3 + hit * 0.6 + ring * 1.2 + focus * ${FOCUS.GROW.toFixed(2)} * breath(focus));
     size = min(size, dist * ${MAX_SCREEN_SIZE.toFixed(3)});
-    vColor *= (1.0 + hit * 0.6 + sparkle + ring * 0.9);
+    vColor *= (1.0 + hit * 0.6 + sparkle + ring * 0.9 + focus * ${FOCUS.BRIGHTEN.toFixed(2)});
     vAlpha = strength * mix(depthDim(dist), 1.0, strength * 0.7) * nearFade(dist);
 #endif
     viewPosition.xy += position.xy * size;
@@ -157,8 +169,9 @@ const HALO_VERTEX = /* glsl */ `
     float strength = tint(0.0);
     vec4 viewPosition = modelViewMatrix * vec4(drift(aPos, aSeed, strength), 1.0);
     float dist = length(viewPosition.xyz);
-    vAlpha = ${HALO_ALPHA.toFixed(2)} * strength * strength * mix(depthDim(dist), 1.0, 0.6) * nearFade(dist);
-    float size = min(aSize * ${HALO_SIZE.toFixed(1)}, dist * 0.12) * step(0.02, strength);
+    float focus = focusOf();
+    vAlpha = ${HALO_ALPHA.toFixed(2)} * (1.0 + focus * ${FOCUS.HALO.toFixed(1)}) * strength * strength * mix(depthDim(dist), 1.0, 0.6) * nearFade(dist);
+    float size = min(aSize * ${HALO_SIZE.toFixed(1)} * (1.0 + focus * 0.4 * breath(focus)), dist * 0.12) * step(0.02, strength);
     viewPosition.xy += position.xy * size;
     gl_Position = projectionMatrix * viewPosition;
     vUv = position.xy + 0.5;
@@ -191,8 +204,9 @@ const LINK_VERTEX = /* glsl */ `
     int r = int(aRegion + 0.5);
     float hit = r >= 0 ? uHit[r] * aAmount : 0.0;
     float ring = r >= 0 ? wave(r) : 0.0;
-    vColor *= (1.0 + hit * 0.5 + ring * 0.8);
-    vAlpha = strength * 0.9 * mix(depthDim(dist), 1.0, strength * 0.7) * nearFade(dist);
+    float focus = focusOf();
+    vColor *= (1.0 + hit * 0.5 + ring * 0.8 + focus * ${(FOCUS.BRIGHTEN * 0.7).toFixed(2)});
+    vAlpha = strength * 0.9 * (1.0 + focus * 0.4) * mix(depthDim(dist), 1.0, strength * 0.7) * nearFade(dist);
 #endif
     gl_Position = projectionMatrix * viewPosition;
   }
@@ -220,6 +234,7 @@ const graphUniforms = {
   uHigh: { value: new Array(MAX_REGIONS).fill(0) },
   uHit: { value: new Array(MAX_REGIONS).fill(0) },
   uAge: { value: new Array(MAX_REGIONS).fill(9) },
+  uFocus: { value: new Array(MAX_REGIONS).fill(0) },
   uSeed: { value: Array.from({ length: MAX_REGIONS }, () => new THREE.Vector3()) },
   uRegionRadius: { value: new Array(MAX_REGIONS).fill(1.5) },
   uEye: { value: new THREE.Vector3() },
@@ -236,6 +251,7 @@ const store = {
   seeds: [],
   seedKeys: [],
   regionRadius: [],
+  focus: new Map(),
   dirty: true,
 };
 
@@ -359,6 +375,7 @@ export function WhiteGraph() {
       graph.nodes.forEach((node) => node.position.forEach((value, axis) => { centroid[axis] += value / graph.count; }));
       return {
         centroid,
+        focus: Object.fromEntries([...store.focus].map(([key, value]) => [key, +value.toFixed(2)])),
         shapes: Object.fromEntries([...regionShapes].map(([key, shape]) => [key, { center: shape.center.map((v) => +v.toFixed(2)), radius: +shape.radius.toFixed(2) }])),
         nodeCount: graph.count,
         linkCount: graph.links.length,
@@ -499,10 +516,15 @@ export function WhiteGraph() {
     }
 
     // 4. Each region's color and how loud it is right now.
-    entries.forEach(([, entry], index) => {
+    entries.forEach(([key, entry], index) => {
       const { sound, interaction } = entry;
       // (Still mode: pointing at a region does not light it up.)
-      const active = !isStillMode && (interaction.current.hovered || interaction.current.grabbed) ? REGION.HOVER_STRENGTH : 0;
+      // Pointed at (palm, mouse, controller) or held: eases in and out so it never blinks.
+      const wanted = isStillMode ? 0 : interaction.current.grabbed ? FOCUS.HELD : interaction.current.hovered ? FOCUS.HOVER : 0;
+      const eased = (store.focus.get(key) ?? 0) + (wanted - (store.focus.get(key) ?? 0)) * Math.min(1, delta * FOCUS.EASE_PER_SECOND);
+      store.focus.set(key, eased);
+      graphUniforms.uFocus.value[index] = eased;
+      const active = 0;
       graphUniforms.uColor.value[index].copy(colorOf(entry.color));
       graphUniforms.uLevel.value[index] = Math.min(
         1.4,

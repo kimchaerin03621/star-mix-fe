@@ -62,3 +62,15 @@ export const REGION = {
   FADE_OUT_PER_SECOND: 6,
   FADE_IN_PER_SECOND: 8,
 };
+
+// How a region shows that it is being pointed at (palm, mouse, controller) or held. It only
+// gets bigger and brighter, gently; nothing is added on top and nothing else is dimmed.
+export const FOCUS = {
+  HOVER: 0.6, // pointed at
+  HELD: 1, // grabbed
+  GROW: 0.7, // nodes grow by this much at full focus
+  BRIGHTEN: 0.5, // and get this much brighter
+  HALO: 2.5, // the soft glow behind the region gets this much stronger
+  BREATH: 0.12, // pointed-at regions breathe by this much; a held region is steady
+  EASE_PER_SECOND: 10,
+};
