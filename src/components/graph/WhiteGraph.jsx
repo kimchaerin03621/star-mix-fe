@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { FOCUS, OCCLUDER, PLAIN, REGION } from './graphConstants';
+import { FOCUS, MOTION, OCCLUDER, PLAIN, REGION } from './graphConstants';
 import { buildGraph, growRegions, nearestNode } from './graphLayout';
 import { getRegions, regionShapes } from './graphRegistry';
 import { isStillMode } from '../../stillMode';
@@ -11,7 +11,7 @@ import { isStillMode } from '../../stillMode';
 // Every other node stays as a flat, faint dot, with no effects at all. The graph never moves,
 // only the colored regions do.
 const MAX_REGIONS = 8;
-const WOBBLE = 0.05; // how far a colored node drifts (meters); plain nodes stay still
+const WOBBLE = 0.05; // how much farther a colored node drifts (meters), on top of the current every node follows
 const NEAR_FADE = [1.2, 3.2]; // nodes closer to the eye than this fade out (a big blurry dot in your face is only a smudge)
 const MAX_SCREEN_SIZE = 0.09; // no node is drawn bigger than this share of its distance to the eye
 const FAR_DIM = [2.5, 12]; // colored nodes dim between these distances, for depth
@@ -39,9 +39,26 @@ const SHARED_GLSL = /* glsl */ `
   varying vec2 vUv;
 
   // Only colored nodes drift; amount is how colored the point is.
+  // A slow current that moves the whole graph like something alive. It depends only on where a
+  // point is, so neighbouring nodes drift together (a swell, not a tremble), and a link follows
+  // its two nodes without stretching oddly.
+  vec3 current(vec3 p) {
+    float t = uTime * ${MOTION.SPEED.toFixed(2)};
+    vec3 q = p * ${MOTION.SCALE.toFixed(2)};
+    return vec3(
+      sin(q.y * 1.3 + t) + sin(q.z * 0.9 - t * 0.7),
+      sin(q.z * 1.1 + t * 0.8) + sin(q.x * 0.7 + t * 0.6),
+      sin(q.x * 1.2 - t * 0.9) + sin(q.y * 0.8 + t * 0.5)
+    ) * ${(MOTION.DISTANCE / 2).toFixed(3)};
+  }
+
   vec3 drift(vec3 p, float seed, float amount) {
     float t = uTime * (0.25 + seed * 0.3);
-    return p + vec3(sin(t + seed * 13.0), sin(t * 1.2 + seed * 29.0), sin(t * 0.8 + seed * 47.0)) * ${WOBBLE.toFixed(3)} * amount;
+    // Each node also has a little life of its own.
+    vec3 own = vec3(sin(t * 0.8 + seed * 13.0), sin(t * 0.9 + seed * 29.0), sin(t * 0.7 + seed * 47.0)) * ${MOTION.OWN.toFixed(3)};
+    // Colored nodes (a sounding region) move more.
+    vec3 lively = vec3(sin(t + seed * 13.0), sin(t * 1.2 + seed * 29.0), sin(t * 0.8 + seed * 47.0)) * ${WOBBLE.toFixed(3)} * amount;
+    return p + current(p) + own + lively;
   }
 
   // Mixes the region color over the white graph; returns how colored this point is (0..1).

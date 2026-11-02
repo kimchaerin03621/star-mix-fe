@@ -42,6 +42,14 @@ export const PLAIN = {
   MAX_SCREEN_SIZE: 0.14, // no plain dot is drawn bigger than this share of its distance to the eye
 };
 
+// How the whole graph moves, slowly, like something alive.
+export const MOTION = {
+  DISTANCE: 0.16, // how far the current carries a node (meters, at most)
+  SPEED: 0.3, // how fast it flows
+  SCALE: 0.55, // how big its swells are: lower = broader (nearby nodes move together)
+  OWN: 0.025, // each node's own small drift (meters)
+};
+
 // Plain nodes that stand between the eye and a colored region are hidden, so they never clutter
 // the view of what is sounding.
 export const OCCLUDER = {
