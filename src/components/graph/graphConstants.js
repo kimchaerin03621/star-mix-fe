@@ -75,6 +75,8 @@ export const REGION = {
   MAX_HOPS: 8, // but never beyond this many links
   REST_STRENGTH: 0.8, // how strongly colored it is while its instrument is quiet
   SOUND_STRENGTH: 0.45, // extra color when it sounds at full level
+  SOUND_RISE: 3, // how fast color follows the music up (per second; lower = lazier)
+  SOUND_FALL: 1.2, // and how fast it sinks back
   HOVER_STRENGTH: 0.2, // extra color while pointed at or held
   SEED_STICKINESS: 0.2, // the sounding node moves only if another is this much nearer (stops flicker)
   FADE_OUT_PER_SECOND: 6,

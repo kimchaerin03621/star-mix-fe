@@ -153,9 +153,9 @@ const NODE_VERTEX = /* glsl */ `
     float high = r >= 0 ? uHigh[r] * (1.0 - aAmount) : 0.0;
     float hit = r >= 0 ? uHit[r] * aAmount : 0.0;
     float ring = r >= 0 ? wave(r) : 0.0;
-    float sparkle = high * (0.5 + 0.5 * sin(uTime * 14.0 + aSeed * 60.0));
-    // Nodes twinkle gently, like the nebula stars.
-    float twinkle = 0.8 + 0.2 * sin(uTime * 2.0 + aSeed * 40.0);
+    float sparkle = high * (0.5 + 0.5 * sin(uTime * 1.6 + aSeed * 60.0)) * 0.5;
+    // Nodes glimmer very slowly, never flash.
+    float twinkle = 0.92 + 0.08 * sin(uTime * 0.9 + aSeed * 40.0);
     float focus = focusOf();
     float size = aSize * twinkle * ${GLOW_SIZE.toFixed(1)} * (1.0 + strength * 1.1 + sparkle * 1.3 + hit * 0.6 + ring * 1.2 + focus * ${FOCUS.GROW.toFixed(2)} * breath(focus));
     size = min(size, dist * ${MAX_SCREEN_SIZE.toFixed(3)});
@@ -277,6 +277,7 @@ const store = {
   seedKeys: [],
   regionRadius: [],
   focus: new Map(),
+  smooth: new Map(), // each region's sound (volume, hits, highs), eased so it swells rather than flashes
   dirty: true,
 };
 
@@ -553,12 +554,20 @@ export function WhiteGraph() {
       graphUniforms.uFocus.value[index] = eased;
       const active = 0;
       graphUniforms.uColor.value[index].copy(colorOf(entry.color));
+      // The sound reaches the color through a slow ease (quick to rise, slower to fall), so the
+      // region swells and sinks with the music instead of flashing on every beat.
+      const heard = store.smooth.get(key) ?? { vol: 0, hit: 0, high: 0 };
+      const ease = (current, target) => current + (target - current) * Math.min(1, delta * (target > current ? REGION.SOUND_RISE : REGION.SOUND_FALL));
+      heard.vol = ease(heard.vol, sound.current.vol);
+      heard.hit = ease(heard.hit, sound.current.hit);
+      heard.high = ease(heard.high, sound.current.high);
+      store.smooth.set(key, heard);
       graphUniforms.uLevel.value[index] = Math.min(
         1.4,
-        REGION.REST_STRENGTH + Math.min(1, sound.current.vol * 1.6) * REGION.SOUND_STRENGTH + active + sound.current.hit * 0.3,
+        REGION.REST_STRENGTH + Math.min(1, heard.vol * 1.6) * REGION.SOUND_STRENGTH + active + heard.hit * 0.3,
       );
-      graphUniforms.uHigh.value[index] = sound.current.high;
-      graphUniforms.uHit.value[index] = sound.current.hit;
+      graphUniforms.uHigh.value[index] = heard.high;
+      graphUniforms.uHit.value[index] = heard.hit;
       graphUniforms.uAge.value[index] = sound.current.age;
       const seed = store.seeds[index];
       if (seed >= 0) graphUniforms.uSeed.value[index].fromArray(graph.nodes[seed].position);
