@@ -45,10 +45,10 @@ export const OCCLUDER = {
 // Region colors. The graph is white, so a white-ish instrument color would look empty;
 // each instrument gets a clearly colored one here instead.
 export const REGION_COLORS = {
-  vocal: '#e6aacb',
-  drum: '#ffffff',
-  bass: '#a8c0e4',
-  piano: '#a4d8d0',
+  vocal: '#f2e244',
+  drum: '#d55e00',
+  bass: '#0072b2',
+  piano: '#7b2048',
   guitar: '#7be0a4',
 };
 
