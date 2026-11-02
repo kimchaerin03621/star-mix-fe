@@ -49,7 +49,7 @@ test('clicking plain white space grabs nothing', async ({ page }) => {
   await page.mouse.up();
 });
 
-test('the wheel takes a held region out to the far edge of the graph and up to the eye', async ({ page }) => {
+test('the wheel takes a held region out to the edge of the graph (no farther) and up to the eye', async ({ page }) => {
   const { x, y } = await star(page, 'drums');
   await page.mouse.move(x, y);
   await page.mouse.down();
@@ -57,7 +57,10 @@ test('the wheel takes a held region out to the far edge of the graph and up to t
   const eyeTo = () => page.evaluate(() => window.__starMixTest.getCameraDistanceTo('drums'));
 
   for (let i = 0; i < 12; i += 1) { await page.mouse.wheel(0, -1000); await page.waitForTimeout(60); }
-  expect(await eyeTo()).toBeGreaterThan(30);
+  // The graph ends about 8 m from its middle; a region stops there, it cannot leave the graph.
+  expect(await eyeTo()).toBeGreaterThan(7);
+  const out = (await positions(page)).drums;
+  expect(Math.hypot(out[0], (out[1] - 1.6) / 0.75, out[2])).toBeLessThan(8);
 
   for (let i = 0; i < 12; i += 1) { await page.mouse.wheel(0, 1000); await page.waitForTimeout(60); }
   // It stops just in front of the eye (never behind it), and is still in the picture.
@@ -98,5 +101,30 @@ test('a press a little off a region still grabs it, and does not turn the view',
   const dragging = await page.evaluate(() => window.__starMixTest.getDragging());
   expect(Object.keys(dragging).filter((k) => dragging[k])).toEqual(['drums']);
   expect(distance(await page.evaluate(() => window.__starMixTest.getOrbitTarget()), target)).toBeLessThan(0.01);
+  await page.mouse.up();
+});
+
+test('a region pushed all the way out stays at the edge of the graph and can be grabbed again', async ({ page }) => {
+  const { x, y } = await star(page, 'drums');
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.waitForTimeout(250);
+  for (let i = 0; i < 14; i += 1) { await page.mouse.wheel(0, -1000); await page.waitForTimeout(60); }
+  await page.mouse.up();
+  await page.waitForTimeout(800);
+
+  // The star did not leave the graph, so it is still where its color is drawn.
+  const { shapes } = await page.evaluate(() => window.__starMixGraph());
+  const starPoint = (await positions(page)).drums;
+  expect(distance(starPoint, shapes.drums.center)).toBeLessThan(3);
+
+  // Pressing on the region grabs it (and only it).
+  const middle = await page.evaluate((c) => window.__starMixTest.getPointOnScreen(c), shapes.drums.center);
+  await page.mouse.move(middle.x, middle.y);
+  await page.waitForTimeout(150);
+  await page.mouse.down();
+  await page.waitForTimeout(250);
+  const dragging = await page.evaluate(() => window.__starMixTest.getDragging());
+  expect(Object.keys(dragging).filter((k) => dragging[k])).toEqual(['drums']);
   await page.mouse.up();
 });

@@ -9,6 +9,7 @@ import { WhiteGraph } from './graph/WhiteGraph';
 import { REGION_COLORS, WHITE_GRAPH_CENTER } from './graph/graphConstants';
 import { regionShapes, registerRegion, unregisterRegion } from './graph/graphRegistry';
 import { isStillMode } from '../stillMode';
+import { clampToGraph } from './graph/graphBounds';
 import { distanceCutoff, distanceGain, placeSound } from '../audio/spatialMotion';
 import { ENTRY_CAMERA_POSITION, ENTRY_CAMERA_TARGET } from '../audio/stemLayout';
 import { WebcamGestureController } from '../hand-tracking/WebcamGestureController';
@@ -383,6 +384,7 @@ function pickGrabTarget(origin, direction) {
 
 // Several stars can lie along one mouse ray (their click areas overlap, or one is in front of
 // another). The one whose center the ray passes nearest is the one meant; the others let go.
+const nodeOffset = new THREE.Vector3();
 function isNearestToRay(orbKey, ray) {
   const to = new THREE.Vector3();
   let bestKey = null;
@@ -395,8 +397,23 @@ function isNearestToRay(orbKey, ray) {
     if (along <= 0) return;
     const side = to.addScaledVector(ray.direction, -along).length();
     const reach = target.hitReach ?? Math.max(target.rayRadius, along * HIT_RADIUS_PER_METER);
-    if (side < reach && side < bestDistance) {
-      bestDistance = side;
+    if (side >= reach) return;
+    // Where two regions overlap, the one with a drawn node closest to the pointer is the one meant
+    // (not just the one whose middle is closest).
+    let score = side;
+    const nodes = regionShapes.get(key)?.nodes;
+    if (nodes) {
+      let nearestNode = Infinity;
+      for (let n = 0; n < nodes.length; n += 1) {
+        nodeOffset.set(nodes[n][0], nodes[n][1], nodes[n][2]).sub(ray.origin);
+        const nodeAlong = nodeOffset.dot(ray.direction);
+        if (nodeAlong <= 0) continue;
+        nearestNode = Math.min(nearestNode, nodeOffset.addScaledVector(ray.direction, -nodeAlong).length());
+      }
+      score = Math.min(side, nearestNode);
+    }
+    if (score < bestDistance) {
+      bestDistance = score;
       bestKey = key;
     }
   });
@@ -742,6 +759,7 @@ function InteractiveOrb({
         const rayDir = new THREE.Vector3(0, 0, -1).applyQuaternion(worldQuat).normalize();
 
         const targetPos = rayOrigin.clone().add(rayDir.multiplyScalar(dragDistanceRef.current));
+        if (clampToGraph(targetPos)) dragDistanceRef.current = Math.min(dragDistanceRef.current, rayOrigin.distanceTo(targetPos));
 
         meshRef.current.position.copy(targetPos);
         coordsRef.current[orbKey].copy(targetPos);
@@ -753,6 +771,13 @@ function InteractiveOrb({
       // wheel moves it, so it can never slide off to the side or behind the eye.
       const nextPoint = raycaster.ray.at(dragDistanceRef.current, new THREE.Vector3())
         .addScaledVector(dragOffsetRef.current, dragDistanceRef.current / dragStartDistanceRef.current);
+
+      // A region cannot be taken past the edge of the graph. If the mouse wants to, it stops at the
+      // edge and the wheel distance is brought back with it, so the wheel does not "run on" unseen.
+      if (clampToGraph(nextPoint)) {
+        const along = nextPoint.clone().sub(raycaster.ray.origin).dot(raycaster.ray.direction);
+        dragDistanceRef.current = Math.max(MOUSE_DRAG_MIN, Math.min(dragDistanceRef.current, along));
+      }
 
       meshRef.current.position.copy(nextPoint);
       coordsRef.current[orbKey].copy(nextPoint);
@@ -1185,6 +1210,7 @@ function VRAudioExperience({
   useFrame((state) => {
     // 0. Sphere Collision & Repulsion: Prevent stars from colliding/merging with each other
     const stemKeys = Object.keys(orbCoordsRef.current);
+    stemKeys.forEach((key) => clampToGraph(orbCoordsRef.current[key]));
     const minDistance = STAR_MIN_DISTANCE; // minimum distance between star centers, so two never overlap
 
     for (let pass = 0; pass < 2; pass++) {

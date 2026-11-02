@@ -78,11 +78,11 @@ test('a star that moves away gets quieter and duller, and one that comes close g
     expect(cutoff).toBeGreaterThan(15000);
   });
 
-  await page.evaluate(() => window.__starMixTest.setStemPosition('drums', [0, 1.6, -14]));
+  await page.evaluate(() => window.__starMixTest.setStemPosition('drums', [0, 1.6, -7.5]));
   await page.evaluate(() => window.__starMixTest.setStemPosition('bass', [0, 1.6, -1.5]));
-  await expect.poll(async () => (await audio(page)).distance.drums.gain, { timeout: 8000 }).toBeLessThan(0.45);
+  await expect.poll(async () => (await audio(page)).distance.drums.gain, { timeout: 8000 }).toBeLessThan(0.6);
   const changed = (await audio(page)).distance;
-  expect(changed.drums.cutoff).toBeLessThan(9000); // duller far away
+  expect(changed.drums.cutoff).toBeLessThan(11000); // duller far away
   expect(changed.bass.gain).toBeGreaterThan(1.7); // louder up close
   expect(changed.bass.cutoff).toBeGreaterThan(15000); // and still bright
 });

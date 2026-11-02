@@ -12,12 +12,12 @@ export const SPATIAL_MOTION = {
   AZIMUTH_STRETCH: 1.4, // sideways angle times this
   ELEVATION_STRETCH: 1.3, // up/down angle times this
   REFERENCE_DISTANCE: 4.2, // the distance the stars start at: level 1, bright
-  LOUDNESS_CURVE: 0.9, // gain = (reference / distance) ^ this
+  LOUDNESS_CURVE: 1.2, // gain = (reference / distance) ^ this (stars can only go about 8 m out)
   MIN_GAIN: 0.2,
   MAX_GAIN: 2.0,
   BRIGHT_CUTOFF_HZ: 20000, // lowpass when at or nearer than the reference distance
   MIN_CUTOFF_HZ: 2800, // and the darkest it gets, far away
-  CUTOFF_CURVE: 1.1,
+  CUTOFF_CURVE: 1.4,
 };
 
 const MAX_AZIMUTH = Math.PI * 0.98;
