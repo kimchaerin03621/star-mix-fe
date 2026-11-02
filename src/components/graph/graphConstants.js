@@ -46,7 +46,7 @@ export const OCCLUDER = {
 // each instrument gets a clearly colored one here instead.
 export const REGION_COLORS = {
   vocal: '#e6aacb',
-  drum: '#e2b6a2',
+  drum: '#ffffff',
   bass: '#a8c0e4',
   piano: '#a4d8d0',
   guitar: '#7be0a4',
