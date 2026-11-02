@@ -128,3 +128,28 @@ test('a region pushed all the way out stays at the edge of the graph and can be 
   expect(Object.keys(dragging).filter((k) => dragging[k])).toEqual(['drums']);
   await page.mouse.up();
 });
+
+test('with the pointer resting on a region (not pressed), the wheel zooms the view', async ({ page }) => {
+  const { shapes } = await page.evaluate(() => window.__starMixGraph());
+  const middle = await page.evaluate((c) => window.__starMixTest.getPointOnScreen(c), shapes.drums.center);
+  await page.mouse.move(middle.x, middle.y);
+  await page.waitForTimeout(400);
+  expect(Object.values(await page.evaluate(() => window.__starMixTest.getDragging())).some(Boolean)).toBe(false);
+
+  const eyeTo = () => page.evaluate(() => window.__starMixTest.getCameraDistanceTo('drums'));
+  const before = await eyeTo();
+  for (let i = 0; i < 6; i += 1) { await page.mouse.wheel(0, 400); await page.waitForTimeout(60); }
+  await page.waitForTimeout(500);
+  expect(Math.abs((await eyeTo()) - before)).toBeGreaterThan(0.3); // the view zoomed (before the fix the wheel did nothing here)
+
+  // Pressing there still grabs the region rather than turning the view.
+  const here = await page.evaluate(() => window.__starMixTest.getStarOnScreen('drums'));
+  const target = await page.evaluate(() => window.__starMixTest.getOrbitTarget());
+  await page.mouse.move(here.x, here.y);
+  await page.mouse.down();
+  await page.mouse.move(here.x + 40, here.y + 20, { steps: 6 });
+  const dragging = await page.evaluate(() => window.__starMixTest.getDragging());
+  expect(Object.keys(dragging).filter((k) => dragging[k])).toEqual(['drums']);
+  expect(distance(await page.evaluate(() => window.__starMixTest.getOrbitTarget()), target)).toBeLessThan(0.01);
+  await page.mouse.up();
+});

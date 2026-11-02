@@ -427,6 +427,7 @@ function InteractiveOrb({
   orbKey,
   coordsRef,
   setIsDraggingOrb,
+  setIsHoveringOrb,
   analysersRef,
   draggingOrbsRef,
   instrument,
@@ -793,8 +794,8 @@ function InteractiveOrb({
         position={initialPos}
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
-        onPointerOver={(e) => { e.stopPropagation(); setHovered(true); if (!isDragging) setIsDraggingOrb(true); }}
-        onPointerOut={(e) => { e.stopPropagation(); setHovered(false); if (!isDragging) setIsDraggingOrb(false); }}
+        onPointerOver={(e) => { e.stopPropagation(); setHovered(true); setIsHoveringOrb?.(true); }}
+        onPointerOut={(e) => { e.stopPropagation(); setHovered(false); setIsHoveringOrb?.(false); }}
       >
         {/* Invisible Hit-Test Proxy Sphere for 100% Precise Mouse/Raycast Drag Interaction */}
         <mesh ref={hitRef} visible={false}>
@@ -871,6 +872,7 @@ function VRAudioExperience({
   activePreset,
   isAudioActive,
   setIsDraggingOrb,
+  setIsHoveringOrb,
   playbackTimeRef,
   handData,
   orbitControlsRef,
@@ -1340,6 +1342,7 @@ function VRAudioExperience({
           initialPos={stem.initialPos}
           coordsRef={orbCoordsRef}
           setIsDraggingOrb={setIsDraggingOrb}
+          setIsHoveringOrb={setIsHoveringOrb}
           analysersRef={analysersRef}
           draggingOrbsRef={draggingOrbsRef}
           instrument={stem.instrument}
@@ -1391,6 +1394,8 @@ function SceneReadySignal({ onReady }) {
 export function VRScene({ store, starColors, handData, isInVR, isDesktopVR, activeSong, leftRate, rightRate, activePreset, isAudioActive, vrModeType, playbackTimeRef, vrCameraPos, vrCameraRot, onWebcamInteractionChange, handVisualFrameRef, onSceneReady }) {
   const isVRActive = isInVR || isDesktopVR;
   const [isDraggingOrb, setIsDraggingOrb] = useState(false);
+  // Pointing at a region: pressing there grabs it instead of turning the view, but the wheel still zooms.
+  const [isHoveringOrb, setIsHoveringOrb] = useState(false);
   const orbitControlsRef = useRef(null);
 
   return (
@@ -1430,7 +1435,7 @@ export function VRScene({ store, starColors, handData, isInVR, isDesktopVR, acti
             {isVRActive && vrModeType === 2 && <WhiteGraph />}
 
             <ControllerHelpers />
-            {isDesktopVR && <OrbitControls ref={orbitControlsRef} enabled={!isDraggingOrb} enableZoom={true} enablePan={false} maxDistance={25} minDistance={1} />}
+            {isDesktopVR && <OrbitControls ref={orbitControlsRef} enabled={!isDraggingOrb} enableRotate={!isHoveringOrb} enableZoom={true} enablePan={false} maxDistance={25} minDistance={1} />}
 
             {/* Premium 3D VR Spatial Audio Experience - ONLY in VR 2 */}
             {isVRActive && vrModeType === 2 && (
@@ -1442,6 +1447,7 @@ export function VRScene({ store, starColors, handData, isInVR, isDesktopVR, acti
                 activePreset={activePreset}
                 isAudioActive={isAudioActive}
                 setIsDraggingOrb={setIsDraggingOrb}
+                setIsHoveringOrb={setIsHoveringOrb}
                 playbackTimeRef={playbackTimeRef}
                 handData={handData}
                 orbitControlsRef={orbitControlsRef}
