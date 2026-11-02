@@ -30,7 +30,7 @@ export const GRAPH = {
 // The plain nodes and links (everything that is not part of a sounding region): flat, faint, no
 // effects. ALPHA is how visible they are (0.1 = 10%).
 export const PLAIN = {
-  ALPHA: 0.1,
+  ALPHA: 0.06,
   SIZE_SCALE: 1.3, // plain dots are drawn this many times the node's size
 };
 
@@ -45,9 +45,9 @@ export const OCCLUDER = {
 // Region colors. The graph is white, so a white-ish instrument color would look empty;
 // each instrument gets a clearly colored one here instead.
 export const REGION_COLORS = {
-  vocal: '#f2e244',
-  drum: '#d55e00',
-  bass: '#0072b2',
+  vocal: '#d4a63a',
+  drum: '#56b4e9',
+  bass: '#ffffff',
   piano: '#7b2048',
   guitar: '#7be0a4',
 };
