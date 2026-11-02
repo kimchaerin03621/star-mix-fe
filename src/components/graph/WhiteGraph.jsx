@@ -99,6 +99,13 @@ const SHARED_GLSL = /* glsl */ `
   float depthDim(float dist) {
     return mix(1.0, 0.18, smoothstep(${FAR_DIM[0].toFixed(1)}, ${FAR_DIM[1].toFixed(1)}, dist));
   }
+  // Plain dots and links: near ones brighter and bigger, far ones fainter and smaller.
+  float plainDepth(float dist) {
+    return smoothstep(${PLAIN.DEPTH_RANGE[0].toFixed(1)}, ${PLAIN.DEPTH_RANGE[1].toFixed(1)}, dist);
+  }
+  float plainGain(float dist) {
+    return mix(${PLAIN.NEAR_GAIN.toFixed(2)}, ${PLAIN.FAR_GAIN.toFixed(2)}, plainDepth(dist));
+  }
   float nearFade(float dist) {
     return smoothstep(${NEAR_FADE[0].toFixed(2)}, ${NEAR_FADE[1].toFixed(2)}, dist);
   }
@@ -121,8 +128,9 @@ const NODE_VERTEX = /* glsl */ `
 #ifdef PLAIN
     // A flat faint dot: no glow, no twinkle, no motion.
     vColor = vec3(1.0);
-    float size = min(aSize * ${PLAIN.SIZE_SCALE.toFixed(2)}, dist * ${MAX_SCREEN_SIZE.toFixed(3)});
-    vAlpha = ${PLAIN.ALPHA.toFixed(3)} * (1.0 - strength) * (1.0 - occluded()) * nearFade(dist);
+    float depthSize = mix(${PLAIN.NEAR_SIZE.toFixed(2)}, ${PLAIN.FAR_SIZE.toFixed(2)}, plainDepth(dist));
+    float size = min(aSize * ${PLAIN.SIZE_SCALE.toFixed(2)} * depthSize, dist * ${PLAIN.MAX_SCREEN_SIZE.toFixed(3)});
+    vAlpha = ${PLAIN.ALPHA.toFixed(3)} * plainGain(dist) * (1.0 - strength) * (1.0 - occluded()) * nearFade(dist);
 #else
     int r = int(aRegion + 0.5);
     float high = r >= 0 ? uHigh[r] * (1.0 - aAmount) : 0.0;
@@ -199,7 +207,7 @@ const LINK_VERTEX = /* glsl */ `
     float dist = length(viewPosition.xyz);
 #ifdef PLAIN
     vColor = vec3(1.0);
-    vAlpha = ${PLAIN.ALPHA.toFixed(3)} * (1.0 - strength) * (1.0 - occluded()) * nearFade(dist);
+    vAlpha = ${PLAIN.ALPHA.toFixed(3)} * plainGain(dist) * (1.0 - strength) * (1.0 - occluded()) * nearFade(dist);
 #else
     int r = int(aRegion + 0.5);
     float hit = r >= 0 ? uHit[r] * aAmount : 0.0;

@@ -21,6 +21,40 @@ function seededRandom(seedText) {
   };
 }
 
+// Points kept in cubes of one size, so "what is near this point" looks at 27 cubes instead of
+// every point. `near` calls back for every stored point in the cubes around a point (some of them
+// may be a little farther than the cube size: the caller checks the real distance).
+class SpaceGrid {
+  constructor(cellSize) {
+    this.cellSize = cellSize;
+    this.cells = new Map();
+  }
+
+  cellOf(point) {
+    return [Math.floor(point[0] / this.cellSize), Math.floor(point[1] / this.cellSize), Math.floor(point[2] / this.cellSize)];
+  }
+
+  add(point, index) {
+    const [x, y, z] = this.cellOf(point);
+    const key = `${x},${y},${z}`;
+    const entry = [point, index];
+    if (this.cells.has(key)) this.cells.get(key).push(entry);
+    else this.cells.set(key, [entry]);
+  }
+
+  near(point, visit) {
+    const [x, y, z] = this.cellOf(point);
+    for (let dx = -1; dx <= 1; dx += 1) {
+      for (let dy = -1; dy <= 1; dy += 1) {
+        for (let dz = -1; dz <= 1; dz += 1) {
+          const entries = this.cells.get(`${x + dx},${y + dy},${z + dz}`);
+          if (entries) for (let e = 0; e < entries.length; e += 1) visit(entries[e][0], entries[e][1]);
+        }
+      }
+    }
+  }
+}
+
 const gaussian = (random) => (random() + random() + random() - 1.5) / 1.5;
 
 export function buildGraph(seedText = 'white-graph') {
@@ -84,16 +118,19 @@ export function buildGraph(seedText = 'white-graph') {
   // around it. Sparse parts of the graph are left exactly as they were.
   const crowdSquared = GRAPH.CROWD_RADIUS ** 2;
   const spread = [];
+  const crowdGrid = new SpaceGrid(GRAPH.CROWD_RADIUS);
   positions.forEach((point) => {
     let neighbours = 0;
-    for (let i = 0; i < spread.length && neighbours <= GRAPH.CROWD_MAX; i += 1) {
-      const other = spread[i];
+    crowdGrid.near(point, (other) => {
       const dx = point[0] - other[0];
       const dy = point[1] - other[1];
       const dz = point[2] - other[2];
       if (dx * dx + dy * dy + dz * dz < crowdSquared) neighbours += 1;
+    });
+    if (neighbours < GRAPH.CROWD_MAX) {
+      spread.push(point);
+      crowdGrid.add(point);
     }
-    if (neighbours < GRAPH.CROWD_MAX) spread.push(point);
   });
   positions.length = 0;
   positions.push(...spread);
@@ -110,14 +147,16 @@ export function buildGraph(seedText = 'white-graph') {
     links.push([a, b]);
     return true;
   };
+  const linkGrid = new SpaceGrid(GRAPH.MAX_LINK_LENGTH);
+  positions.forEach((point, index) => linkGrid.add(point, index));
   for (let i = 0; i < count; i += 1) {
     const near = [];
-    for (let j = 0; j < count; j += 1) {
-      if (j === i) continue;
-      const d = Math.hypot(positions[i][0] - positions[j][0], positions[i][1] - positions[j][1], positions[i][2] - positions[j][2]);
+    linkGrid.near(positions[i], (other, j) => {
+      if (j === i) return;
+      const d = Math.hypot(positions[i][0] - other[0], positions[i][1] - other[1], positions[i][2] - other[2]);
       if (d < GRAPH.MAX_LINK_LENGTH) near.push([d, j]);
-    }
-    near.sort((a, b) => a[0] - b[0]);
+    });
+    near.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
     near.slice(0, GRAPH.LINKS_PER_NODE).forEach(([, j]) => addLink(i, j));
     if (near[GRAPH.LINKS_PER_NODE] && near[GRAPH.LINKS_PER_NODE][0] < GRAPH.EXTRA_LINK_LENGTH) addLink(i, near[GRAPH.LINKS_PER_NODE][1]);
   }

@@ -3,7 +3,7 @@ export const WHITE_GRAPH_CENTER = [0, 1.6, 0];
 
 // The shape and size of the white graph. Tuning knobs, in meters unless noted.
 export const GRAPH = {
-  NODE_COUNT: 4900, // about what the thinned graph used to end up with, so it is no heavier to draw
+  NODE_COUNT: 7000, // more nodes make the space deeper; 1.5x the earlier 4900 (watch the headset's frame rate)
   INNER_RADIUS: 2.0, // nothing closer than this to the head (it would fill the view)
   OUTER_RADIUS: 8.5,
   FLATTEN: 0.75, // 1 = a ball; lower = squashed top to bottom
@@ -33,6 +33,13 @@ export const GRAPH = {
 export const PLAIN = {
   ALPHA: 0.06,
   SIZE_SCALE: 1.3, // plain dots are drawn this many times the node's size
+  // Depth: near dots are bigger and brighter, far ones smaller and fainter, so the space reads as deep.
+  DEPTH_RANGE: [2.5, 9], // distances (meters) between which it goes from "near" to "far"
+  NEAR_GAIN: 1.7, // near dots: ALPHA times this
+  FAR_GAIN: 0.35, // far dots: ALPHA times this
+  NEAR_SIZE: 1.7, // near dots: size times this
+  FAR_SIZE: 0.7,
+  MAX_SCREEN_SIZE: 0.14, // no plain dot is drawn bigger than this share of its distance to the eye
 };
 
 // Plain nodes that stand between the eye and a colored region are hidden, so they never clutter
