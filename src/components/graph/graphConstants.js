@@ -44,10 +44,10 @@ export const PLAIN = {
 
 // How the whole graph moves, slowly, like something alive.
 export const MOTION = {
-  DISTANCE: 0.16, // how far the current carries a node (meters, at most)
-  SPEED: 0.3, // how fast it flows
-  SCALE: 0.55, // how big its swells are: lower = broader (nearby nodes move together)
-  OWN: 0.025, // each node's own small drift (meters)
+  DISTANCE: 0.34, // how far the current carries a node (meters, at most)
+  SPEED: 0.12, // how fast it flows (slow and lazy)
+  SCALE: 0.26, // how big its swells are: lower = broader (nearby nodes move together)
+  OWN: 0.008, // each node's own small drift (meters); kept tiny, it is what looks like a tremble
 };
 
 // Plain nodes that stand between the eye and a colored region are hidden, so they never clutter

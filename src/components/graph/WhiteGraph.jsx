@@ -53,7 +53,7 @@ const SHARED_GLSL = /* glsl */ `
   }
 
   vec3 drift(vec3 p, float seed, float amount) {
-    float t = uTime * (0.25 + seed * 0.3);
+    float t = uTime * (0.25 + seed * 0.3) * 0.5;
     // Each node also has a little life of its own.
     vec3 own = vec3(sin(t * 0.8 + seed * 13.0), sin(t * 0.9 + seed * 29.0), sin(t * 0.7 + seed * 47.0)) * ${MOTION.OWN.toFixed(3)};
     // Colored nodes (a sounding region) move more.
