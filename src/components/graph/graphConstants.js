@@ -47,7 +47,7 @@ export const OCCLUDER = {
 export const REGION_COLORS = {
   vocal: '#d4a63a',
   drum: '#56b4e9',
-  bass: '#ffffff',
+  bass: '#0072b2',
   piano: '#7b2048',
   guitar: '#7be0a4',
 };
