@@ -350,6 +350,21 @@ const pickScratch = { to: new THREE.Vector3(), onRay: new THREE.Vector3() };
 
 // The star this controller would pick right now: one touching the controller (the nearest),
 // else the nearest one along the ray. Returns { key, grabDistance } or null.
+// How far the ray passes from the nearest drawn node of a region (infinite if none is in front).
+const drawnOffset = new THREE.Vector3();
+function nearestDrawnNodeSide(key, origin, direction) {
+  const nodes = regionShapes.get(key)?.nodes;
+  if (!nodes) return 0; // not drawn yet: do not rule it out
+  let nearest = Infinity;
+  for (let n = 0; n < nodes.length; n += 1) {
+    drawnOffset.set(nodes[n][0], nodes[n][1], nodes[n][2]).sub(origin);
+    const along = drawnOffset.dot(direction);
+    if (along <= 0) continue;
+    nearest = Math.min(nearest, drawnOffset.addScaledVector(direction, -along).length());
+  }
+  return nearest;
+}
+
 function pickGrabTarget(origin, direction) {
   let touched = null;
   let touchedDistance = Infinity;
@@ -372,7 +387,10 @@ function pickGrabTarget(origin, direction) {
     if (along > 0.1 && along < 15.0 && along < aimedDistance) {
       pickScratch.onRay.copy(direction).multiplyScalar(along).add(origin);
       const tolerance = Math.max(target.hitReach ?? target.rayRadius, along * 0.05 + 0.18);
-      if (position.distanceTo(pickScratch.onRay) < tolerance) {
+      // Aiming counts only where the region is drawn: some drawn node of it has to be near the ray
+      // (a region's circle can be wide, and must not catch a ray that passes through empty space).
+      const drawnSide = nearestDrawnNodeSide(key, origin, direction);
+      if (position.distanceTo(pickScratch.onRay) < tolerance && drawnSide < along * 0.05 + 0.3) {
         pickScratch.to.subVectors(star, origin);
         aimed = { key, grabDistance: Math.max(0.4, pickScratch.to.dot(direction)) };
         aimedDistance = along;

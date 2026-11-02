@@ -44,6 +44,9 @@ export function buildGraph(seedText = 'white-graph') {
   const tooClose = (point) => KEEP_CLEAR.some(([x, y, z, radius]) => Math.hypot(point[0] - x, point[1] - y, point[2] - z) < radius);
 
   const positions = [];
+  const spacingSquared = GRAPH.MIN_SPACING ** 2;
+  const grid = new Map();
+  const cellOf = (p) => [Math.floor(p[0] / GRAPH.MIN_SPACING), Math.floor(p[1] / GRAPH.MIN_SPACING), Math.floor(p[2] / GRAPH.MIN_SPACING)];
   let guard = 0;
   while (positions.length < NODE_COUNT && guard < NODE_COUNT * 50) {
     guard += 1;
@@ -58,7 +61,23 @@ export function buildGraph(seedText = 'white-graph') {
     } else {
       point = randomPoint();
     }
-    if (!tooClose(point)) positions.push(point);
+    if (tooClose(point)) continue;
+    // Keep nodes from piling up on one another, so the graph is even all through.
+    const cell = cellOf(point);
+    let crowded = false;
+    for (let dx = -1; dx <= 1 && !crowded; dx += 1) {
+      for (let dy = -1; dy <= 1 && !crowded; dy += 1) {
+        for (let dz = -1; dz <= 1 && !crowded; dz += 1) {
+          const others = grid.get(`${cell[0] + dx},${cell[1] + dy},${cell[2] + dz}`);
+          crowded = others?.some((o) => (o[0] - point[0]) ** 2 + (o[1] - point[1]) ** 2 + (o[2] - point[2]) ** 2 < spacingSquared);
+        }
+      }
+    }
+    if (crowded) continue;
+    positions.push(point);
+    const key = cell.join(',');
+    if (grid.has(key)) grid.get(key).push(point);
+    else grid.set(key, [point]);
   }
 
   // Thin out only the crowded spots: a node is dropped when too many nodes already sit close

@@ -3,13 +3,14 @@ export const WHITE_GRAPH_CENTER = [0, 1.6, 0];
 
 // The shape and size of the white graph. Tuning knobs, in meters unless noted.
 export const GRAPH = {
-  NODE_COUNT: 6000,
+  NODE_COUNT: 4900, // about what the thinned graph used to end up with, so it is no heavier to draw
   INNER_RADIUS: 2.0, // nothing closer than this to the head (it would fill the view)
   OUTER_RADIUS: 8.5,
   FLATTEN: 0.75, // 1 = a ball; lower = squashed top to bottom
   CLUMP_COUNT: 48, // dense groups, like Obsidian's sections
-  CLUMP_SHARE: 0.55, // share of nodes that sit in a clump
-  CLUMP_SPREAD: 1.1,
+  CLUMP_SHARE: 0.1, // share of nodes that sit in a clump (low, so the density stays even)
+  CLUMP_SPREAD: 1.6,
+  MIN_SPACING: 0.3, // no two nodes closer than this (meters)
   // Spots to keep empty: [x, y, z, radius]. The head, and where the desktop camera starts.
   KEEP_CLEAR: [[0, 1.6, 0, 2.0], [0, 1.6, 2, 1.7]],
   LINKS_PER_NODE: 3, // each node is joined to this many nearest neighbours
@@ -45,10 +46,10 @@ export const OCCLUDER = {
 // Region colors. The graph is white, so a white-ish instrument color would look empty;
 // each instrument gets a clearly colored one here instead.
 export const REGION_COLORS = {
-  vocal: '#d4a63a',
-  drum: '#56b4e9',
-  bass: '#0072b2',
-  piano: '#7b2048',
+  vocal: '#d98a8a',
+  drum: '#fbc57a',
+  bass: '#4c4a8a',
+  piano: '#1c2c80',
   guitar: '#7be0a4',
 };
 
