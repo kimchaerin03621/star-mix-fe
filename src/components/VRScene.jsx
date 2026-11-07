@@ -11,6 +11,7 @@ import { regionShapes, registerRegion, unregisterRegion } from './graph/graphReg
 import { isStillMode } from '../stillMode';
 import { clampToGraph } from './graph/graphBounds';
 import { addHallReverb } from '../audio/reverb';
+import { readHeadPose } from '../headPose';
 import { distanceCutoff, distanceGain, placeSound } from '../audio/spatialMotion';
 import { ENTRY_CAMERA_POSITION, ENTRY_CAMERA_TARGET } from '../audio/stemLayout';
 import { WebcamGestureController } from '../hand-tracking/WebcamGestureController';
@@ -864,24 +865,6 @@ const SPATIAL_OUTPUT_GAIN = 0.3;
 // Stems closer than this to the listener play at full volume (inverse model).
 const SPATIAL_REF_DISTANCE = 4.0;
 
-// Where the listener's head is and which way it faces. In a headset session the scene camera's
-// own rotation can be wrong (it is a two-eye camera), so the pose is read from the eyes;
-// otherwise the camera itself is the head.
-const eyeScratch = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion(), scale: new THREE.Vector3(), other: new THREE.Vector3() };
-function readHeadPose(state, out) {
-  const eyes = state.gl.xr.isPresenting ? state.gl.xr.getCamera().cameras : null;
-  if (eyes && eyes.length > 0) {
-    eyes[0].matrixWorld.decompose(out.position, out.quaternion, eyeScratch.scale);
-    if (eyes[1]) {
-      eyes[1].matrixWorld.decompose(eyeScratch.other, eyeScratch.quaternion, eyeScratch.scale);
-      out.position.add(eyeScratch.other).multiplyScalar(0.5);
-    }
-  } else {
-    out.position.copy(state.camera.position);
-    out.quaternion.copy(state.camera.quaternion);
-  }
-  return out;
-}
 const headPose = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion() };
 
 // 3D VR Spatial Audio Experience (다이내믹 멀티트랙 스템 믹서 엔진)

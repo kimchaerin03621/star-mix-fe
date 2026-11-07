@@ -5,6 +5,7 @@ import { FOCUS, LIQUID, MOTION, OCCLUDER, PLAIN, REGION, SHOCK, WAVE, WEB, WHITE
 import { buildGraph, growRegions, nearestNode } from './graphLayout';
 import { getRegions, regionShapes } from './graphRegistry';
 import { isStillMode } from '../../stillMode';
+import { readHeadPose } from '../../headPose';
 import { buzzControllers, HAPTICS } from '../../audio/haptics';
 
 // The space itself: a huge white Obsidian-style graph around the listener, in 3D. Each
@@ -409,6 +410,7 @@ function syncLineSet(set) {
   aAmount.needsUpdate = true;
 }
 
+const headScratch = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion() };
 const colorCache = new Map();
 const colorOf = (value) => {
   if (!colorCache.has(value)) colorCache.set(value, new THREE.Color(value));
@@ -632,7 +634,9 @@ export function WhiteGraph() {
   useFrame((state, delta) => {
     graphUniforms.uTime.value = state.clock.elapsedTime;
     // Where the eye is right now: plain nodes in front of a colored region are hidden from here.
-    graphUniforms.uEye.value.copy(state.camera.position);
+    // The real head (between the eyes) decides what is hidden in front of a region: in a headset the
+    // scene camera's own position is not where the eyes are, and the hidden patch would drift off.
+    graphUniforms.uEye.value.copy(readHeadPose(state, headScratch).position);
 
     // React may build the graph twice in development; always write into the arrays that
     // the geometries on screen actually use.
