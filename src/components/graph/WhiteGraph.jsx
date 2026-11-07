@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { FOCUS, MOTION, OCCLUDER, PLAIN, REGION } from './graphConstants';
+import { FOCUS, LIQUID, MOTION, OCCLUDER, PLAIN, REGION, WAVE, WEB } from './graphConstants';
 import { buildGraph, growRegions, nearestNode } from './graphLayout';
 import { getRegions, regionShapes } from './graphRegistry';
 import { isStillMode } from '../../stillMode';
@@ -15,9 +15,10 @@ const WOBBLE = 0.05; // how much farther a colored node drifts (meters), on top 
 const NEAR_FADE = [1.2, 3.2]; // nodes closer to the eye than this fade out (a big blurry dot in your face is only a smudge)
 const MAX_SCREEN_SIZE = 0.09; // no node is drawn bigger than this share of its distance to the eye
 const FAR_DIM = [2.5, 12]; // colored nodes dim between these distances, for depth
-const GLOW_SIZE = 4.2; // a colored node's soft glow is drawn this many times wider than the node itself
-const HALO_SIZE = 7; // glow around a colored node, in node sizes
-const HALO_ALPHA = 0.16;
+const CORE_SIZE = 1.5; // a colored node is a solid disc this many times the node's size
+const HALO_SIZE = 6.5; // soft pastel underlay around a colored node, in node sizes
+const HALO_ALPHA = 0.14;
+const HALO_PASTEL = 0.62; // how far the underlay's color is pulled toward white (same hue, lighter)
 
 const SHARED_GLSL = /* glsl */ `
   uniform float uTime;
@@ -29,6 +30,11 @@ const SHARED_GLSL = /* glsl */ `
   uniform float uAge[${MAX_REGIONS}];
   uniform float uFocus[${MAX_REGIONS}];
   uniform vec3 uSeed[${MAX_REGIONS}];
+  uniform vec3 uHoldPos[${MAX_REGIONS}];
+  uniform vec3 uHoldOffset[${MAX_REGIONS}];
+  uniform float uHoldPull[${MAX_REGIONS}];
+  uniform float uSwell[${MAX_REGIONS}];
+  uniform float uMusic;
   uniform float uRegionRadius[${MAX_REGIONS}];
   attribute vec3 aPos;
   attribute float aSeed;
@@ -52,13 +58,41 @@ const SHARED_GLSL = /* glsl */ `
     ) * ${(MOTION.DISTANCE / 2).toFixed(3)};
   }
 
+  // A wave that runs outward from each sounding star, as strong as that instrument is loud.
+  vec3 ripple(vec3 p) {
+    vec3 push = vec3(0.0);
+    for (int i = 0; i < ${MAX_REGIONS}; i++) {
+      if (uLevel[i] > 0.0) {
+        vec3 q = p - uHoldPos[i];
+        float r = length(q);
+        float wave = sin(r * ${WAVE.FREQUENCY.toFixed(2)} - uTime * ${WAVE.SPEED.toFixed(2)}) * exp(-r * ${WAVE.REACH.toFixed(2)});
+        push += q / max(r, 0.001) * wave * (uSwell[i] * ${WAVE.RIPPLE.toFixed(3)} + length(uHoldOffset[i]) * ${(LIQUID.RIPPLE * WAVE.RIPPLE).toFixed(3)});
+      }
+    }
+    return push;
+  }
+
+  // A held star drags the nodes around it like a liquid: they trail behind it and lean toward it,
+  // then (the star stopping) flow back to where they were.
+  vec3 liquid(vec3 p) {
+    vec3 push = vec3(0.0);
+    for (int i = 0; i < ${MAX_REGIONS}; i++) {
+      if (uLevel[i] > 0.0) {
+        vec3 q = p - uHoldPos[i];
+        float f = exp(-dot(q, q) / ${(LIQUID.RADIUS * LIQUID.RADIUS).toFixed(2)});
+        push += (uHoldOffset[i] * ${LIQUID.LAG_GAIN.toFixed(2)} - q * uHoldPull[i] * ${LIQUID.PULL.toFixed(2)}) * f;
+      }
+    }
+    return push;
+  }
+
   vec3 drift(vec3 p, float seed, float amount) {
     float t = uTime * (0.25 + seed * 0.3) * 0.5;
     // Each node also has a little life of its own.
     vec3 own = vec3(sin(t * 0.8 + seed * 13.0), sin(t * 0.9 + seed * 29.0), sin(t * 0.7 + seed * 47.0)) * ${MOTION.OWN.toFixed(3)};
     // Colored nodes (a sounding region) move more.
     vec3 lively = vec3(sin(t + seed * 13.0), sin(t * 1.2 + seed * 29.0), sin(t * 0.8 + seed * 47.0)) * ${WOBBLE.toFixed(3)} * amount;
-    return p + current(p) + own + lively;
+    return p + current(p) * (1.0 + uMusic * ${WAVE.MUSIC_BOOST.toFixed(2)}) + own + lively + ripple(p) + liquid(p);
   }
 
   // Mixes the region color over the white graph; returns how colored this point is (0..1).
@@ -157,9 +191,10 @@ const NODE_VERTEX = /* glsl */ `
     // Nodes glimmer very slowly, never flash.
     float twinkle = 0.92 + 0.08 * sin(uTime * 0.9 + aSeed * 40.0);
     float focus = focusOf();
-    float size = aSize * twinkle * ${GLOW_SIZE.toFixed(1)} * (1.0 + strength * 1.1 + sparkle * 1.3 + hit * 0.6 + ring * 1.2 + focus * ${FOCUS.GROW.toFixed(2)} * breath(focus));
+    float size = aSize * twinkle * ${CORE_SIZE.toFixed(1)} * (1.0 + strength * 0.5 + sparkle * 1.3 + hit * 0.6 + ring * 1.2 + focus * ${FOCUS.GROW.toFixed(2)} * breath(focus));
     size = min(size, dist * ${MAX_SCREEN_SIZE.toFixed(3)});
-    vColor *= (1.0 + hit * 0.6 + sparkle + ring * 0.9 + focus * ${FOCUS.BRIGHTEN.toFixed(2)});
+    // The true color, opaque: it is laid over the pale underlay, not added to the black.
+    vColor = min(vColor * (1.0 + hit * 0.25 + sparkle * 0.3 + ring * 0.35 + focus * ${(FOCUS.BRIGHTEN * 0.4).toFixed(2)}), vec3(1.0));
     vAlpha = strength * mix(depthDim(dist), 1.0, strength * 0.7) * nearFade(dist);
 #endif
     viewPosition.xy += position.xy * size;
@@ -178,10 +213,9 @@ const NODE_FRAGMENT = /* glsl */ `
     float disc = 1.0 - smoothstep(0.7, 1.0, d);
     gl_FragColor = vec4(vColor, disc * vAlpha);
 #else
-    // A soft glow with a brighter core (the same look as the nebula star nodes).
-    float glow = pow(clamp(1.0 - d, 0.0, 1.0), 1.6);
-    float core = smoothstep(0.35, 0.0, d);
-    gl_FragColor = vec4(vColor * (0.7 + core * 0.9), glow * vAlpha);
+    // A small crisp disc in the region's own color.
+    float disc = 1.0 - smoothstep(0.55, 0.95, d);
+    gl_FragColor = vec4(vColor, disc * vAlpha);
 #endif
   }
 `;
@@ -192,6 +226,9 @@ const HALO_VERTEX = /* glsl */ `
   attribute float aSize;
   void main() {
     float strength = tint(0.0);
+    // The underlay is the same hue, pulled toward white (a pastel of the region's color).
+    int hr = int(aRegion + 0.5);
+    vColor = mix(hr >= 0 ? uColor[hr] : vec3(1.0), vec3(1.0), ${HALO_PASTEL.toFixed(2)});
     vec4 viewPosition = modelViewMatrix * vec4(drift(aPos, aSeed, strength), 1.0);
     float dist = length(viewPosition.xyz);
     float focus = focusOf();
@@ -209,7 +246,7 @@ const HALO_FRAGMENT = /* glsl */ `
   varying vec2 vUv;
   void main() {
     float d = length(vUv - 0.5) * 2.0;
-    float glow = exp(-d * d * 3.5) * (1.0 - smoothstep(0.8, 1.0, d));
+    float glow = exp(-d * d * 3.0) * (1.0 - smoothstep(0.7, 1.0, d));
     gl_FragColor = vec4(vColor, glow * vAlpha);
   }
 `;
@@ -230,8 +267,8 @@ const LINK_VERTEX = /* glsl */ `
     float hit = r >= 0 ? uHit[r] * aAmount : 0.0;
     float ring = r >= 0 ? wave(r) : 0.0;
     float focus = focusOf();
-    vColor *= (1.0 + hit * 0.5 + ring * 0.8 + focus * ${(FOCUS.BRIGHTEN * 0.7).toFixed(2)});
-    vAlpha = strength * 0.9 * (1.0 + focus * 0.4) * mix(depthDim(dist), 1.0, strength * 0.7) * nearFade(dist);
+    vColor = min(vColor * (1.0 + hit * 0.2 + ring * 0.3 + focus * ${(FOCUS.BRIGHTEN * 0.3).toFixed(2)}), vec3(1.0));
+    vAlpha = strength * 0.55 * (1.0 + focus * 0.4) * mix(depthDim(dist), 1.0, strength * 0.7) * nearFade(dist);
 #endif
     gl_Position = projectionMatrix * viewPosition;
   }
@@ -244,6 +281,76 @@ const LINK_FRAGMENT = /* glsl */ `
     gl_FragColor = vec4(vColor, vAlpha);
   }
 `;
+
+// The hairlines inside a region (and the white ones between regions): each line runs from the
+// region's color to a paler version of it. Their alpha follows how colored their two ends are.
+const WEB_VERTEX = /* glsl */ `
+  ${SHARED_GLSL}
+  attribute float aEnd;
+  void main() {
+    float strength = tint(0.0);
+    vec4 viewPosition = modelViewMatrix * vec4(drift(aPos, aSeed, strength), 1.0);
+    float dist = length(viewPosition.xyz);
+    int r = int(aRegion + 0.5);
+    vec3 base = r >= 0 ? uColor[r] : vec3(1.0);
+#ifdef CONNECT
+    vColor = vec3(1.0);
+    vAlpha = ${WEB.CONNECT_ALPHA.toFixed(3)} * strength * mix(depthDim(dist), 1.0, 0.6) * nearFade(dist);
+#else
+    float focus = focusOf();
+    vColor = mix(base, mix(base, vec3(1.0), ${WEB.PASTEL.toFixed(2)}), aEnd);
+    vAlpha = ${WEB.ALPHA.toFixed(3)} * strength * strength * (1.0 + focus * 0.6) * mix(depthDim(dist), 1.0, 0.7) * nearFade(dist);
+#endif
+    gl_Position = projectionMatrix * viewPosition;
+  }
+`;
+
+// A set of line segments whose ends are graph nodes; which nodes is chosen at run time.
+function makeLineSet(maxLines) {
+  const geometry = new THREE.BufferGeometry();
+  const vertices = maxLines * 2;
+  geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vertices * 3), 3));
+  geometry.setAttribute('aPos', new THREE.BufferAttribute(new Float32Array(vertices * 3), 3));
+  geometry.setAttribute('aSeed', new THREE.BufferAttribute(new Float32Array(vertices), 1));
+  geometry.setAttribute('aEnd', new THREE.BufferAttribute(new Float32Array(vertices), 1));
+  geometry.setAttribute('aRegion', new THREE.BufferAttribute(new Float32Array(vertices).fill(-1), 1).setUsage(THREE.DynamicDrawUsage));
+  geometry.setAttribute('aAmount', new THREE.BufferAttribute(new Float32Array(vertices), 1).setUsage(THREE.DynamicDrawUsage));
+  geometry.setDrawRange(0, 0);
+  return { geometry, maxLines, nodeOf: new Int32Array(vertices), lines: 0 };
+}
+
+function fillLineSet(set, graph, pairs) {
+  const count = Math.min(pairs.length, set.maxLines);
+  const aPos = set.geometry.getAttribute('aPos');
+  const aSeed = set.geometry.getAttribute('aSeed');
+  const aEnd = set.geometry.getAttribute('aEnd');
+  for (let k = 0; k < count; k += 1) {
+    pairs[k].forEach((node, end) => {
+      const v = k * 2 + end;
+      aPos.array.set(graph.nodes[node].position, v * 3);
+      aSeed.array[v] = graph.nodes[node].seed;
+      aEnd.array[v] = end;
+      set.nodeOf[v] = node;
+    });
+  }
+  set.lines = count;
+  set.geometry.setDrawRange(0, count * 2);
+  aPos.needsUpdate = true;
+  aSeed.needsUpdate = true;
+  aEnd.needsUpdate = true;
+}
+
+// Each line end takes on its node's current region and how colored it is.
+function syncLineSet(set) {
+  const aRegion = set.geometry.getAttribute('aRegion');
+  const aAmount = set.geometry.getAttribute('aAmount');
+  for (let v = 0; v < set.lines * 2; v += 1) {
+    aRegion.array[v] = store.nodeRegion[set.nodeOf[v]];
+    aAmount.array[v] = store.nodeAmount[set.nodeOf[v]];
+  }
+  aRegion.needsUpdate = true;
+  aAmount.needsUpdate = true;
+}
 
 const colorCache = new Map();
 const colorOf = (value) => {
@@ -261,6 +368,11 @@ const graphUniforms = {
   uAge: { value: new Array(MAX_REGIONS).fill(9) },
   uFocus: { value: new Array(MAX_REGIONS).fill(0) },
   uSeed: { value: Array.from({ length: MAX_REGIONS }, () => new THREE.Vector3()) },
+  uHoldPos: { value: Array.from({ length: MAX_REGIONS }, () => new THREE.Vector3()) },
+  uHoldOffset: { value: Array.from({ length: MAX_REGIONS }, () => new THREE.Vector3()) },
+  uHoldPull: { value: new Array(MAX_REGIONS).fill(0) },
+  uSwell: { value: new Array(MAX_REGIONS).fill(0) },
+  uMusic: { value: 0 },
   uRegionRadius: { value: new Array(MAX_REGIONS).fill(1.5) },
   uEye: { value: new THREE.Vector3() },
 };
@@ -277,12 +389,14 @@ const store = {
   seedKeys: [],
   regionRadius: [],
   focus: new Map(),
+  lag: new Map(), // each held star's trailing point (a spring that follows it)
+  held: new Map(), // how much each region is being held (eased 0..1)
   smooth: new Map(), // each region's sound (volume, hits, highs), eased so it swells rather than flashes
   dirty: true,
 };
 
 export function WhiteGraph() {
-  const { graph, nodeGeometry, linkGeometry, nodeMaterial, linkMaterial, plainNodeMaterial, plainLinkMaterial, haloMaterial } = useMemo(() => {
+  const { graph, nodeGeometry, linkGeometry, nodeMaterial, linkMaterial, plainNodeMaterial, plainLinkMaterial, haloMaterial, webSet, connectSet, webMaterial, connectMaterial } = useMemo(() => {
     const graph = buildGraph();
     const count = graph.count;
     const linkCount = graph.links.length;
@@ -340,7 +454,6 @@ export function WhiteGraph() {
       fragmentShader: NODE_FRAGMENT,
       transparent: true,
       depthWrite: false,
-      blending: THREE.AdditiveBlending,
     });
     const linkMaterial = new THREE.ShaderMaterial({
       uniforms: graphUniforms,
@@ -348,7 +461,6 @@ export function WhiteGraph() {
       fragmentShader: LINK_FRAGMENT,
       transparent: true,
       depthWrite: false,
-      blending: THREE.AdditiveBlending,
     });
 
     // The same shaders again for the plain nodes and links: faint, flat, normal blending.
@@ -375,11 +487,28 @@ export function WhiteGraph() {
       fragmentShader: HALO_FRAGMENT,
       transparent: true,
       depthWrite: false,
-      blending: THREE.AdditiveBlending,
+    });
+
+    const webSet = makeLineSet(WEB.MAX_PER_REGION * MAX_REGIONS);
+    const connectSet = makeLineSet(WEB.MAX_CONNECT);
+    const webMaterial = new THREE.ShaderMaterial({
+      uniforms: graphUniforms,
+      vertexShader: WEB_VERTEX,
+      fragmentShader: LINK_FRAGMENT,
+      transparent: true,
+      depthWrite: false,
+    });
+    const connectMaterial = new THREE.ShaderMaterial({
+      uniforms: graphUniforms,
+      defines: { CONNECT: '' },
+      vertexShader: WEB_VERTEX,
+      fragmentShader: LINK_FRAGMENT,
+      transparent: true,
+      depthWrite: false,
     });
 
     quad.dispose();
-    return { graph, nodeGeometry, linkGeometry, nodeMaterial, linkMaterial, plainNodeMaterial, plainLinkMaterial, haloMaterial };
+    return { graph, nodeGeometry, linkGeometry, nodeMaterial, linkMaterial, plainNodeMaterial, plainLinkMaterial, haloMaterial, webSet, connectSet, webMaterial, connectMaterial };
   }, []);
 
   const scratch = useMemo(() => ({ position: new THREE.Vector3() }), []);
@@ -427,7 +556,11 @@ export function WhiteGraph() {
     plainNodeMaterial.dispose();
     plainLinkMaterial.dispose();
     haloMaterial.dispose();
-  }, [nodeGeometry, linkGeometry, nodeMaterial, linkMaterial, plainNodeMaterial, plainLinkMaterial, haloMaterial]);
+    webSet.geometry.dispose();
+    connectSet.geometry.dispose();
+    webMaterial.dispose();
+    connectMaterial.dispose();
+  }, [nodeGeometry, linkGeometry, nodeMaterial, linkMaterial, plainNodeMaterial, plainLinkMaterial, haloMaterial, webSet, connectSet, webMaterial, connectMaterial]);
 
   useFrame((state, delta) => {
     graphUniforms.uTime.value = state.clock.elapsedTime;
@@ -501,6 +634,39 @@ export function WhiteGraph() {
           .sort((x, y) => x - y);
         regionShapes.set(keys[regionIndex], { center, nodes: members, radius: (reach[Math.floor(reach.length * 0.85)] ?? 0) + 0.2 });
       });
+      // The hairlines: each node reaches out to others of its own region; a few white lines join regions.
+      const members = seeds.map(() => []);
+      for (let i = 0; i < graph.count; i += 1) if (region[i] >= 0) members[region[i]].push(i);
+      const webPairs = [];
+      const radiusSquared = WEB.RADIUS * WEB.RADIUS;
+      members.forEach((list) => {
+        let made = 0;
+        for (let n = 0; n < list.length && made < WEB.MAX_PER_REGION; n += 1) {
+          const i = list[n];
+          let mine = 0;
+          for (let tries = 0; tries < WEB.PER_NODE * 3 && mine < WEB.PER_NODE && made < WEB.MAX_PER_REGION; tries += 1) {
+            const j = list[Math.floor(Math.random() * list.length)];
+            if (j === i) continue;
+            const a = graph.nodes[i].position;
+            const b = graph.nodes[j].position;
+            if ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2 > radiusSquared) continue;
+            webPairs.push([i, j]);
+            made += 1;
+            mine += 1;
+          }
+        }
+      });
+      const connectPairs = [];
+      for (let a = 0; a < members.length; a += 1) {
+        for (let b = a + 1; b < members.length; b += 1) {
+          if (members[a].length === 0 || members[b].length === 0) continue;
+          for (let k = 0; k < WEB.CONNECT_PER_PAIR; k += 1) {
+            connectPairs.push([members[a][Math.floor(Math.random() * members[a].length)], members[b][Math.floor(Math.random() * members[b].length)]]);
+          }
+        }
+      }
+      fillLineSet(webSet, graph, webPairs);
+      fillLineSet(connectSet, graph, connectPairs);
       for (let i = 0; i < graph.count; i += 1) {
         store.targetRegion[i] = region[i];
         store.targetAmount[i] = region[i] >= 0 ? 1 - hops[i] / (hopReach[region[i]] + 1) : 0;
@@ -540,6 +706,8 @@ export function WhiteGraph() {
       nodeGeometry.getAttribute('aAmount').needsUpdate = true;
       linkGeometry.getAttribute('aRegion').needsUpdate = true;
       linkGeometry.getAttribute('aAmount').needsUpdate = true;
+      syncLineSet(webSet);
+      syncLineSet(connectSet);
       store.dirty = moving;
     }
 
@@ -569,11 +737,33 @@ export function WhiteGraph() {
       graphUniforms.uHigh.value[index] = heard.high;
       graphUniforms.uHit.value[index] = heard.hit;
       graphUniforms.uAge.value[index] = sound.current.age;
+      graphUniforms.uSwell.value[index] = Math.min(1, heard.vol * 1.4);
+
+      // The star's real position, and a point that follows it on a spring: the lag between them is
+      // what makes the nodes around it flow like a liquid.
+      entry.group.current.getWorldPosition(scratch.position);
+      let lag = store.lag.get(key);
+      if (!lag) {
+        lag = { position: scratch.position.clone(), velocity: new THREE.Vector3() };
+        store.lag.set(key, lag);
+      }
+      if (lag.position.distanceTo(scratch.position) > 3) { lag.position.copy(scratch.position); lag.velocity.set(0, 0, 0); }
+      const step = Math.min(delta, 0.05);
+      lag.velocity.addScaledVector(scratch.position.clone().sub(lag.position), LIQUID.SPRING * step).multiplyScalar(Math.max(0, 1 - LIQUID.DAMPING * step));
+      lag.position.addScaledVector(lag.velocity, step);
+      const offset = lag.position.clone().sub(scratch.position);
+      if (offset.length() > LIQUID.MAX_OFFSET) offset.setLength(LIQUID.MAX_OFFSET);
+      const held = (store.held.get(key) ?? 0) + ((interaction.current.grabbed ? 1 : 0) - (store.held.get(key) ?? 0)) * Math.min(1, delta * 6);
+      store.held.set(key, held);
+      graphUniforms.uHoldPos.value[index].copy(scratch.position);
+      graphUniforms.uHoldOffset.value[index].copy(offset);
+      graphUniforms.uHoldPull.value[index] = held;
       const seed = store.seeds[index];
       if (seed >= 0) graphUniforms.uSeed.value[index].fromArray(graph.nodes[seed].position);
       graphUniforms.uRegionRadius.value[index] = store.regionRadius[index] ?? 1.5;
     });
     for (let i = entries.length; i < MAX_REGIONS; i += 1) graphUniforms.uLevel.value[i] = 0;
+    graphUniforms.uMusic.value = entries.length ? entries.reduce((sum, _, index) => sum + graphUniforms.uSwell.value[index], 0) / entries.length : 0;
   });
 
   return (
@@ -581,7 +771,9 @@ export function WhiteGraph() {
       <lineSegments geometry={linkGeometry} material={plainLinkMaterial} frustumCulled={false} raycast={() => null} renderOrder={-2} />
       <mesh geometry={nodeGeometry} material={plainNodeMaterial} frustumCulled={false} raycast={() => null} renderOrder={-1} />
       <mesh geometry={nodeGeometry} material={haloMaterial} frustumCulled={false} raycast={() => null} renderOrder={0} />
+      <lineSegments geometry={connectSet.geometry} material={connectMaterial} frustumCulled={false} raycast={() => null} renderOrder={-1.5} />
       <lineSegments geometry={linkGeometry} material={linkMaterial} frustumCulled={false} raycast={() => null} renderOrder={1} />
+      <lineSegments geometry={webSet.geometry} material={webMaterial} frustumCulled={false} raycast={() => null} renderOrder={1.5} />
       <mesh geometry={nodeGeometry} material={nodeMaterial} frustumCulled={false} raycast={() => null} renderOrder={2} />
     </group>
   );

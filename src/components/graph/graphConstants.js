@@ -8,9 +8,9 @@ export const GRAPH = {
   OUTER_RADIUS: 8.5,
   FLATTEN: 0.75, // 1 = a ball; lower = squashed top to bottom
   CLUMP_COUNT: 48, // dense groups, like Obsidian's sections
-  CLUMP_SHARE: 0.1, // share of nodes that sit in a clump (low, so the density stays even)
+  CLUMP_SHARE: 0, // share of nodes that sit in a clump (none: the spacing stays even)
   CLUMP_SPREAD: 1.6,
-  MIN_SPACING: 0.3, // no two nodes closer than this (meters)
+  MIN_SPACING: 0.5, // no two nodes closer than this (meters); near the most that fits, so the spacing is even
   // Spots to keep empty: [x, y, z, radius]. The head, and where the desktop camera starts.
   KEEP_CLEAR: [[0, 1.6, 0, 2.0], [0, 1.6, 2, 1.7]],
   LINKS_PER_NODE: 3, // each node is joined to this many nearest neighbours
@@ -19,13 +19,7 @@ export const GRAPH = {
   // Crowded spots are thinned: at most CROWD_MAX nodes within CROWD_RADIUS (meters) of one another.
   CROWD_RADIUS: 0.5,
   CROWD_MAX: 9,
-  NODE_SIZE: 0.045,
-  NODE_SIZE_PER_LINK: 0.008,
-  NODE_SIZE_RANDOM: 0.02,
-  // The best-connected nodes are drawn as big bright hubs, like the nebula stars.
-  HUB_SHARE: 0.07,
-  HUB_SIZE: 0.13,
-  HUB_SIZE_RANDOM: 0.05,
+  NODE_SIZE: 0.06, // every node is this size
 };
 
 // The plain nodes and links (everything that is not part of a sounding region): flat, faint, no
@@ -48,6 +42,40 @@ export const MOTION = {
   SPEED: 0.12, // how fast it flows (slow and lazy)
   SCALE: 0.26, // how big its swells are: lower = broader (nearby nodes move together)
   OWN: 0.008, // each node's own small drift (meters); kept tiny, it is what looks like a tremble
+};
+
+// The fine hairlines that make a colored region look like a woven volume (and the white lines that
+// tie the regions together). The more lines, the denser and more solid a region reads.
+export const WEB = {
+  PER_NODE: 40, // each node of a region reaches out to this many others of the same region
+  RADIUS: 1.3, // ...within this distance (meters)
+  MAX_PER_REGION: 1800,
+  ALPHA: 0.8, // one hairline; many overlapping lines build up the color
+  PASTEL: 0.55, // the far end of each line is its color pulled this far toward white
+  CONNECT_PER_PAIR: 26, // white lines from one region to another, per pair of regions
+  CONNECT_ALPHA: 0.12,
+  MAX_CONNECT: 400,
+};
+
+// Waves that run through the nodes with the music (gentle: the graph stays in place).
+export const WAVE = {
+  RIPPLE: 0.1, // how far a node is pushed by a region's wave at full volume (meters)
+  SPEED: 1.6, // how fast the wave travels outward
+  FREQUENCY: 2.2, // lower = wider waves
+  REACH: 0.45, // lower = the wave carries farther before it fades
+  MUSIC_BOOST: 0.6, // the whole graph's slow flow gets this much bigger when the music is loud
+};
+
+// Holding a region and moving it: the nodes around it follow like a liquid (a little behind, a little
+// stretched), then settle back to where they were.
+export const LIQUID = {
+  RADIUS: 1.4, // how far around the star the nodes are affected (meters)
+  LAG_GAIN: 0.9, // how much of the star's lag the nodes show
+  PULL: 0.15, // while held, the nodes around it lean toward the star by this much
+  MAX_OFFSET: 1.2, // the lag never stretches farther than this (meters)
+  SPRING: 30, // how hard the lagging point is pulled to the star (higher = tighter)
+  DAMPING: 5, // lower = it overshoots and wobbles more, like pudding (above about 2x the square root of SPRING it flows like water)
+  RIPPLE: 0, // while it moves, rings spread out from the star, this strong per meter of lag (0 = none, pudding)
 };
 
 // Plain nodes that stand between the eye and a colored region are hidden, so they never clutter
