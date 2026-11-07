@@ -38,10 +38,12 @@ export const PLAIN = {
 
 // How the whole graph moves, slowly, like something alive.
 export const MOTION = {
-  DISTANCE: 0.34, // how far the current carries a node (meters, at most)
+  DISTANCE: 0.2, // how far the shared current carries a node (meters, at most); kept small so nodes do not all move together
   SPEED: 0.12, // how fast it flows (slow and lazy)
+  FINE: 0.4, // the second, tighter layer of swell, as strong as this share of the broad one
   SCALE: 0.26, // how big its swells are: lower = broader (nearby nodes move together)
-  OWN: 0.008, // each node's own small drift (meters); kept tiny, it is what looks like a tremble
+  OWN: 0.1, // each node's own drift (meters): this is what makes every node look alive on its own
+  OWN_SPEED: [0.3, 0.9], // how fast a node drifts (radians per second); each picks its own, so they never move in step
 };
 
 // The fine hairlines that make a colored region look like a woven volume (and the white lines that
@@ -69,13 +71,15 @@ export const WAVE = {
 // Holding a region and moving it: the nodes around it follow like a liquid (a little behind, a little
 // stretched), then settle back to where they were.
 export const LIQUID = {
-  RADIUS: 1.4, // how far around the star the nodes are affected (meters)
+  RADIUS: 0.9, // how far around the star the nodes are affected (meters)
   LAG_GAIN: 0.9, // how much of the star's lag the nodes show
-  PULL: 0.15, // while held, the nodes around it lean toward the star by this much
-  MAX_OFFSET: 1.2, // the lag never stretches farther than this (meters)
-  SPRING: 30, // how hard the lagging point is pulled to the star (higher = tighter)
-  DAMPING: 5, // lower = it overshoots and wobbles more, like pudding (above about 2x the square root of SPRING it flows like water)
-  RIPPLE: 0, // while it moves, rings spread out from the star, this strong per meter of lag (0 = none, pudding)
+  PULL: 0.08, // while held, the nodes around it lean toward the star by this much
+  MAX_OFFSET: 0.7, // the lag never stretches farther than this (meters)
+  SPRING: 48, // how hard the lagging point is pulled to the star (higher = quicker to follow)
+  DAMPING: 6.5, // lower = it overshoots and wobbles more, like pudding (above about 2x the square root of SPRING it flows like water)
+  VARIANTS: 6, // how many different springs there are; every node follows one of them (or a blend), so each wobbles on its own
+  JIGGLE: 0.03, // while it is being moved, each node keeps jiggling, this much per m/s of the star's speed (meters)
+  SPREAD: 0.55, // how different they are: 0 = all alike (one blob), higher = each node more on its own
 };
 
 // Plain nodes that stand between the eye and a colored region are hidden, so they never clutter

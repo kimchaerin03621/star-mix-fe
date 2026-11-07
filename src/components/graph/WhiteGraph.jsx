@@ -31,8 +31,9 @@ const SHARED_GLSL = /* glsl */ `
   uniform float uFocus[${MAX_REGIONS}];
   uniform vec3 uSeed[${MAX_REGIONS}];
   uniform vec3 uHoldPos[${MAX_REGIONS}];
-  uniform vec3 uHoldOffset[${MAX_REGIONS}];
+  uniform vec3 uHoldOffset[${MAX_REGIONS * LIQUID.VARIANTS}];
   uniform float uHoldPull[${MAX_REGIONS}];
+  uniform float uHoldSpeed[${MAX_REGIONS}];
   uniform float uSwell[${MAX_REGIONS}];
   uniform float uMusic;
   uniform float uRegionRadius[${MAX_REGIONS}];
@@ -51,11 +52,19 @@ const SHARED_GLSL = /* glsl */ `
   vec3 current(vec3 p) {
     float t = uTime * ${MOTION.SPEED.toFixed(2)};
     vec3 q = p * ${MOTION.SCALE.toFixed(2)};
-    return vec3(
+    // Two layers of swell, one broad and one tighter, so the motion never settles into a pattern.
+    vec3 broad = vec3(
       sin(q.y * 1.3 + t) + sin(q.z * 0.9 - t * 0.7),
       sin(q.z * 1.1 + t * 0.8) + sin(q.x * 0.7 + t * 0.6),
       sin(q.x * 1.2 - t * 0.9) + sin(q.y * 0.8 + t * 0.5)
-    ) * ${(MOTION.DISTANCE / 2).toFixed(3)};
+    );
+    vec3 r = p * ${(MOTION.SCALE * 2.3).toFixed(2)};
+    vec3 fine = vec3(
+      sin(r.z * 1.2 - t * 1.3) + sin(r.y * 0.8 + t * 0.9),
+      sin(r.x * 1.1 + t * 1.1) + sin(r.z * 0.9 - t * 0.8),
+      sin(r.y * 1.3 - t * 1.0) + sin(r.x * 0.7 + t * 1.2)
+    );
+    return (broad + fine * ${MOTION.FINE.toFixed(2)}) * ${(MOTION.DISTANCE / 2).toFixed(3)};
   }
 
   // A wave that runs outward from each sounding star, as strong as that instrument is loud.
@@ -66,7 +75,7 @@ const SHARED_GLSL = /* glsl */ `
         vec3 q = p - uHoldPos[i];
         float r = length(q);
         float wave = sin(r * ${WAVE.FREQUENCY.toFixed(2)} - uTime * ${WAVE.SPEED.toFixed(2)}) * exp(-r * ${WAVE.REACH.toFixed(2)});
-        push += q / max(r, 0.001) * wave * (uSwell[i] * ${WAVE.RIPPLE.toFixed(3)} + length(uHoldOffset[i]) * ${(LIQUID.RIPPLE * WAVE.RIPPLE).toFixed(3)});
+        push += q / max(r, 0.001) * wave * uSwell[i] * ${WAVE.RIPPLE.toFixed(3)};
       }
     }
     return push;
@@ -74,13 +83,20 @@ const SHARED_GLSL = /* glsl */ `
 
   // A held star drags the nodes around it like a liquid: they trail behind it and lean toward it,
   // then (the star stopping) flow back to where they were.
-  vec3 liquid(vec3 p) {
+  vec3 liquid(vec3 p, float seed) {
     vec3 push = vec3(0.0);
     for (int i = 0; i < ${MAX_REGIONS}; i++) {
       if (uLevel[i] > 0.0) {
         vec3 q = p - uHoldPos[i];
         float f = exp(-dot(q, q) / ${(LIQUID.RADIUS * LIQUID.RADIUS).toFixed(2)});
-        push += (uHoldOffset[i] * ${LIQUID.LAG_GAIN.toFixed(2)} - q * uHoldPull[i] * ${LIQUID.PULL.toFixed(2)}) * f;
+        // Each node follows its own spring (one of several, or a blend of two), so they wobble out of step.
+        float u = fract(seed * 7.31) * ${(LIQUID.VARIANTS - 1).toFixed(1)};
+        int k0 = int(floor(u));
+        int k1 = min(k0 + 1, ${LIQUID.VARIANTS - 1});
+        vec3 lagOffset = mix(uHoldOffset[i * ${LIQUID.VARIANTS} + k0], uHoldOffset[i * ${LIQUID.VARIANTS} + k1], fract(u));
+        // While the star is moving every node keeps wobbling in its own way, in step with the speed.
+        vec3 jiggle = vec3(sin(uTime * 5.5 + seed * 31.0), sin(uTime * 6.5 + seed * 17.0), sin(uTime * 4.8 + seed * 43.0)) * uHoldSpeed[i] * ${LIQUID.JIGGLE.toFixed(3)};
+        push += (lagOffset * ${LIQUID.LAG_GAIN.toFixed(2)} + jiggle - q * uHoldPull[i] * ${LIQUID.PULL.toFixed(2)}) * f;
       }
     }
     return push;
@@ -89,10 +105,17 @@ const SHARED_GLSL = /* glsl */ `
   vec3 drift(vec3 p, float seed, float amount) {
     float t = uTime * (0.25 + seed * 0.3) * 0.5;
     // Each node also has a little life of its own.
-    vec3 own = vec3(sin(t * 0.8 + seed * 13.0), sin(t * 0.9 + seed * 29.0), sin(t * 0.7 + seed * 47.0)) * ${MOTION.OWN.toFixed(3)};
+    // Every node floats on its own: its own speed, its own direction, its own phase. Nothing is shared.
+    float ownTime = uTime * (${MOTION.OWN_SPEED[0].toFixed(2)} + fract(seed * 53.0) * ${(MOTION.OWN_SPEED[1] - MOTION.OWN_SPEED[0]).toFixed(2)});
+    float ownSize = 0.6 + 0.4 * fract(seed * 91.0);
+    vec3 own = vec3(
+      sin(ownTime * 0.9 + seed * 13.0) + 0.4 * sin(ownTime * 1.9 + seed * 71.0),
+      sin(ownTime * 1.1 + seed * 29.0) + 0.4 * sin(ownTime * 1.7 + seed * 37.0),
+      sin(ownTime * 0.8 + seed * 47.0) + 0.4 * sin(ownTime * 2.1 + seed * 59.0)
+    ) * ${MOTION.OWN.toFixed(3)} * ownSize;
     // Colored nodes (a sounding region) move more.
     vec3 lively = vec3(sin(t + seed * 13.0), sin(t * 1.2 + seed * 29.0), sin(t * 0.8 + seed * 47.0)) * ${WOBBLE.toFixed(3)} * amount;
-    return p + current(p) * (1.0 + uMusic * ${WAVE.MUSIC_BOOST.toFixed(2)}) + own + lively + ripple(p) + liquid(p);
+    return p + current(p) * (1.0 + uMusic * ${WAVE.MUSIC_BOOST.toFixed(2)}) + own + lively + ripple(p) + liquid(p, seed);
   }
 
   // Mixes the region color over the white graph; returns how colored this point is (0..1).
@@ -369,8 +392,9 @@ const graphUniforms = {
   uFocus: { value: new Array(MAX_REGIONS).fill(0) },
   uSeed: { value: Array.from({ length: MAX_REGIONS }, () => new THREE.Vector3()) },
   uHoldPos: { value: Array.from({ length: MAX_REGIONS }, () => new THREE.Vector3()) },
-  uHoldOffset: { value: Array.from({ length: MAX_REGIONS }, () => new THREE.Vector3()) },
+  uHoldOffset: { value: Array.from({ length: MAX_REGIONS * LIQUID.VARIANTS }, () => new THREE.Vector3()) },
   uHoldPull: { value: new Array(MAX_REGIONS).fill(0) },
+  uHoldSpeed: { value: new Array(MAX_REGIONS).fill(0) },
   uSwell: { value: new Array(MAX_REGIONS).fill(0) },
   uMusic: { value: 0 },
   uRegionRadius: { value: new Array(MAX_REGIONS).fill(1.5) },
@@ -390,6 +414,8 @@ const store = {
   regionRadius: [],
   focus: new Map(),
   lag: new Map(), // each held star's trailing point (a spring that follows it)
+  starAt: new Map(), // where each star was a frame ago
+  speed: new Map(), // how fast each star is moving (eased)
   held: new Map(), // how much each region is being held (eased 0..1)
   smooth: new Map(), // each region's sound (volume, hits, highs), eased so it swells rather than flashes
   dirty: true,
@@ -742,21 +768,34 @@ export function WhiteGraph() {
       // The star's real position, and a point that follows it on a spring: the lag between them is
       // what makes the nodes around it flow like a liquid.
       entry.group.current.getWorldPosition(scratch.position);
-      let lag = store.lag.get(key);
-      if (!lag) {
-        lag = { position: scratch.position.clone(), velocity: new THREE.Vector3() };
-        store.lag.set(key, lag);
+      let lags = store.lag.get(key);
+      if (!lags) {
+        lags = Array.from({ length: LIQUID.VARIANTS }, () => ({ position: scratch.position.clone(), velocity: new THREE.Vector3() }));
+        store.lag.set(key, lags);
       }
-      if (lag.position.distanceTo(scratch.position) > 3) { lag.position.copy(scratch.position); lag.velocity.set(0, 0, 0); }
       const step = Math.min(delta, 0.05);
-      lag.velocity.addScaledVector(scratch.position.clone().sub(lag.position), LIQUID.SPRING * step).multiplyScalar(Math.max(0, 1 - LIQUID.DAMPING * step));
-      lag.position.addScaledVector(lag.velocity, step);
-      const offset = lag.position.clone().sub(scratch.position);
-      if (offset.length() > LIQUID.MAX_OFFSET) offset.setLength(LIQUID.MAX_OFFSET);
+      // How fast the star is moving right now (m/s, eased so it does not flicker).
+      const previousStar = store.starAt.get(key);
+      const rawSpeed = previousStar && step > 0 ? Math.min(3, previousStar.distanceTo(scratch.position) / step) : 0;
+      store.starAt.set(key, scratch.position.clone());
+      const speed = (store.speed.get(key) ?? 0) + (rawSpeed - (store.speed.get(key) ?? 0)) * Math.min(1, delta * 12);
+      store.speed.set(key, speed);
+      graphUniforms.uHoldSpeed.value[index] = speed;
+      lags.forEach((lag, k) => {
+        if (lag.position.distanceTo(scratch.position) > 3) { lag.position.copy(scratch.position); lag.velocity.set(0, 0, 0); }
+        // Springs of different stiffness and looseness: their wobbles drift apart.
+        const t = k / (LIQUID.VARIANTS - 1) - 0.5;
+        const spring = LIQUID.SPRING * (1 + t * 1.6 * LIQUID.SPREAD);
+        const damping = LIQUID.DAMPING * (1 - t * 0.9 * LIQUID.SPREAD);
+        lag.velocity.addScaledVector(scratch.position.clone().sub(lag.position), spring * step).multiplyScalar(Math.max(0, 1 - damping * step));
+        lag.position.addScaledVector(lag.velocity, step);
+        const offset = lag.position.clone().sub(scratch.position);
+        if (offset.length() > LIQUID.MAX_OFFSET) offset.setLength(LIQUID.MAX_OFFSET);
+        graphUniforms.uHoldOffset.value[index * LIQUID.VARIANTS + k].copy(offset);
+      });
       const held = (store.held.get(key) ?? 0) + ((interaction.current.grabbed ? 1 : 0) - (store.held.get(key) ?? 0)) * Math.min(1, delta * 6);
       store.held.set(key, held);
       graphUniforms.uHoldPos.value[index].copy(scratch.position);
-      graphUniforms.uHoldOffset.value[index].copy(offset);
       graphUniforms.uHoldPull.value[index] = held;
       const seed = store.seeds[index];
       if (seed >= 0) graphUniforms.uSeed.value[index].fromArray(graph.nodes[seed].position);
