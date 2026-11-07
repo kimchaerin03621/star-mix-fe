@@ -74,11 +74,12 @@ export const SHOCK = {
   SPEED: 6, // how fast the shell travels (m/s); the graph is ~9 m deep, so it crosses in about 1.5 s
   WIDTH: 0.8, // thickness of the shell (m)
   FADE: 0.85, // how fast it dies away over time
-  ALPHA: 0.55, // how bright the nodes and links it passes through get
-  PUSH: 0.14, // how far the shell shoves nodes outward as it passes (m)
-  SIZE: 0.9, // plain nodes grow this much while it passes
+  ALPHA: 0.3, // how bright the nodes and links it passes through get (kept faint: it should be felt more than seen)
   // How strongly each instrument sends a shell: the drum is the big one.
-  WEIGHT: { drum: 1, bass: 0.6, piano: 0.35, guitar: 0.3, vocal: 0.25 },
+  WEIGHT: { drum: 1, bass: 0.9, piano: 0.8, guitar: 0.8, vocal: 0.8 },
+  SLOTS: 4, // how many shells of one star can travel at once: a new one never cuts off the one before
+  SUSTAIN_VOLUME: 0.12, // a star that keeps sounding above this loudness sends a shell every...
+  SUSTAIN_EVERY: 1.4, // ...this many seconds, even with no sharp hit (vocal, piano)
   // The whole graph swells a hair with the bass, slowly, like the room breathing (a share of the distance from the center).
   BREATH: 0.018,
 };

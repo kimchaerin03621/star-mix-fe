@@ -37,6 +37,8 @@ const SHARED_GLSL = /* glsl */ `
   uniform float uSwell[${MAX_REGIONS}];
   uniform float uMusic;
   uniform float uShock[${MAX_REGIONS}];
+  uniform float uShockAge[${MAX_REGIONS * SHOCK.SLOTS}];
+  uniform float uShockPower[${MAX_REGIONS * SHOCK.SLOTS}];
   uniform float uBreath;
   uniform float uRegionRadius[${MAX_REGIONS}];
   attribute vec3 aPos;
@@ -110,27 +112,17 @@ const SHARED_GLSL = /* glsl */ `
     vec3 col = vec3(0.0);
     for (int i = 0; i < ${MAX_REGIONS}; i++) {
       if (uShock[i] > 0.0) {
-        float d = (length(p - uHoldPos[i]) - uAge[i] * ${SHOCK.SPEED.toFixed(2)}) / ${SHOCK.WIDTH.toFixed(2)};
-        float s = exp(-d * d) * exp(-uAge[i] * ${SHOCK.FADE.toFixed(2)}) * uShock[i];
-        total += s;
-        col += uColor[i] * s;
+        float r = length(p - uHoldPos[i]);
+        for (int k = 0; k < ${SHOCK.SLOTS}; k++) {
+          float age = uShockAge[i * ${SHOCK.SLOTS} + k];
+          float d = (r - age * ${SHOCK.SPEED.toFixed(2)}) / ${SHOCK.WIDTH.toFixed(2)};
+          float s = exp(-d * d) * exp(-age * ${SHOCK.FADE.toFixed(2)}) * uShock[i] * uShockPower[i * ${SHOCK.SLOTS} + k];
+          total += s;
+          col += uColor[i] * s;
+        }
       }
     }
     return vec4(col / max(total, 0.001), min(total, 1.0));
-  }
-
-  // ...and it shoves the nodes it passes a little outward.
-  vec3 shockPush(vec3 p) {
-    vec3 push = vec3(0.0);
-    for (int i = 0; i < ${MAX_REGIONS}; i++) {
-      if (uShock[i] > 0.0) {
-        vec3 q = p - uHoldPos[i];
-        float r = length(q);
-        float d = (r - uAge[i] * ${SHOCK.SPEED.toFixed(2)}) / ${SHOCK.WIDTH.toFixed(2)};
-        push += q / max(r, 0.001) * exp(-d * d) * exp(-uAge[i] * ${SHOCK.FADE.toFixed(2)}) * uShock[i] * ${SHOCK.PUSH.toFixed(3)};
-      }
-    }
-    return push;
   }
 
   vec3 drift(vec3 p, float seed, float amount) {
@@ -146,8 +138,7 @@ const SHARED_GLSL = /* glsl */ `
     ) * ${MOTION.OWN.toFixed(3)} * ownSize;
     // Colored nodes (a sounding region) move more.
     vec3 lively = vec3(sin(t + seed * 13.0), sin(t * 1.2 + seed * 29.0), sin(t * 0.8 + seed * 47.0)) * ${WOBBLE.toFixed(3)} * amount;
-    return p + current(p) * (1.0 + uMusic * ${WAVE.MUSIC_BOOST.toFixed(2)}) + own + lively + ripple(p) + liquid(p, seed) + shockPush(p)
-      + (p - vec3(${WHITE_GRAPH_CENTER.map((v) => v.toFixed(2)).join(', ')})) * uBreath * ${SHOCK.BREATH.toFixed(3)};
+    return p + current(p) * (1.0 + uMusic * ${WAVE.MUSIC_BOOST.toFixed(2)}) + own + lively + ripple(p) + liquid(p, seed) + (p - vec3(${WHITE_GRAPH_CENTER.map((v) => v.toFixed(2)).join(', ')})) * uBreath * ${SHOCK.BREATH.toFixed(3)};
   }
 
   // Mixes the region color over the white graph; returns how colored this point is (0..1).
@@ -236,7 +227,7 @@ const NODE_VERTEX = /* glsl */ `
     vec4 sh = shock(aPos);
     vColor = mix(vec3(1.0), sh.rgb, min(1.0, sh.w * 1.4));
     float depthSize = mix(${PLAIN.NEAR_SIZE.toFixed(2)}, ${PLAIN.FAR_SIZE.toFixed(2)}, plainDepth(dist));
-    float size = min(aSize * ${PLAIN.SIZE_SCALE.toFixed(2)} * depthSize * (1.0 + sh.w * ${SHOCK.SIZE.toFixed(2)}), dist * ${PLAIN.MAX_SCREEN_SIZE.toFixed(3)});
+    float size = min(aSize * ${PLAIN.SIZE_SCALE.toFixed(2)} * depthSize, dist * ${PLAIN.MAX_SCREEN_SIZE.toFixed(3)});
     vAlpha = (${PLAIN.ALPHA.toFixed(3)} * plainGain(dist) + sh.w * ${SHOCK.ALPHA.toFixed(2)} * mix(depthDim(dist), 1.0, 0.5)) * (1.0 - strength) * (1.0 - occluded()) * nearFade(dist);
 #else
     int r = int(aRegion + 0.5);
@@ -432,6 +423,8 @@ const graphUniforms = {
   uSwell: { value: new Array(MAX_REGIONS).fill(0) },
   uMusic: { value: 0 },
   uShock: { value: new Array(MAX_REGIONS).fill(0) },
+  uShockAge: { value: new Array(MAX_REGIONS * SHOCK.SLOTS).fill(99) },
+  uShockPower: { value: new Array(MAX_REGIONS * SHOCK.SLOTS).fill(0) },
   uBreath: { value: 0 },
   uRegionRadius: { value: new Array(MAX_REGIONS).fill(1.5) },
   uEye: { value: new THREE.Vector3() },
@@ -453,6 +446,7 @@ const store = {
   starAt: new Map(), // where each star was a frame ago
   speed: new Map(), // how fast each star is moving (eased)
   held: new Map(), // how much each region is being held (eased 0..1)
+  shells: new Map(), // each region's travelling shells: how old each is and how strong
   smooth: new Map(), // each region's sound (volume, hits, highs), eased so it swells rather than flashes
   dirty: true,
 };
@@ -800,7 +794,31 @@ export function WhiteGraph() {
       graphUniforms.uHit.value[index] = heard.hit;
       graphUniforms.uAge.value[index] = sound.current.age;
       graphUniforms.uSwell.value[index] = Math.min(1, heard.vol * 1.4);
-      graphUniforms.uShock.value[index] = isStillMode ? 0 : (SHOCK.WEIGHT[entry.instrument] ?? 0.3);
+      graphUniforms.uShock.value[index] = isStillMode ? 0 : (SHOCK.WEIGHT[entry.instrument] ?? 0.8);
+
+      // Shells: each hit (or, for a star that sounds steadily, every little while) starts a new one in
+      // the oldest free slot. The shells already travelling are never cut off by it.
+      let shell = store.shells.get(key);
+      if (!shell) {
+        shell = { ages: new Array(SHOCK.SLOTS).fill(99), power: new Array(SHOCK.SLOTS).fill(0), lastAge: 9, since: 9 };
+        store.shells.set(key, shell);
+      }
+      shell.since += delta;
+      const struck = sound.current.age < shell.lastAge - 0.0001;
+      shell.lastAge = sound.current.age;
+      const sustained = heard.vol > SHOCK.SUSTAIN_VOLUME && shell.since > SHOCK.SUSTAIN_EVERY;
+      if (struck || sustained) {
+        let oldest = 0;
+        for (let k = 1; k < SHOCK.SLOTS; k += 1) if (shell.ages[k] > shell.ages[oldest]) oldest = k;
+        shell.ages[oldest] = 0;
+        shell.power[oldest] = struck ? 1 : Math.min(0.9, 0.4 + heard.vol);
+        shell.since = 0;
+      }
+      for (let k = 0; k < SHOCK.SLOTS; k += 1) {
+        shell.ages[k] = Math.min(99, shell.ages[k] + delta);
+        graphUniforms.uShockAge.value[index * SHOCK.SLOTS + k] = shell.ages[k];
+        graphUniforms.uShockPower.value[index * SHOCK.SLOTS + k] = shell.ages[k] > 3 ? 0 : shell.power[k];
+      }
 
       // The star's real position, and a point that follows it on a spring: the lag between them is
       // what makes the nodes around it flow like a liquid.
