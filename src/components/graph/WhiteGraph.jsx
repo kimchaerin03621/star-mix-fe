@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { FOCUS, LIQUID, MOTION, OCCLUDER, PLAIN, REGION, WAVE, WEB } from './graphConstants';
+import { FOCUS, LIQUID, MOTION, OCCLUDER, PLAIN, REGION, SHOCK, WAVE, WEB, WHITE_GRAPH_CENTER } from './graphConstants';
 import { buildGraph, growRegions, nearestNode } from './graphLayout';
 import { getRegions, regionShapes } from './graphRegistry';
 import { isStillMode } from '../../stillMode';
@@ -36,6 +36,8 @@ const SHARED_GLSL = /* glsl */ `
   uniform float uHoldSpeed[${MAX_REGIONS}];
   uniform float uSwell[${MAX_REGIONS}];
   uniform float uMusic;
+  uniform float uShock[${MAX_REGIONS}];
+  uniform float uBreath;
   uniform float uRegionRadius[${MAX_REGIONS}];
   attribute vec3 aPos;
   attribute float aSeed;
@@ -102,6 +104,35 @@ const SHARED_GLSL = /* glsl */ `
     return push;
   }
 
+  // The shell of light a hit sends outward: xyz = its color, w = how strongly this point is in it.
+  vec4 shock(vec3 p) {
+    float total = 0.0;
+    vec3 col = vec3(0.0);
+    for (int i = 0; i < ${MAX_REGIONS}; i++) {
+      if (uShock[i] > 0.0) {
+        float d = (length(p - uHoldPos[i]) - uAge[i] * ${SHOCK.SPEED.toFixed(2)}) / ${SHOCK.WIDTH.toFixed(2)};
+        float s = exp(-d * d) * exp(-uAge[i] * ${SHOCK.FADE.toFixed(2)}) * uShock[i];
+        total += s;
+        col += uColor[i] * s;
+      }
+    }
+    return vec4(col / max(total, 0.001), min(total, 1.0));
+  }
+
+  // ...and it shoves the nodes it passes a little outward.
+  vec3 shockPush(vec3 p) {
+    vec3 push = vec3(0.0);
+    for (int i = 0; i < ${MAX_REGIONS}; i++) {
+      if (uShock[i] > 0.0) {
+        vec3 q = p - uHoldPos[i];
+        float r = length(q);
+        float d = (r - uAge[i] * ${SHOCK.SPEED.toFixed(2)}) / ${SHOCK.WIDTH.toFixed(2)};
+        push += q / max(r, 0.001) * exp(-d * d) * exp(-uAge[i] * ${SHOCK.FADE.toFixed(2)}) * uShock[i] * ${SHOCK.PUSH.toFixed(3)};
+      }
+    }
+    return push;
+  }
+
   vec3 drift(vec3 p, float seed, float amount) {
     float t = uTime * (0.25 + seed * 0.3) * 0.5;
     // Each node also has a little life of its own.
@@ -115,7 +146,8 @@ const SHARED_GLSL = /* glsl */ `
     ) * ${MOTION.OWN.toFixed(3)} * ownSize;
     // Colored nodes (a sounding region) move more.
     vec3 lively = vec3(sin(t + seed * 13.0), sin(t * 1.2 + seed * 29.0), sin(t * 0.8 + seed * 47.0)) * ${WOBBLE.toFixed(3)} * amount;
-    return p + current(p) * (1.0 + uMusic * ${WAVE.MUSIC_BOOST.toFixed(2)}) + own + lively + ripple(p) + liquid(p, seed);
+    return p + current(p) * (1.0 + uMusic * ${WAVE.MUSIC_BOOST.toFixed(2)}) + own + lively + ripple(p) + liquid(p, seed) + shockPush(p)
+      + (p - vec3(${WHITE_GRAPH_CENTER.map((v) => v.toFixed(2)).join(', ')})) * uBreath * ${SHOCK.BREATH.toFixed(3)};
   }
 
   // Mixes the region color over the white graph; returns how colored this point is (0..1).
@@ -201,10 +233,11 @@ const NODE_VERTEX = /* glsl */ `
     float dist = length(viewPosition.xyz);
 #ifdef PLAIN
     // A flat faint dot: no glow, no twinkle, no motion.
-    vColor = vec3(1.0);
+    vec4 sh = shock(aPos);
+    vColor = mix(vec3(1.0), sh.rgb, min(1.0, sh.w * 1.4));
     float depthSize = mix(${PLAIN.NEAR_SIZE.toFixed(2)}, ${PLAIN.FAR_SIZE.toFixed(2)}, plainDepth(dist));
-    float size = min(aSize * ${PLAIN.SIZE_SCALE.toFixed(2)} * depthSize, dist * ${PLAIN.MAX_SCREEN_SIZE.toFixed(3)});
-    vAlpha = ${PLAIN.ALPHA.toFixed(3)} * plainGain(dist) * (1.0 - strength) * (1.0 - occluded()) * nearFade(dist);
+    float size = min(aSize * ${PLAIN.SIZE_SCALE.toFixed(2)} * depthSize * (1.0 + sh.w * ${SHOCK.SIZE.toFixed(2)}), dist * ${PLAIN.MAX_SCREEN_SIZE.toFixed(3)});
+    vAlpha = (${PLAIN.ALPHA.toFixed(3)} * plainGain(dist) + sh.w * ${SHOCK.ALPHA.toFixed(2)} * mix(depthDim(dist), 1.0, 0.5)) * (1.0 - strength) * (1.0 - occluded()) * nearFade(dist);
 #else
     int r = int(aRegion + 0.5);
     float high = r >= 0 ? uHigh[r] * (1.0 - aAmount) : 0.0;
@@ -283,8 +316,9 @@ const LINK_VERTEX = /* glsl */ `
     vec4 viewPosition = modelViewMatrix * vec4(drift(aPos, aSeed, strength), 1.0);
     float dist = length(viewPosition.xyz);
 #ifdef PLAIN
-    vColor = vec3(1.0);
-    vAlpha = ${PLAIN.ALPHA.toFixed(3)} * plainGain(dist) * (1.0 - strength) * (1.0 - occluded()) * nearFade(dist);
+    vec4 sh = shock(aPos);
+    vColor = mix(vec3(1.0), sh.rgb, min(1.0, sh.w * 1.4));
+    vAlpha = (${PLAIN.ALPHA.toFixed(3)} * plainGain(dist) + sh.w * ${(SHOCK.ALPHA * 0.8).toFixed(2)} * mix(depthDim(dist), 1.0, 0.5)) * (1.0 - strength) * (1.0 - occluded()) * nearFade(dist);
 #else
     int r = int(aRegion + 0.5);
     float hit = r >= 0 ? uHit[r] * aAmount : 0.0;
@@ -397,6 +431,8 @@ const graphUniforms = {
   uHoldSpeed: { value: new Array(MAX_REGIONS).fill(0) },
   uSwell: { value: new Array(MAX_REGIONS).fill(0) },
   uMusic: { value: 0 },
+  uShock: { value: new Array(MAX_REGIONS).fill(0) },
+  uBreath: { value: 0 },
   uRegionRadius: { value: new Array(MAX_REGIONS).fill(1.5) },
   uEye: { value: new THREE.Vector3() },
 };
@@ -764,6 +800,7 @@ export function WhiteGraph() {
       graphUniforms.uHit.value[index] = heard.hit;
       graphUniforms.uAge.value[index] = sound.current.age;
       graphUniforms.uSwell.value[index] = Math.min(1, heard.vol * 1.4);
+      graphUniforms.uShock.value[index] = isStillMode ? 0 : (SHOCK.WEIGHT[entry.instrument] ?? 0.3);
 
       // The star's real position, and a point that follows it on a spring: the lag between them is
       // what makes the nodes around it flow like a liquid.
@@ -802,6 +839,10 @@ export function WhiteGraph() {
       graphUniforms.uRegionRadius.value[index] = store.regionRadius[index] ?? 1.5;
     });
     for (let i = entries.length; i < MAX_REGIONS; i += 1) graphUniforms.uLevel.value[i] = 0;
+    // The room breathes with the bass: a slow swell that follows the bass region's loudness.
+    const bassIndex = entries.findIndex(([, e]) => e.instrument === 'bass');
+    const bassNow = bassIndex >= 0 ? graphUniforms.uSwell.value[bassIndex] : 0;
+    graphUniforms.uBreath.value += (bassNow - graphUniforms.uBreath.value) * Math.min(1, delta * 1.5);
     graphUniforms.uMusic.value = entries.length ? entries.reduce((sum, _, index) => sum + graphUniforms.uSwell.value[index], 0) / entries.length : 0;
   });
 

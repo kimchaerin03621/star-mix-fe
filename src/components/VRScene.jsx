@@ -10,6 +10,7 @@ import { REGION_COLORS, WHITE_GRAPH_CENTER } from './graph/graphConstants';
 import { regionShapes, registerRegion, unregisterRegion } from './graph/graphRegistry';
 import { isStillMode } from '../stillMode';
 import { clampToGraph } from './graph/graphBounds';
+import { addHallReverb } from '../audio/reverb';
 import { distanceCutoff, distanceGain, placeSound } from '../audio/spatialMotion';
 import { ENTRY_CAMERA_POSITION, ENTRY_CAMERA_TARGET } from '../audio/stemLayout';
 import { WebcamGestureController } from '../hand-tracking/WebcamGestureController';
@@ -475,7 +476,7 @@ function InteractiveOrb({
   // being touched, so the graph can color a region around it.
   useEffect(() => {
     if (!usesRegion) return undefined;
-    registerRegion(orbKey, { color: REGION_COLORS[instrument] ?? color, group: meshRef, sound: soundRef, interaction: interactionRef });
+    registerRegion(orbKey, { instrument, color: REGION_COLORS[instrument] ?? color, group: meshRef, sound: soundRef, interaction: interactionRef });
     return () => unregisterRegion(orbKey);
   }, [usesRegion, orbKey, color, instrument]);
   useEffect(() => {
@@ -1082,6 +1083,8 @@ function VRAudioExperience({
       lowShelf.connect(midPeaking);
       midPeaking.connect(highShelf);
       highShelf.connect(masterFilter);
+      // The sound also rings through a large hall, so the space feels vast around you.
+      addHallReverb(ctx, highShelf, masterFilter);
       eqFiltersRef.current = { low: lowShelf, mid: midPeaking, high: highShelf };
 
       const elements = {};

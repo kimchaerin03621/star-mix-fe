@@ -61,11 +61,26 @@ export const WEB = {
 
 // Waves that run through the nodes with the music (gentle: the graph stays in place).
 export const WAVE = {
-  RIPPLE: 0.1, // how far a node is pushed by a region's wave at full volume (meters)
+  RIPPLE: 0, // how far a node is pushed by a region's wave at full volume (meters)
   SPEED: 1.6, // how fast the wave travels outward
   FREQUENCY: 2.2, // lower = wider waves
   REACH: 0.45, // lower = the wave carries farther before it fades
   MUSIC_BOOST: 0.6, // the whole graph's slow flow gets this much bigger when the music is loud
+};
+
+// A hit (above all a drum stroke) sends one thin shell of light out through the whole graph, from
+// the instrument's star to the far edge: you see the sound cross the space. Rare and large, not busy.
+export const SHOCK = {
+  SPEED: 6, // how fast the shell travels (m/s); the graph is ~9 m deep, so it crosses in about 1.5 s
+  WIDTH: 0.8, // thickness of the shell (m)
+  FADE: 0.85, // how fast it dies away over time
+  ALPHA: 0.55, // how bright the nodes and links it passes through get
+  PUSH: 0.14, // how far the shell shoves nodes outward as it passes (m)
+  SIZE: 0.9, // plain nodes grow this much while it passes
+  // How strongly each instrument sends a shell: the drum is the big one.
+  WEIGHT: { drum: 1, bass: 0.6, piano: 0.35, guitar: 0.3, vocal: 0.25 },
+  // The whole graph swells a hair with the bass, slowly, like the room breathing (a share of the distance from the center).
+  BREATH: 0.018,
 };
 
 // Holding a region and moving it: the nodes around it follow like a liquid (a little behind, a little
