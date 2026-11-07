@@ -53,7 +53,7 @@ export const WEB = {
   RADIUS: 1.3, // ...within this distance (meters)
   MAX_PER_REGION: 1800,
   ALPHA: 0.8, // one hairline; many overlapping lines build up the color
-  PASTEL: 0.55, // the far end of each line is its color pulled this far toward white
+  PASTEL: 0.3, // the far end of each line is its color pulled this far toward white
   CONNECT_PER_PAIR: 26, // white lines from one region to another, per pair of regions
   CONNECT_ALPHA: 0.12,
   MAX_CONNECT: 400,
@@ -93,10 +93,10 @@ export const OCCLUDER = {
 // Region colors. The graph is white, so a white-ish instrument color would look empty;
 // each instrument gets a clearly colored one here instead.
 export const REGION_COLORS = {
-  vocal: '#d98a8a',
-  drum: '#fbc57a',
-  bass: '#4c4a8a',
-  piano: '#1c2c80',
+  vocal: '#d9788f',
+  drum: '#e9b26c',
+  bass: '#3f9ea6',
+  piano: '#7f74d4',
   guitar: '#7be0a4',
 };
 
