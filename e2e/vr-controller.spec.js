@@ -108,3 +108,23 @@ test('pulling the thumbstick back brings a held star closer', async ({ page }) =
   await expect.poll(async () => distance(await drums(page), CONTROLLER_AT), { timeout: 15_000 })
     .toBeLessThan(HELD_DISTANCE - 1.5);
 });
+
+test('a star pulled right up to the controller can be grabbed again', async ({ page }) => {
+  await setButton(page, 'right', 'trigger', 1);
+  await page.waitForTimeout(300);
+  await setThumbstick(page, 'right', 0, 1);
+  await expect.poll(async () => distance(await drums(page), CONTROLLER_AT), { timeout: 20_000 })
+    .toBeLessThan(0.8);
+  await setThumbstick(page, 'right', 0, 0);
+  await setButton(page, 'right', 'trigger', 0);
+  await page.waitForTimeout(300);
+
+  // It sits right at the hand now: aim at it, grab it again and carry it away.
+  const resting = await drums(page);
+  await aimControllers(page, CONTROLLER_AT, resting);
+  await setButton(page, 'right', 'trigger', 1);
+  await page.waitForTimeout(300);
+  await aimControllers(page, CONTROLLER_AT, AIM_ELSEWHERE);
+  const expected = pointAlong(CONTROLLER_AT, AIM_ELSEWHERE, distance(resting, CONTROLLER_AT));
+  await expect.poll(async () => distance(await drums(page), expected), { timeout: 10_000 }).toBeLessThan(0.3);
+});

@@ -377,7 +377,9 @@ function pickGrabTarget(origin, direction) {
     // does not jump when grabbed.
     const position = target.hitCenter ?? star;
     const distance = origin.distanceTo(position);
-    const touchRadius = target.hitReach ? target.hitReach * 0.6 : target.touchRadius;
+    // A controller inside the region (a star pulled right up to the hand) always holds it, wherever
+    // the ray points: the region's middle may be beside or behind the hand, out of the ray's reach.
+    const touchRadius = target.hitReach ? target.hitReach : target.touchRadius;
     if (distance < touchRadius && distance < touchedDistance) {
       touched = { key, grabDistance: Math.max(0.3, origin.distanceTo(star)) };
       touchedDistance = distance;
