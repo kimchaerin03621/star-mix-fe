@@ -80,6 +80,12 @@ export const SHOCK = {
   SLOTS: 4, // how many shells of one star can travel at once: a new one never cuts off the one before
   SUSTAIN_VOLUME: 0.12, // a star that keeps sounding above this loudness sends a shell every...
   SUSTAIN_EVERY: 1.4, // ...this many seconds, even with no sharp hit (vocal, piano)
+  // The region itself moves with the sound: it swells from its center as its instrument gets louder
+  // (and a little more on each hit), and settles as it quiets.
+  RECOIL: 0.1, // how far (a share of each node's distance from the region's center) at full sound
+  RECOIL_HIT: 0.5, // how much of that a sharp hit adds on top of the steady loudness
+  RECOIL_RISE: 14, // how fast it follows the sound getting louder (higher = sharper)
+  RECOIL_FALL: 4, // how fast it settles when the sound drops
   // The whole graph swells a hair with the bass, slowly, like the room breathing (a share of the distance from the center).
   BREATH: 0.018,
 };

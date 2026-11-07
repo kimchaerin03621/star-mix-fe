@@ -5,6 +5,7 @@ import { FOCUS, LIQUID, MOTION, OCCLUDER, PLAIN, REGION, SHOCK, WAVE, WEB, WHITE
 import { buildGraph, growRegions, nearestNode } from './graphLayout';
 import { getRegions, regionShapes } from './graphRegistry';
 import { isStillMode } from '../../stillMode';
+import { buzzControllers, HAPTICS } from '../../audio/haptics';
 
 // The space itself: a huge white Obsidian-style graph around the listener, in 3D. Each
 // instrument colors one region of it (the nodes within a few links of its sounding node).
@@ -40,6 +41,7 @@ const SHARED_GLSL = /* glsl */ `
   uniform float uShockAge[${MAX_REGIONS * SHOCK.SLOTS}];
   uniform float uShockPower[${MAX_REGIONS * SHOCK.SLOTS}];
   uniform float uBreath;
+  uniform float uKick[${MAX_REGIONS}];
   uniform float uRegionRadius[${MAX_REGIONS}];
   attribute vec3 aPos;
   attribute float aSeed;
@@ -125,6 +127,13 @@ const SHARED_GLSL = /* glsl */ `
     return vec4(col / max(total, 0.001), min(total, 1.0));
   }
 
+  // The recoil of a region as its star sends a shell out: it swells from its center, then settles.
+  vec3 recoil(vec3 p, float amount) {
+    int r = int(aRegion + 0.5);
+    if (r < 0) return vec3(0.0);
+    return (p - uSeed[r]) * uKick[r] * amount * ${SHOCK.RECOIL.toFixed(3)};
+  }
+
   vec3 drift(vec3 p, float seed, float amount) {
     float t = uTime * (0.25 + seed * 0.3) * 0.5;
     // Each node also has a little life of its own.
@@ -138,7 +147,7 @@ const SHARED_GLSL = /* glsl */ `
     ) * ${MOTION.OWN.toFixed(3)} * ownSize;
     // Colored nodes (a sounding region) move more.
     vec3 lively = vec3(sin(t + seed * 13.0), sin(t * 1.2 + seed * 29.0), sin(t * 0.8 + seed * 47.0)) * ${WOBBLE.toFixed(3)} * amount;
-    return p + current(p) * (1.0 + uMusic * ${WAVE.MUSIC_BOOST.toFixed(2)}) + own + lively + ripple(p) + liquid(p, seed) + (p - vec3(${WHITE_GRAPH_CENTER.map((v) => v.toFixed(2)).join(', ')})) * uBreath * ${SHOCK.BREATH.toFixed(3)};
+    return p + current(p) * (1.0 + uMusic * ${WAVE.MUSIC_BOOST.toFixed(2)}) + own + lively + ripple(p) + liquid(p, seed) + recoil(p, amount) + (p - vec3(${WHITE_GRAPH_CENTER.map((v) => v.toFixed(2)).join(', ')})) * uBreath * ${SHOCK.BREATH.toFixed(3)};
   }
 
   // Mixes the region color over the white graph; returns how colored this point is (0..1).
@@ -426,6 +435,7 @@ const graphUniforms = {
   uShockAge: { value: new Array(MAX_REGIONS * SHOCK.SLOTS).fill(99) },
   uShockPower: { value: new Array(MAX_REGIONS * SHOCK.SLOTS).fill(0) },
   uBreath: { value: 0 },
+  uKick: { value: new Array(MAX_REGIONS).fill(0) },
   uRegionRadius: { value: new Array(MAX_REGIONS).fill(1.5) },
   uEye: { value: new THREE.Vector3() },
 };
@@ -446,6 +456,7 @@ const store = {
   starAt: new Map(), // where each star was a frame ago
   speed: new Map(), // how fast each star is moving (eased)
   held: new Map(), // how much each region is being held (eased 0..1)
+  kick: new Map(), // how far each region is swelled by its sound (eased)
   shells: new Map(), // each region's travelling shells: how old each is and how strong
   smooth: new Map(), // each region's sound (volume, hits, highs), eased so it swells rather than flashes
   dirty: true,
@@ -813,12 +824,24 @@ export function WhiteGraph() {
         shell.ages[oldest] = 0;
         shell.power[oldest] = struck ? 1 : Math.min(0.9, 0.4 + heard.vol);
         shell.since = 0;
+        // A sharp hit of a low instrument is felt in the controllers too.
+        if (struck && !isStillMode) {
+          const session = state.gl.xr?.isPresenting ? state.gl.xr.getSession?.() : null;
+          buzzControllers(session, (HAPTICS.FELT[entry.instrument] ?? 0.2) * Math.min(1, sound.current.hit + 0.3), interaction.current.grabbed);
+        }
       }
       for (let k = 0; k < SHOCK.SLOTS; k += 1) {
         shell.ages[k] = Math.min(99, shell.ages[k] + delta);
         graphUniforms.uShockAge.value[index * SHOCK.SLOTS + k] = shell.ages[k];
         graphUniforms.uShockPower.value[index * SHOCK.SLOTS + k] = shell.ages[k] > 3 ? 0 : shell.power[k];
       }
+      // The region swells with its instrument's loudness right now (a sharp hit adds a push on top),
+      // quick to follow it up and slower to settle.
+      const wantedKick = Math.min(1, sound.current.vol * 1.6) + sound.current.hit * SHOCK.RECOIL_HIT;
+      const kickNow = store.kick.get(key) ?? 0;
+      const kick = kickNow + (wantedKick - kickNow) * Math.min(1, delta * (wantedKick > kickNow ? SHOCK.RECOIL_RISE : SHOCK.RECOIL_FALL));
+      store.kick.set(key, kick);
+      graphUniforms.uKick.value[index] = Math.min(1.3, kick) * (isStillMode ? 0 : 1);
 
       // The star's real position, and a point that follows it on a spring: the lag between them is
       // what makes the nodes around it flow like a liquid.
@@ -856,7 +879,7 @@ export function WhiteGraph() {
       if (seed >= 0) graphUniforms.uSeed.value[index].fromArray(graph.nodes[seed].position);
       graphUniforms.uRegionRadius.value[index] = store.regionRadius[index] ?? 1.5;
     });
-    for (let i = entries.length; i < MAX_REGIONS; i += 1) graphUniforms.uLevel.value[i] = 0;
+    for (let i = entries.length; i < MAX_REGIONS; i += 1) { graphUniforms.uLevel.value[i] = 0; graphUniforms.uKick.value[i] = 0; }
     // The room breathes with the bass: a slow swell that follows the bass region's loudness.
     const bassIndex = entries.findIndex(([, e]) => e.instrument === 'bass');
     const bassNow = bassIndex >= 0 ? graphUniforms.uSwell.value[bassIndex] : 0;
