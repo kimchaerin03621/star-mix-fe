@@ -13,8 +13,6 @@ test.beforeEach(async ({ page }) => {
   await page.setViewportSize({ width: 1600, height: 850 });
   await page.goto('/?demo&still');
   await page.locator('.minimal-intro-arrow').click();
-  await page.waitForTimeout(1200);
-  await page.keyboard.press('u');
   await page.waitForFunction(() => window.__starMixTest?.getStarOnScreen, undefined, { timeout: 20_000, polling: 100 });
   await page.waitForTimeout(2000);
 });

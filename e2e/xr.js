@@ -19,22 +19,13 @@ export async function installQuestEmulator(page) {
   });
 }
 
-// Intro -> galaxy -> spatial scene (via the U shortcut) -> headset session.
+// Intro -> spatial scene (the arrow opens it directly) -> headset session.
 export async function enterSpaceInHeadset(page) {
   await page.goto('/');
   await page.locator('.minimal-intro-arrow').click();
-  // The fake camera is accepted, so the galaxy shows its gesture hint rather than
-  // the "start camera" button.
-  await expect(page.getByText('1초 유지 — 소리가 풀려요')).toBeVisible({ timeout: 15_000 });
 
-  // U toggles galaxy <-> spatial scene, and a keypress occasionally does not
-  // reach the page right after load, so press again only while still in the galaxy.
   const vrButton = page.locator('.vr-enter-button');
-  await expect(async () => {
-    const inSpace = await page.evaluate(() => Boolean(window.__starMixTest));
-    if (!inSpace) await page.keyboard.press('u');
-    await expect(vrButton).toBeVisible({ timeout: 5_000 });
-  }).toPass({ timeout: 45_000 });
+  await expect(vrButton).toBeVisible({ timeout: 30_000 });
 
   await vrButton.click();
   await expect(vrButton).toBeHidden({ timeout: 10_000 });

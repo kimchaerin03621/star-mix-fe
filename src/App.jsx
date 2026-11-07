@@ -1,19 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useHandTracking } from './hooks/useHandTracking';
-import { Starfield2D } from './components/Experience';
 import './index.css';
 import './exhibition.css';
 import { ControllerPanel } from './components/ControllerPanel';
 import { createXRStore } from '@react-three/xr';
 import { VRScene } from './components/VRScene';
 import { HandGestureFeedback } from './hand-tracking/HandGestureFeedback';
-import { useUnmixGesture } from './hand-tracking/useUnmixGesture';
-import { UnmixProgress } from './hand-tracking/UnmixProgress';
 import { GestureHint } from './hand-tracking/GestureHint';
 import { useIdleReturn } from './hand-tracking/useIdleReturn';
-import { GroupAudio } from './audio/GroupAudio';
 import { isStillMode } from './stillMode';
-import { EXHIBITION_SONG, SONG_STEMS, getStemGroupUrls } from './audio/songStems';
+import { EXHIBITION_SONG } from './audio/songStems';
 
 const xrStore = createXRStore({ 
   offerSession: false
@@ -567,11 +563,8 @@ const SPACE_IDLE_RETURN_MS = 30000;
 // that starts the spatial scene in VR, and a reset once the headset comes off.
 const isVrStation = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('vr');
 
-const UNMIX_GATHER_MS = 1700;
-// Playback level of the galaxy's stems (the spatial scene's output gain is matched to it).
+// Playback level of the 2D background music (the spatial scene's output gain is matched to it).
 const GALAXY_PLAYBACK_VOLUME = 1.0;
-const EXHIBITION_STEMS = SONG_STEMS[EXHIBITION_SONG];
-const GALAXY_BURST_MS = 1800;
 
 const SONGS = [
   { id: 1, title: 'Bohemian Rhapsody', artist: 'Queen' },
@@ -792,88 +785,21 @@ function App() {
   // ?demo hides the developer readouts (webcam preview, gesture labels) for filming.
   const isDemo = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('demo');
 
-  // Galaxy (2D) <-> spatial scene (3D). The rock sign held for a second
-  // unmixes the galaxy into its stems, and does the reverse from the scene.
+  // The intro opens the spatial scene (3D) directly: there is no 2D galaxy any more.
   const isInSpace = isDesktopVR && vrModeType === 2;
-  const isInGalaxy = viewMode === 'dj' && !isInVR && !isDesktopVR;
 
-  // 'idle' = normal galaxy, 'gathered' = every star pulled to the center (while
-  // unmixing and for as long as the spatial scene is open), 'bursting' = the
-  // stars spring back out after returning.
-  const [galaxyPhase, setGalaxyPhase] = useState('idle');
-
-  const enterSpace = () => {
-    playbackTimeRef.current = audioElementsRef.current.left?.currentTime || 0;
+  const startExperience = () => {
     setVrModeType(2);
     setActiveSong(EXHIBITION_SONG);
     setViewMode('menu');
+    setIsAudioInitialized(true);
     setIsDesktopVR(true);
+    startWebcam();
   };
 
-  const beginUnmix = () => {
-    if (galaxyPhase === 'idle') setGalaxyPhase('gathered');
-  };
-
-  const returnToGalaxy = () => {
-    setVrModeType(1);
-    setIsDesktopVR(false);
-    setViewMode('dj');
-    setGalaxyPhase('bursting');
-  };
-
-  // The stars gather first, then the spatial scene opens on top of them.
-  useEffect(() => {
-    if (galaxyPhase !== 'gathered' || isInSpace) return undefined;
-    const timer = setTimeout(enterSpace, UNMIX_GATHER_MS);
-    return () => clearTimeout(timer);
-  }, [galaxyPhase, isInSpace]);
-
-  useEffect(() => {
-    if (galaxyPhase !== 'bursting') return undefined;
-    const timer = setTimeout(() => setGalaxyPhase('idle'), GALAXY_BURST_MS);
-    return () => clearTimeout(timer);
-  }, [galaxyPhase]);
-
-  // 'U' key: same toggle for testing and as an exhibition fallback if tracking drops.
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key !== 'u' && e.key !== 'U') return;
-      if (isInSpace) returnToGalaxy();
-      else if (isInGalaxy) beginUnmix();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  });
-
-  // Nobody around for a while: send the next visitor back to the galaxy.
+  // Nobody around for a while: start over, so the next visitor sees the intro.
   // (Not while someone is inside the headset: no webcam hands or mouse there.)
-  useIdleReturn(handData, isInSpace && !isInVR && !isStillMode, returnToGalaxy, SPACE_IDLE_RETURN_MS);
-
-  const unmixProgress = useUnmixGesture(
-    handData,
-    cameraActive && (isInGalaxy || (isInSpace && !isInVR)),
-    isInSpace ? returnToGalaxy : beginUnmix,
-  );
-
-  const unlockIntroExperience = async () => {
-    try {
-      if (!audioCtx || !isAudioInitialized) {
-        await startCamera();
-      } else {
-        if (audioCtx.state === 'suspended') {
-          await audioCtx.resume();
-        }
-        if (audioElementsRef.current.left) {
-          await Promise.allSettled([
-            audioElementsRef.current.left.play().catch(() => {}),
-            audioElementsRef.current.right.play().catch(() => {}),
-          ]);
-        }
-      }
-    } catch (err) {
-      console.warn('Failed to unlock intro audio:', err);
-    }
-  };
+  useIdleReturn(handData, isInSpace && !isInVR && !isStillMode, () => window.location.reload(), SPACE_IDLE_RETURN_MS);
 
   // The headset session is just another way of looking at the spatial scene, so
   // leaving it drops back to the on-screen scene with the music still playing.
@@ -1249,67 +1175,22 @@ function App() {
     };
   }, [midiAccess, activeSong, audioCtx, mappingGroup]);
 
-  const startCamera = async () => {
+  // Hand tracking needs the webcam. (Sound is the spatial scene's own: it needs nothing started here.)
+  const startWebcam = async () => {
+    if (cameraActive) return;
     try {
-      const isVR2Active = (isInVR || isDesktopVR) && vrModeType === 2;
-      if (audioCtx) {
-        if (audioCtx.state === 'suspended') {
-          await audioCtx.resume();
-        }
-        if (audioElementsRef.current.left && !isVR2Active) {
-          await Promise.allSettled([
-            audioElementsRef.current.left.play().catch(() => {}),
-            audioElementsRef.current.right.play().catch(() => {}),
-          ]);
-        }
-      } else {
-        setIsAudioInitialized(true);
-        setIsMusicLoading(true);
-
-        const { lead, band } = getStemGroupUrls(EXHIBITION_SONG);
-        const leftAudio = new GroupAudio(lead);
-        const rightAudio = new GroupAudio(band);
-
-        const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
-        const ctx = new AudioCtxClass();
-        if (ctx.state === 'suspended') {
-          await ctx.resume();
-        }
-
-        leftAudio.volume = currentVolumeRef.current;
-        rightAudio.volume = currentVolumeRef.current;
-
-        audioElementsRef.current = { left: leftAudio, right: rightAudio };
-        setAudioCtx(ctx);
-        setAudioElements({ left: leftAudio, right: rightAudio });
-
-        // Direct HTML5 Audio Play (only if not in VR 2 mode)
-        if (!isVR2Active) {
-          leftAudio.play().catch(e => console.error("Left play error:", e));
-          rightAudio.play().catch(e => console.error("Right play error:", e));
-        }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 640, height: 480 }
+      });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play();
+        setCameraActive(true);
       }
-
-      if (!cameraActive) {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({
-            video: { width: 640, height: 480 }
-          });
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-            videoRef.current.play();
-            setCameraActive(true);
-          }
-        } catch (camErr) {
-          console.warn("Camera access denied or unavailable, audio will still play:", camErr);
-        }
-      }
-    } catch (err) {
-      console.error("Audio init failed:", err);
+    } catch (camErr) {
+      console.warn("Camera access denied or unavailable, the scene still works with the mouse:", camErr);
     }
   };
-
-
 
   const handleApplyCustomStar = (texture, left, right) => {
     setCustomTexture(texture);
@@ -1426,111 +1307,6 @@ function App() {
         />
       )}
 
-      {/* Main DJ HUD (viewMode === 'dj') */}
-      {!isInVR && !isDesktopVR && viewMode === 'dj' && (
-        <>
-          <div className="ui-overlay active-hud">
-            {!isDemo && (
-              <div className="ui-status">
-                {isMusicLoading && <div style={{ color: 'var(--color-primary)', fontWeight: 'bold' }}>새로운 음원 로딩 중...</div>}
-                {!isMusicLoading && (cameraActive ? (handData.length > 0 ? `손 인식 중 (${handData.length}개)` : "손을 기다리는 중...") : "카메라를 켜주세요.")}
-              </div>
-            )}
-
-            {SHOW_FUTURE_FEATURE_CONTROLS && (
-              <>
-                {/* Song Selection Buttons */}
-                <div className="song-controls">
-                  <button className="song-button active">{SONGS.find(song => song.id === EXHIBITION_SONG)?.title}</button>
-                </div>
-
-                {/* Preset Toggle Buttons */}
-                <div className="preset-controls">
-                  <button className={`preset-button ${activePreset === 1 ? 'active' : ''}`} onClick={() => setActivePreset(1)}>PRESET 1 (Quadrant EQ)</button>
-                  <button className={`preset-button ${activePreset === 2 ? 'active' : ''}`} onClick={() => setActivePreset(2)}>PRESET 2 (NDS Style)</button>
-                </div>
-              </>
-            )}
-          </div>
-
-          {cameraActive && (
-            <GestureHint lines={['손으로 별을 휘저어 소리를 섞어 보세요', { text: '1초 유지 — 소리가 풀려요', horns: true }]} />
-          )}
-
-          {SHOW_FUTURE_FEATURE_CONTROLS && (
-          <>
-          {/* BPM & Volume Sliders (Channel 1 / Left) */}
-          <div className="bpm-slider-container left">
-            <div className="bpm-value" style={{ color: starColors.left, textShadow: `0 0 10px ${starColors.left}80` }}>
-              {(currentBpm.left * leftRate).toFixed(1)}
-            </div>
-            <input
-              type="range"
-              className="vertical-slider"
-              style={{ accentColor: starColors.left }}
-              min="0.5" max="1.5" step="0.01"
-              value={leftRate}
-              onChange={(e) => setLeftRate(parseFloat(e.target.value))}
-            />
-            <div className="bpm-label">BPM 1</div>
-          </div>
-
-          <div className="bpm-slider-container left" style={{ left: '120px' }}>
-            <div className="bpm-value" style={{ color: starColors.left, textShadow: `0 0 10px ${starColors.left}80` }}>
-              {Math.round(leftVolume * 100)}%
-            </div>
-            <input
-              type="range"
-              className="vertical-slider"
-              style={{ accentColor: starColors.left }}
-              min="0" max="1" step="0.01"
-              value={leftVolume}
-              onChange={(e) => setLeftVolume(parseFloat(e.target.value))}
-            />
-            <div className="bpm-label">CH 1 VOL</div>
-          </div>
-
-          {/* BPM & Volume Sliders (Channel 2 / Right) */}
-          <div className="bpm-slider-container right" style={{ right: '120px' }}>
-            <div className="bpm-value" style={{ color: starColors.right, textShadow: `0 0 10px ${starColors.right}80` }}>
-              {Math.round(rightVolume * 100)}%
-            </div>
-            <input
-              type="range"
-              className="vertical-slider"
-              style={{ accentColor: starColors.right }}
-              min="0" max="1" step="0.01"
-              value={rightVolume}
-              onChange={(e) => setRightVolume(parseFloat(e.target.value))}
-            />
-            <div className="bpm-label">CH 2 VOL</div>
-          </div>
-
-          <div className="bpm-slider-container right">
-            <div className="bpm-value" style={{ color: starColors.right, textShadow: `0 0 10px ${starColors.right}80` }}>
-              {(currentBpm.right * rightRate).toFixed(1)}
-            </div>
-            <input
-              type="range"
-              className="vertical-slider"
-              style={{ accentColor: starColors.right }}
-              min="0.5" max="1.5" step="0.01"
-              value={rightRate}
-              onChange={(e) => setRightRate(parseFloat(e.target.value))}
-            />
-            <div className="bpm-label">BPM 2</div>
-          </div>
-          </>
-          )}
-
-          {!cameraActive && (
-            <button className="camera-start-button" onClick={startCamera}>
-              카메라 시작하기
-            </button>
-          )}
-        </>
-      )}
-
       {/* Pitch-Black Minimal Intro Screen (viewMode === 'intro') */}
       {!isInVR && !isDesktopVR && viewMode === 'intro' && (
         <div className="minimal-intro-overlay">
@@ -1562,10 +1338,7 @@ function App() {
                 <button
                   className="minimal-intro-arrow"
                   aria-label="Enter the spatial sound experience"
-                  onClick={async () => {
-                    await unlockIntroExperience();
-                    setViewMode('dj');
-                  }}
+                  onClick={startExperience}
                 >
                   →
                 </button>
@@ -1636,34 +1409,6 @@ function App() {
         />
       )}
 
-      {/* The galaxy stays mounted (just hidden) while the spatial scene is open, so its
-          audio graph survives the round trip. */}
-      {!isVrStation && (<div style={{ display: (isDesktopVR || isInVR) ? 'none' : 'contents' }}>
-        <Starfield2D
-          galaxyPhase={galaxyPhase}
-          stems={EXHIBITION_STEMS}
-          handData={(isEditorOpen || viewMode === 'menu' || isDesktopVR) ? [] : handData}
-          isAudioActive={isAudioInitialized}
-          audioCtx={audioCtx}
-          audioElements={audioElements}
-          onMusicReady={() => setIsMusicLoading(false)}
-          activePreset={activePreset}
-          activeSong={activeSong}
-          songTrigger={songTrigger}
-          leftRate={leftRate}
-          rightRate={rightRate}
-          leftVolume={leftVolume}
-          rightVolume={rightVolume}
-          customTexture={customTexture}
-          starColors={starColors}
-          onCanvasReady={setSourceCanvas}
-          onMixingProgress={null}
-          isWarping={isWarping}
-          warpProgress={warpProgress}
-          onAnalyserReady={setAnalyserNode}
-        />
-        </div>)}
-
       {isInSpace && !isInVR && isVRSupported && !isDemo && (
         <button className="vr-enter-button" onClick={enterHeadset}>
           VR 헤드셋으로 보기
@@ -1671,13 +1416,8 @@ function App() {
       )}
 
       {isInSpace && cameraActive && !isInVR && (
-        <GestureHint lines={['주먹을 쥐어 별을 잡고 옮겨 보세요', { text: '1초 유지 — 은하로 돌아가요', horns: true }]} />
+        <GestureHint lines={['주먹을 쥐어 별을 잡고 옮겨 보세요']} />
       )}
-
-      <UnmixProgress
-        progress={unmixProgress}
-        label={isInSpace ? '은하로 돌아가는 중' : '소리를 푸는 중'}
-      />
 
       <VRScene
         onSceneReady={setIsSceneReady}
