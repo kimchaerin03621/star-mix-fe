@@ -1195,7 +1195,20 @@ function VRAudioExperience({
 
     initAudio();
 
+    // A headset can suspend the audio context or pause the stems when the immersive session starts
+    // (or the headset sleeps); nobody would notice but the music would be gone. Keep nudging them back.
+    const keepPlaying = setInterval(() => {
+      const ctx = audioCtxRef.current;
+      if (!ctx || ctx.state === 'closed') return;
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+      if (isStillMode) return;
+      Object.values(audioElementsRef.current ?? {}).forEach((audio) => {
+        if (audio.paused && audio.readyState >= 2 && !audio.error) audio.play().catch(() => {});
+      });
+    }, 1000);
+
     return () => {
+      clearInterval(keepPlaying);
       // 30곡 이상 전환해도 기기 메모리를 파괴하지 않는 정밀 가비지 컬렉터(Garbage Collector) 청소
       if (audioElementsRef.current) {
         Object.values(audioElementsRef.current).forEach(audio => {
