@@ -441,7 +441,10 @@ function isNearestToRay(orbKey, ray) {
         if (nodeAlong <= 0) continue;
         nearestNode = Math.min(nearestNode, nodeOffset.addScaledVector(ray.direction, -nodeAlong).length());
       }
-      score = Math.min(side, nearestNode);
+      // Both count: how far the pointer is from the region's middle, and from its nearest drawn node.
+      // (The node alone is not enough: where nodes are dense, the fringe of a neighbouring region
+      // always has one right under the pointer, and would win over the star the pointer is on.)
+      score = Number.isFinite(nearestNode) ? (side + nearestNode) / 2 : side;
     }
     if (score < bestDistance) {
       bestDistance = score;

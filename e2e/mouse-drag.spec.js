@@ -18,6 +18,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('with the view zoomed all the way out, every region can be grabbed without jumping', async ({ page }) => {
+  test.setTimeout(180_000);
   for (let i = 0; i < 40; i += 1) { await page.mouse.wheel(0, 400); await page.waitForTimeout(30); }
   await page.waitForTimeout(600);
 
@@ -48,19 +49,20 @@ test('clicking plain white space grabs nothing', async ({ page }) => {
 });
 
 test('the wheel takes a held region out to the edge of the graph (no farther) and up to the eye', async ({ page }) => {
+  test.setTimeout(180_000);
   const { x, y } = await star(page, 'drums');
   await page.mouse.move(x, y);
   await page.mouse.down();
   await page.waitForTimeout(300);
   const eyeTo = () => page.evaluate(() => window.__starMixTest.getCameraDistanceTo('drums'));
 
-  for (let i = 0; i < 12; i += 1) { await page.mouse.wheel(0, -1000); await page.waitForTimeout(60); }
-  // The graph ends about 8 m from its middle; a region stops there, it cannot leave the graph.
-  expect(await eyeTo()).toBeGreaterThan(7);
+  for (let i = 0; i < 20; i += 1) { await page.mouse.wheel(0, -1000); await page.waitForTimeout(60); }
+  // The graph ends about 10 m from its middle; a region stops there, it cannot leave the graph.
+  expect(await eyeTo()).toBeGreaterThan(8);
   const out = (await positions(page)).drums;
-  expect(Math.hypot(out[0], (out[1] - 1.6) / 0.75, out[2])).toBeLessThan(8);
+  expect(Math.hypot(out[0], (out[1] - 1.6) / 0.75, out[2])).toBeLessThan(10);
 
-  for (let i = 0; i < 12; i += 1) { await page.mouse.wheel(0, 1000); await page.waitForTimeout(60); }
+  for (let i = 0; i < 20; i += 1) { await page.mouse.wheel(0, 1000); await page.waitForTimeout(60); }
   // It stops just in front of the eye (never behind it), and is still in the picture.
   expect(await eyeTo()).toBeLessThan(1);
   expect(await eyeTo()).toBeGreaterThan(0.5);

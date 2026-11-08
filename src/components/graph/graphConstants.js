@@ -3,9 +3,9 @@ export const WHITE_GRAPH_CENTER = [0, 1.6, 0];
 
 // The shape and size of the white graph. Tuning knobs, in meters unless noted.
 export const GRAPH = {
-  NODE_COUNT: 20000, // very many: the space reads as a dense field of light (watch the headset's frame rate; 7000 was the earlier amount)
+  NODE_COUNT: 24000, // very many: the space reads as a dense field of light (watch the headset's frame rate; 7000 was the earlier amount)
   INNER_RADIUS: 2.0, // nothing closer than this to the head (it would fill the view)
-  OUTER_RADIUS: 8.5,
+  OUTER_RADIUS: 10, // how far the graph reaches; a held star can be taken to about 0.8 m short of this (was 8.5)
   FLATTEN: 0.75, // 1 = a ball; lower = squashed top to bottom
   CLUMP_COUNT: 48, // dense groups, like Obsidian's sections
   CLUMP_SHARE: 0, // share of nodes that sit in a clump (none: the spacing stays even)
@@ -25,13 +25,13 @@ export const GRAPH = {
 // A headset draws the scene twice (once per eye) on a phone-class chip, so it gets a lighter graph.
 // These replace the GRAPH values above when the page runs in a headset's own browser (or `?vr`).
 export const HEADSET_GRAPH = {
-  NODE_COUNT: 7000, // the amount known to run smoothly on the headset
+  NODE_COUNT: 9000, // 7000 was the amount known to run smoothly on the headset; a bit more to fill the wider space
   MIN_SPACING: 0.5,
   CROWD_MAX: 9,
   NODE_SIZE: 0.06,
   PLAIN_ALPHA_SCALE: 1.7, // fewer dots and links add up to less light, so each is drawn a little brighter
   REGION_HOPS: 4, // each region is drawn with its own colored nodes, lines and glow, so on a headset it stays as small as it was
-  REGION_MIN_NODES: 34,
+  REGION_MIN_NODES: 27, // fewer than before, because the nodes are a little sparser in the wider space: the region stays the same size
 };
 export const isHeadsetBrowser = typeof window !== 'undefined'
   && (window.__headsetGraph === true // set by the headset emulator in the tests
@@ -152,7 +152,7 @@ export const REGION_DEPTH = {
 // How a region (one instrument's colored area) is made and looks.
 export const REGION = {
   HOPS: 5, // it spreads this many links from its sounding node
-  MIN_NODES: 150, // a region that starts in a sparse spot grows further until it has this many nodes
+  MIN_NODES: 110, // a region that starts in a sparse spot grows further until it has this many nodes
   MAX_HOPS: 9, // but never beyond this many links
   REST_STRENGTH: 0.55, // how strongly colored it is while its instrument is quiet (lower than the sounding ones, so the one that plays stands out)
   SOUND_STRENGTH: 0.7, // extra color when it sounds at full level
@@ -187,15 +187,15 @@ export const LOBBY = {
   CLEAR_CONE_DEGREES: 30, // the front stays free for the logo and the button...
   CLEAR_DISTANCE: 3.6, // ...out to this distance
   NODE_SIZE: [0.03, 0.07], // like the nodes of the main space: small and crisp
-  TOUCH_RADIUS: 0.45, // a controller pushes nodes this close to it
-  RAY_RADIUS: 0.3, // the beam a controller points also sweeps nodes: this wide at the controller...
-  RAY_SPREAD: 0.08, // ...and this much wider for each meter along the beam
+  TOUCH_RADIUS: 0.8, // a controller pushes nodes this close to it
+  RAY_RADIUS: 0.7, // the beam a controller points also sweeps nodes: this wide at the controller...
+  RAY_SPREAD: 0.16, // ...and this much wider for each meter along the beam
   RAY_REACH: 9, // out to this distance
-  RAY_CARRY: 0.6, // how much of the beam's sideways speed the nodes pick up
-  PUSH: 5, // how hard
-  SPRING: 0.7, // how firmly a node is drawn back home (low: it lingers where you left it, then drifts back)
-  DAMPING: 0.9,
-  MAX_OFFSET: 6, // a node never strays farther than this from home
+  RAY_CARRY: 1.3, // how much of the beam's sideways speed the nodes pick up
+  PUSH: 9, // how hard
+  SPRING: 0.5, // how firmly a node is drawn back home (low: it lingers where you left it, then drifts back)
+  DAMPING: 0.7,
+  MAX_OFFSET: 10, // a node never strays farther than this from home
   IDLE_DRIFT: 0.06, // each node's own slow drift (meters)
   BALANCE_REACH: 3, // a node counts fully left or right at this distance from the middle (meters)
   BALANCE_GAIN: 3, // how strongly the nodes' overall drift tilts the sound

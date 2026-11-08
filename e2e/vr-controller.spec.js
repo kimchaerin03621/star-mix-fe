@@ -13,8 +13,8 @@ const CONTROLLER_AT = [0.4, 1.5, 0];
 const DRUMS_START = [3.22, 1.3, -2.7];
 const AIM_ELSEWHERE = [1.8, 2.0, -3];
 const HELD_DISTANCE = 3.97;
-// The farthest a star can be sent: the edge of the graph, about 8 m from its middle.
-const GRAPH_EDGE_FROM_CONTROLLER = [6.8, 8.6];
+// The farthest a star can be sent: the edge of the graph, about 10 m from its middle.
+const GRAPH_EDGE_FROM_CONTROLLER = [8.2, 10.2];
 
 const pointAlong = (from, toward, length) => {
   const gap = toward.map((value, index) => value - from[index]);
@@ -86,14 +86,14 @@ test('releasing the trigger leaves the star where it was dropped', async ({ page
 });
 
 test('pushing the thumbstick forward sends a held star away, up to the edge of the graph', async ({ page }) => {
-  test.setTimeout(90_000);
+  test.setTimeout(180_000);
   await setButton(page, 'right', 'trigger', 1);
   await page.waitForTimeout(300);
 
   await setThumbstick(page, 'right', 0, -1);
   // The push moves a fixed step per frame, and this test browser draws in software (slow),
   // so the full distance can take a while here; a real headset does it in a couple of seconds.
-  await expect.poll(async () => distance(await drums(page), CONTROLLER_AT), { timeout: 45_000 })
+  await expect.poll(async () => distance(await drums(page), CONTROLLER_AT), { timeout: 120_000 })
     .toBeGreaterThan(GRAPH_EDGE_FROM_CONTROLLER[0]);
 
   await page.waitForTimeout(1000);
