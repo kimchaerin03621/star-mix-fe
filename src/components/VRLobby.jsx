@@ -166,7 +166,7 @@ export function VRLobby({ onEnter, playbackTimeRef }) {
     sim.current = {
       position: Float32Array.from(nodes.home),
       velocity: new Float32Array(nodes.count * 3),
-      pushers: [{ last: null, seen: false }, { last: null, seen: false }],
+      pushers: [{ last: null, seen: false, lastDirection: null }, { last: null, seen: false, lastDirection: null }],
       balance: 0,
       restMean: 0,
     };
@@ -296,6 +296,7 @@ export function VRLobby({ onEnter, playbackTimeRef }) {
 
     // Who is touching: each controller, and the pretend one.
     const touchers = [];
+    const beams = [];
     const xr = gl.xr;
     if (xr.isPresenting) {
       [0, 1].forEach((index) => {
@@ -308,7 +309,13 @@ export function VRLobby({ onEnter, playbackTimeRef }) {
         if (reported) {
           pusher.seen = true;
           pusher.last = scratch.point.clone();
-          if (pusher.seen) touchers.push({ position: scratch.point.clone(), velocity: moved, radius });
+          touchers.push({ position: scratch.point.clone(), velocity: moved, radius });
+          // The beam it points: sweeping it sideways carries the nodes along, far or near.
+          controller.getWorldQuaternion(scratch.quaternion);
+          const direction = new THREE.Vector3(0, 0, -1).applyQuaternion(scratch.quaternion);
+          const swing = pusher.lastDirection ? direction.clone().sub(pusher.lastDirection).divideScalar(dt) : new THREE.Vector3();
+          pusher.lastDirection = direction.clone();
+          beams.push({ origin: scratch.point.clone(), direction, swing });
         }
       });
     }
@@ -349,6 +356,28 @@ export function VRLobby({ onEnter, playbackTimeRef }) {
         vx += (dx / distance) * outward + toucher.velocity.x * 0.4 * strength * LOBBY.PUSH * dt;
         vy += (dy / distance) * outward + toucher.velocity.y * 0.4 * strength * LOBBY.PUSH * dt;
         vz += (dz / distance) * outward + toucher.velocity.z * 0.4 * strength * LOBBY.PUSH * dt;
+      }
+
+      for (const beam of beams) {
+        const wx = px - beam.origin.x;
+        const wy = py - beam.origin.y;
+        const wz = pz - beam.origin.z;
+        const along = wx * beam.direction.x + wy * beam.direction.y + wz * beam.direction.z;
+        if (along < 0.3 || along > LOBBY.RAY_REACH) continue;
+        const sx = wx - beam.direction.x * along;
+        const sy = wy - beam.direction.y * along;
+        const sz = wz - beam.direction.z * along;
+        const off = Math.hypot(sx, sy, sz);
+        const width = LOBBY.RAY_RADIUS + along * LOBBY.RAY_SPREAD;
+        if (off > width) continue;
+        const strength = 1 - off / width;
+        // The sideways speed of the beam at this distance (a swing of the wrist is a fast sweep far away).
+        const lateral = along * LOBBY.RAY_CARRY;
+        const sideways = Math.hypot(beam.swing.x, beam.swing.y, beam.swing.z) * along;
+        const gain = strength * LOBBY.PUSH * dt;
+        vx += (beam.swing.x * lateral + (off > 1e-4 ? (sx / off) * sideways * 0.3 : 0)) * gain;
+        vy += (beam.swing.y * lateral + (off > 1e-4 ? (sy / off) * sideways * 0.3 : 0)) * gain;
+        vz += (beam.swing.z * lateral + (off > 1e-4 ? (sz / off) * sideways * 0.3 : 0)) * gain;
       }
 
       vx += ((homeNow.x - px) * LOBBY.SPRING - vx * LOBBY.DAMPING) * dt;

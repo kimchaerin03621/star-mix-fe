@@ -101,19 +101,22 @@ test('pushing the thumbstick forward sends a held star away, up to the edge of t
 });
 
 test('pulling the thumbstick back brings a held star closer', async ({ page }) => {
+  test.setTimeout(120_000);
   await setButton(page, 'right', 'trigger', 1);
   await page.waitForTimeout(300);
 
   await setThumbstick(page, 'right', 0, 1);
-  await expect.poll(async () => distance(await drums(page), CONTROLLER_AT), { timeout: 15_000 })
+  // The pull moves a fixed step per frame and this test browser draws in software (slow), so allow time.
+  await expect.poll(async () => distance(await drums(page), CONTROLLER_AT), { timeout: 60_000 })
     .toBeLessThan(HELD_DISTANCE - 1.5);
 });
 
 test('a star pulled right up to the controller can be grabbed again', async ({ page }) => {
+  test.setTimeout(150_000);
   await setButton(page, 'right', 'trigger', 1);
   await page.waitForTimeout(300);
   await setThumbstick(page, 'right', 0, 1);
-  await expect.poll(async () => distance(await drums(page), CONTROLLER_AT), { timeout: 20_000 })
+  await expect.poll(async () => distance(await drums(page), CONTROLLER_AT), { timeout: 80_000 })
     .toBeLessThan(0.8);
   await setThumbstick(page, 'right', 0, 0);
   await setButton(page, 'right', 'trigger', 0);

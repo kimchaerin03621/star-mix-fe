@@ -18,6 +18,14 @@ import { ENTRY_CAMERA_POSITION, ENTRY_CAMERA_TARGET } from '../audio/stemLayout'
 import { WebcamGestureController } from '../hand-tracking/WebcamGestureController';
 
 
+// Remembers which input source each controller is as soon as the scene exists. This must not wait for
+// the main space: when a lobby comes first, the controllers have already connected by then.
+function ControllerPairing() {
+  const { gl } = useThree();
+  useEffect(() => { watchControllerSources(gl.xr); }, [gl]);
+  return null;
+}
+
 function ControllerHelpers() {
   const ref0 = useRef();
   const ref1 = useRef();
@@ -1455,6 +1463,7 @@ export function VRScene({ lobby, onEnterRoom, store, starColors, handData, isInV
             {isVRActive && vrModeType === 2 && lobby && <VRLobby onEnter={onEnterRoom} playbackTimeRef={playbackTimeRef} />}
             {isVRActive && vrModeType === 2 && !lobby && <WhiteGraph />}
 
+            <ControllerPairing />
             <ControllerHelpers />
             {isDesktopVR && <OrbitControls ref={orbitControlsRef} enabled={!isDraggingOrb} enableRotate={!isHoveringOrb} enableZoom={true} enablePan={false} maxDistance={25} minDistance={1} />}
 

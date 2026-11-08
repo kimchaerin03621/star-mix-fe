@@ -188,6 +188,10 @@ export const LOBBY = {
   CLEAR_DISTANCE: 3.6, // ...out to this distance
   NODE_SIZE: [0.03, 0.07], // like the nodes of the main space: small and crisp
   TOUCH_RADIUS: 0.45, // a controller pushes nodes this close to it
+  RAY_RADIUS: 0.3, // the beam a controller points also sweeps nodes: this wide at the controller...
+  RAY_SPREAD: 0.08, // ...and this much wider for each meter along the beam
+  RAY_REACH: 9, // out to this distance
+  RAY_CARRY: 0.6, // how much of the beam's sideways speed the nodes pick up
   PUSH: 5, // how hard
   SPRING: 0.7, // how firmly a node is drawn back home (low: it lingers where you left it, then drifts back)
   DAMPING: 0.9,

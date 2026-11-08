@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { aimControllers, installQuestEmulator, setButton, stemPositions } from './xr.js';
+import { aimControllers, distance, installQuestEmulator, setButton, stemPositions } from './xr.js';
 
 // The headset lobby (?lobby): the logo and an enter button in front, sound nodes all around,
 // and the nodes' drift tilts the left/right balance of the one song.
@@ -64,4 +64,32 @@ test('pointing elsewhere and pulling the trigger leaves the lobby open', async (
   await page.waitForTimeout(1500);
 
   expect(await lobby(page)).not.toBeNull();
+});
+
+test('swinging the controller beam across the nodes carries them (far ones too), without any pretend hand', async ({ page }) => {
+  const before = await lobby(page);
+  for (let step = 0; step <= 24; step += 1) {
+    const x = 5 - step * (10 / 24);
+    await aimControllers(page, [0, 1.5, 0], [x, 1.6, -3]);
+    await page.waitForTimeout(60);
+  }
+  await expect.poll(async () => Math.abs((await lobby(page)).balance - before.balance), { timeout: 10_000 }).toBeGreaterThan(0.03);
+});
+
+test('after entering through the lobby, a star can still be grabbed and carried', async ({ page }) => {
+  test.setTimeout(150_000);
+  await aimControllers(page, CONTROLLER_AT, BUTTON_AT);
+  await expect.poll(async () => (await lobby(page)).buttonHovered, { timeout: 10_000 }).toBe(true);
+  await setButton(page, 'right', 'trigger', 1);
+  await page.waitForFunction(() => window.__starMixLobby === undefined && Object.keys(window.__starMixTest?.getStemPositions() ?? {}).length > 0, undefined, { timeout: 60_000, polling: 200 });
+  await setButton(page, 'right', 'trigger', 0);
+  await page.waitForTimeout(1500);
+
+  const drums = (await stemPositions(page)).drums;
+  await aimControllers(page, [0.4, 1.5, 0], drums);
+  await page.waitForTimeout(500);
+  await setButton(page, 'right', 'trigger', 1);
+  await page.waitForTimeout(500);
+  await aimControllers(page, [0.4, 1.5, 0], [1.8, 2.0, -3]);
+  await expect.poll(async () => distance((await stemPositions(page)).drums, drums), { timeout: 15_000 }).toBeGreaterThan(1);
 });
