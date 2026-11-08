@@ -36,6 +36,7 @@ export const HEADSET_GRAPH = {
 export const isHeadsetBrowser = typeof window !== 'undefined'
   && (window.__headsetGraph === true // set by the headset emulator in the tests
     || new URLSearchParams(window.location.search).has('vr')
+    || new URLSearchParams(window.location.search).has('lobby')
     || /OculusBrowser|Quest/i.test(window.navigator?.userAgent ?? ''));
 
 // The plain nodes and links (everything that is not part of a sounding region): flat, faint, no
@@ -138,6 +139,16 @@ export const REGION_COLORS = {
   guitar: '#7be0a4',
 };
 
+// A colored region seen near or far: close, it is bigger and brighter; far, smaller and faint. Strong on
+// purpose, so pushing a region away or pulling it in (above all in the headset) is plain to see.
+export const REGION_DEPTH = {
+  RANGE: [2, 9], // distances (meters) between which it goes from "near" to "far"
+  NEAR_SIZE: 1.7, // nodes up close: size times this
+  FAR_SIZE: 0.45, // nodes far away: size times this
+  NEAR_GAIN: 1.15, // up close: brightness times this
+  FAR_GAIN: 0.22, // far away: brightness times this
+};
+
 // How a region (one instrument's colored area) is made and looks.
 export const REGION = {
   HOPS: 5, // it spreads this many links from its sounding node
@@ -163,4 +174,31 @@ export const FOCUS = {
   HALO: 2.5, // the soft glow behind the region gets this much stronger
   BREATH: 0.12, // pointed-at regions breathe by this much; a held region is steady
   EASE_PER_SECOND: 10,
+};
+
+// The lobby a headset visitor first sees (`?lobby`): the logo and an enter button in front, and sound
+// nodes all around that you swish with the controllers. Where they end up sets the left/right balance
+// of the one song that plays.
+export const LOBBY = {
+  NODE_COUNT: 480,
+  NEAREST: 0.9, // no node closer than this to the head (meters)
+  FARTHEST: 6.5,
+  HEIGHT: [0.2, 3.3],
+  CLEAR_CONE_DEGREES: 30, // the front stays free for the logo and the button...
+  CLEAR_DISTANCE: 3.6, // ...out to this distance
+  NODE_SIZE: [0.03, 0.07], // like the nodes of the main space: small and crisp
+  TOUCH_RADIUS: 0.45, // a controller pushes nodes this close to it
+  PUSH: 5, // how hard
+  SPRING: 0.7, // how firmly a node is drawn back home (low: it lingers where you left it, then drifts back)
+  DAMPING: 0.9,
+  MAX_OFFSET: 6, // a node never strays farther than this from home
+  IDLE_DRIFT: 0.06, // each node's own slow drift (meters)
+  BALANCE_REACH: 3, // a node counts fully left or right at this distance from the middle (meters)
+  BALANCE_GAIN: 3, // how strongly the nodes' overall drift tilts the sound
+  PAN_EASE: 0.12, // seconds the sound takes to follow
+  LEFT_COLOR: '#d9788f',
+  RIGHT_COLOR: '#7f74d4',
+  VOLUME: 0.35,
+  LOGO: { position: [0, 2.0, -2.2], size: [1.7, 0.42] },
+  BUTTON: { position: [0, 1.5, -2.2], size: [1.0, 0.24] },
 };

@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { FOCUS, HEADSET_GRAPH, isHeadsetBrowser, LIQUID, MOTION, OCCLUDER, PLAIN, REGION, SHOCK, WAVE, WEB, WHITE_GRAPH_CENTER } from './graphConstants';
+import { FOCUS, HEADSET_GRAPH, REGION_DEPTH, isHeadsetBrowser, LIQUID, MOTION, OCCLUDER, PLAIN, REGION, SHOCK, WAVE, WEB, WHITE_GRAPH_CENTER } from './graphConstants';
 
 // A headset's lighter graph has fewer dots and links, so the plain ones are drawn a little brighter.
 const PLAIN_ALPHA = PLAIN.ALPHA * (isHeadsetBrowser ? HEADSET_GRAPH.PLAIN_ALPHA_SCALE : 1);
@@ -216,6 +216,16 @@ const SHARED_GLSL = /* glsl */ `
   float plainGain(float dist) {
     return mix(${PLAIN.NEAR_GAIN.toFixed(2)}, ${PLAIN.FAR_GAIN.toFixed(2)}, plainDepth(dist));
   }
+  // A colored region: much bigger and brighter near, much smaller and fainter far.
+  float regionDepth(float dist) {
+    return smoothstep(${REGION_DEPTH.RANGE[0].toFixed(1)}, ${REGION_DEPTH.RANGE[1].toFixed(1)}, dist);
+  }
+  float regionGain(float dist) {
+    return mix(${REGION_DEPTH.NEAR_GAIN.toFixed(2)}, ${REGION_DEPTH.FAR_GAIN.toFixed(2)}, regionDepth(dist));
+  }
+  float regionSize(float dist) {
+    return mix(${REGION_DEPTH.NEAR_SIZE.toFixed(2)}, ${REGION_DEPTH.FAR_SIZE.toFixed(2)}, regionDepth(dist));
+  }
   float nearFade(float dist) {
     return smoothstep(${NEAR_FADE[0].toFixed(2)}, ${NEAR_FADE[1].toFixed(2)}, dist);
   }
@@ -251,11 +261,11 @@ const NODE_VERTEX = /* glsl */ `
     // Nodes glimmer very slowly, never flash.
     float twinkle = 0.92 + 0.08 * sin(uTime * 0.9 + aSeed * 40.0);
     float focus = focusOf();
-    float size = aSize * twinkle * ${CORE_SIZE.toFixed(1)} * (1.0 + strength * 0.5 + sparkle * 1.3 + hit * 0.6 + ring * 1.2 + focus * ${FOCUS.GROW.toFixed(2)} * breath(focus));
+    float size = aSize * twinkle * ${CORE_SIZE.toFixed(1)} * regionSize(dist) * (1.0 + strength * 0.5 + sparkle * 1.3 + hit * 0.6 + ring * 1.2 + focus * ${FOCUS.GROW.toFixed(2)} * breath(focus));
     size = min(size, dist * ${MAX_SCREEN_SIZE.toFixed(3)});
     // The true color, opaque: it is laid over the pale underlay, not added to the black.
     vColor = min(vColor * (1.0 + hit * 0.25 + sparkle * 0.3 + ring * 0.35 + focus * ${(FOCUS.BRIGHTEN * 0.4).toFixed(2)}), vec3(1.0));
-    vAlpha = strength * mix(depthDim(dist), 1.0, strength * 0.7) * nearFade(dist);
+    vAlpha = strength * regionGain(dist) * nearFade(dist);
 #endif
     viewPosition.xy += position.xy * size;
     gl_Position = projectionMatrix * viewPosition;
@@ -292,8 +302,8 @@ const HALO_VERTEX = /* glsl */ `
     vec4 viewPosition = modelViewMatrix * vec4(drift(aPos, aSeed, strength), 1.0);
     float dist = length(viewPosition.xyz);
     float focus = focusOf();
-    vAlpha = ${HALO_ALPHA.toFixed(2)} * (1.0 + focus * ${FOCUS.HALO.toFixed(1)}) * strength * strength * mix(depthDim(dist), 1.0, 0.6) * nearFade(dist);
-    float size = min(aSize * ${HALO_SIZE.toFixed(1)} * (1.0 + focus * 0.4 * breath(focus)), dist * 0.12) * step(0.02, strength);
+    vAlpha = ${HALO_ALPHA.toFixed(2)} * (1.0 + focus * ${FOCUS.HALO.toFixed(1)}) * strength * strength * regionGain(dist) * nearFade(dist);
+    float size = min(aSize * ${HALO_SIZE.toFixed(1)} * regionSize(dist) * (1.0 + focus * 0.4 * breath(focus)), dist * 0.12) * step(0.02, strength);
     viewPosition.xy += position.xy * size;
     gl_Position = projectionMatrix * viewPosition;
     vUv = position.xy + 0.5;
@@ -329,7 +339,7 @@ const LINK_VERTEX = /* glsl */ `
     float ring = r >= 0 ? wave(r) : 0.0;
     float focus = focusOf();
     vColor = min(vColor * (1.0 + hit * 0.2 + ring * 0.3 + focus * ${(FOCUS.BRIGHTEN * 0.3).toFixed(2)}), vec3(1.0));
-    vAlpha = strength * 0.55 * (1.0 + focus * 0.4) * mix(depthDim(dist), 1.0, strength * 0.7) * nearFade(dist);
+    vAlpha = strength * 0.55 * (1.0 + focus * 0.4) * regionGain(dist) * nearFade(dist);
 #endif
     gl_Position = projectionMatrix * viewPosition;
   }
@@ -356,11 +366,11 @@ const WEB_VERTEX = /* glsl */ `
     vec3 base = r >= 0 ? uColor[r] : vec3(1.0);
 #ifdef CONNECT
     vColor = vec3(1.0);
-    vAlpha = ${WEB.CONNECT_ALPHA.toFixed(3)} * strength * mix(depthDim(dist), 1.0, 0.6) * nearFade(dist);
+    vAlpha = ${WEB.CONNECT_ALPHA.toFixed(3)} * strength * regionGain(dist) * nearFade(dist);
 #else
     float focus = focusOf();
     vColor = mix(base, mix(base, vec3(1.0), ${WEB.PASTEL.toFixed(2)}), aEnd);
-    vAlpha = ${WEB.ALPHA.toFixed(3)} * strength * strength * (1.0 + focus * 0.6) * mix(depthDim(dist), 1.0, 0.7) * nearFade(dist);
+    vAlpha = ${WEB.ALPHA.toFixed(3)} * strength * strength * (1.0 + focus * 0.6) * regionGain(dist) * nearFade(dist);
 #endif
     gl_Position = projectionMatrix * viewPosition;
   }

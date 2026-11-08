@@ -5,6 +5,7 @@ import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { SONG_STEMS, getStemColor } from '../audio/songStems';
 import { getInstrumentTexture } from './instrumentIcons';
+import { VRLobby } from './VRLobby';
 import { WhiteGraph } from './graph/WhiteGraph';
 import { REGION_COLORS, WHITE_GRAPH_CENTER } from './graph/graphConstants';
 import { regionShapes, registerRegion, unregisterRegion } from './graph/graphRegistry';
@@ -1410,7 +1411,7 @@ function SceneReadySignal({ onReady }) {
   return null;
 }
 
-export function VRScene({ store, starColors, handData, isInVR, isDesktopVR, activeSong, leftRate, rightRate, activePreset, isAudioActive, vrModeType, playbackTimeRef, vrCameraPos, vrCameraRot, onWebcamInteractionChange, handVisualFrameRef, onSceneReady }) {
+export function VRScene({ lobby, onEnterRoom, store, starColors, handData, isInVR, isDesktopVR, activeSong, leftRate, rightRate, activePreset, isAudioActive, vrModeType, playbackTimeRef, vrCameraPos, vrCameraRot, onWebcamInteractionChange, handVisualFrameRef, onSceneReady }) {
   const isVRActive = isInVR || isDesktopVR;
   const [isDraggingOrb, setIsDraggingOrb] = useState(false);
   // Pointing at a region: pressing there grabs it instead of turning the view, but the wheel still zooms.
@@ -1451,13 +1452,14 @@ export function VRScene({ store, starColors, handData, isInVR, isDesktopVR, acti
               <sphereGeometry args={[1, 32, 32]} />
               <meshBasicMaterial color="#07070a" side={THREE.BackSide} />
             </mesh>
-            {isVRActive && vrModeType === 2 && <WhiteGraph />}
+            {isVRActive && vrModeType === 2 && lobby && <VRLobby onEnter={onEnterRoom} playbackTimeRef={playbackTimeRef} />}
+            {isVRActive && vrModeType === 2 && !lobby && <WhiteGraph />}
 
             <ControllerHelpers />
             {isDesktopVR && <OrbitControls ref={orbitControlsRef} enabled={!isDraggingOrb} enableRotate={!isHoveringOrb} enableZoom={true} enablePan={false} maxDistance={25} minDistance={1} />}
 
             {/* Premium 3D VR Spatial Audio Experience - ONLY in VR 2 */}
-            {isVRActive && vrModeType === 2 && (
+            {isVRActive && vrModeType === 2 && !lobby && (
               <VRAudioExperience
                 starColors={starColors}
                 activeSong={activeSong}

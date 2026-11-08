@@ -11,10 +11,17 @@ import { useIdleReturn } from './hand-tracking/useIdleReturn';
 import { isStillMode } from './stillMode';
 import { EXHIBITION_SONG } from './audio/songStems';
 
+// ?lobby is the headset exhibition address with a lobby: the browser offers the headset session as
+// soon as the page opens, the visitor starts in the lobby, and its button leads into the main space.
+const pageParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
+const isLobbyMode = pageParams.has('lobby');
+// ?lobby&desktop shows the lobby on a normal screen (for building and checking it without a headset).
+const isLobbyDesktop = isLobbyMode && pageParams.has('desktop');
+
 const xrStore = createXRStore({
   // The edges of the view are drawn less sharply, which the headset can afford; the middle stays crisp.
   foveation: 0.75,
-  offerSession: false
+  offerSession: isLobbyMode ? 'immersive-vr' : false,
 });
 
 const midiValueToRate = (value) => {
@@ -563,7 +570,7 @@ const SPACE_IDLE_RETURN_MS = 30000;
 // Long enough for the stars to gather, split into stem clusters and hold there.
 // ?vr turns a device into the headset station: no galaxy, no webcam, one big button
 // that starts the spatial scene in VR, and a reset once the headset comes off.
-const isVrStation = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('vr');
+const isVrStation = isLobbyMode || (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('vr'));
 
 // Playback level of the 2D background music (the spatial scene's output gain is matched to it).
 const GALAXY_PLAYBACK_VOLUME = 1.0;
@@ -810,6 +817,27 @@ function App() {
       setIsInVR(!!state.session);
     });
     return unsub;
+  }, []);
+
+  // The lobby comes first; its button opens the main space (and the song carries on from where it was).
+  const [lobbyOpen, setLobbyOpen] = useState(isLobbyMode);
+
+  // The headset can start the session by itself (the browser's offer), with no click on the page:
+  // set the main space up the same way the start button does.
+  useEffect(() => {
+    if (!isLobbyMode || !isInVR) return;
+    setVrModeType(2);
+    setActiveSong(EXHIBITION_SONG);
+    setViewMode('menu');
+  }, [isInVR]);
+
+  // Build and check the lobby on a normal screen.
+  useEffect(() => {
+    if (!isLobbyDesktop) return;
+    setVrModeType(2);
+    setActiveSong(EXHIBITION_SONG);
+    setViewMode('menu');
+    setIsDesktopVR(true);
   }, []);
 
   // Checked again each time the spatial scene opens, so a headset that was
@@ -1432,7 +1460,9 @@ function App() {
         leftRate={leftRate}
         rightRate={rightRate}
         activePreset={activePreset}
-        isAudioActive={isAudioInitialized && vrModeType === 2}
+        isAudioActive={isAudioInitialized && vrModeType === 2 && !lobbyOpen}
+        lobby={lobbyOpen}
+        onEnterRoom={() => setLobbyOpen(false)}
         vrModeType={vrModeType}
         playbackTimeRef={playbackTimeRef}
         vrCameraPos={vrCameraPos}
