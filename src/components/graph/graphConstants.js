@@ -3,14 +3,14 @@ export const WHITE_GRAPH_CENTER = [0, 1.6, 0];
 
 // The shape and size of the white graph. Tuning knobs, in meters unless noted.
 export const GRAPH = {
-  NODE_COUNT: 7000, // more nodes make the space deeper; 1.5x the earlier 4900 (watch the headset's frame rate)
+  NODE_COUNT: 20000, // very many: the space reads as a dense field of light (watch the headset's frame rate; 7000 was the earlier amount)
   INNER_RADIUS: 2.0, // nothing closer than this to the head (it would fill the view)
   OUTER_RADIUS: 8.5,
   FLATTEN: 0.75, // 1 = a ball; lower = squashed top to bottom
   CLUMP_COUNT: 48, // dense groups, like Obsidian's sections
   CLUMP_SHARE: 0, // share of nodes that sit in a clump (none: the spacing stays even)
   CLUMP_SPREAD: 1.6,
-  MIN_SPACING: 0.5, // no two nodes closer than this (meters); near the most that fits, so the spacing is even
+  MIN_SPACING: 0.33, // no two nodes closer than this (meters); small enough that NODE_COUNT fits
   // Spots to keep empty: [x, y, z, radius]. The head, and where the desktop camera starts.
   KEEP_CLEAR: [[0, 1.6, 0, 2.0], [0, 1.6, 2, 1.7]],
   LINKS_PER_NODE: 3, // each node is joined to this many nearest neighbours
@@ -18,19 +18,35 @@ export const GRAPH = {
   EXTRA_LINK_LENGTH: 0.5, // a third link only if that neighbour is this close
   // Crowded spots are thinned: at most CROWD_MAX nodes within CROWD_RADIUS (meters) of one another.
   CROWD_RADIUS: 0.5,
-  CROWD_MAX: 9,
-  NODE_SIZE: 0.06, // every node is this size
+  CROWD_MAX: 40,
+  NODE_SIZE: 0.045, // every node is this size (smaller, since there are many more)
 };
+
+// A headset draws the scene twice (once per eye) on a phone-class chip, so it gets a lighter graph.
+// These replace the GRAPH values above when the page runs in a headset's own browser (or `?vr`).
+export const HEADSET_GRAPH = {
+  NODE_COUNT: 7000, // the amount known to run smoothly on the headset
+  MIN_SPACING: 0.5,
+  CROWD_MAX: 9,
+  NODE_SIZE: 0.06,
+  PLAIN_ALPHA_SCALE: 1.7, // fewer dots and links add up to less light, so each is drawn a little brighter
+  REGION_HOPS: 4, // each region is drawn with its own colored nodes, lines and glow, so on a headset it stays as small as it was
+  REGION_MIN_NODES: 34,
+};
+export const isHeadsetBrowser = typeof window !== 'undefined'
+  && (window.__headsetGraph === true // set by the headset emulator in the tests
+    || new URLSearchParams(window.location.search).has('vr')
+    || /OculusBrowser|Quest/i.test(window.navigator?.userAgent ?? ''));
 
 // The plain nodes and links (everything that is not part of a sounding region): flat, faint, no
 // effects. ALPHA is how visible they are (0.1 = 10%).
 export const PLAIN = {
-  ALPHA: 0.06,
+  ALPHA: 0.035, // lower than before: there are about three times as many dots and links to add up
   SIZE_SCALE: 1.3, // plain dots are drawn this many times the node's size
   // Depth: near dots are bigger and brighter, far ones smaller and fainter, so the space reads as deep.
-  DEPTH_RANGE: [2.5, 9], // distances (meters) between which it goes from "near" to "far"
+  DEPTH_RANGE: [2.5, 8], // distances (meters) between which it goes from "near" to "far"
   NEAR_GAIN: 1.7, // near dots: ALPHA times this
-  FAR_GAIN: 0.35, // far dots: ALPHA times this
+  FAR_GAIN: 0.18, // far dots: ALPHA times this (low: the far space melts into the dark)
   NEAR_SIZE: 1.7, // near dots: size times this
   FAR_SIZE: 0.7,
   MAX_SCREEN_SIZE: 0.14, // no plain dot is drawn bigger than this share of its distance to the eye
@@ -124,11 +140,11 @@ export const REGION_COLORS = {
 
 // How a region (one instrument's colored area) is made and looks.
 export const REGION = {
-  HOPS: 4, // it spreads this many links from its sounding node
-  MIN_NODES: 34, // a region that starts in a sparse spot grows further until it has this many nodes
-  MAX_HOPS: 8, // but never beyond this many links
-  REST_STRENGTH: 0.8, // how strongly colored it is while its instrument is quiet
-  SOUND_STRENGTH: 0.45, // extra color when it sounds at full level
+  HOPS: 5, // it spreads this many links from its sounding node
+  MIN_NODES: 150, // a region that starts in a sparse spot grows further until it has this many nodes
+  MAX_HOPS: 9, // but never beyond this many links
+  REST_STRENGTH: 0.55, // how strongly colored it is while its instrument is quiet (lower than the sounding ones, so the one that plays stands out)
+  SOUND_STRENGTH: 0.7, // extra color when it sounds at full level
   SOUND_RISE: 3, // how fast color follows the music up (per second; lower = lazier)
   SOUND_FALL: 1.2, // and how fast it sinks back
   HOVER_STRENGTH: 0.2, // extra color while pointed at or held

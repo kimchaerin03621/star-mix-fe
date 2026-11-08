@@ -1,4 +1,7 @@
-import { GRAPH, WHITE_GRAPH_CENTER } from './graphConstants';
+import { GRAPH as GRAPH_BASE, HEADSET_GRAPH, WHITE_GRAPH_CENTER, isHeadsetBrowser } from './graphConstants';
+
+// The graph's settings on this device: the headset gets a lighter one.
+const GRAPH = isHeadsetBrowser ? { ...GRAPH_BASE, ...HEADSET_GRAPH } : GRAPH_BASE;
 
 // Builds the huge white graph the listener stands inside: nodes scattered around the head,
 // each joined to its few nearest neighbours by a thin link, in the manner of Obsidian's

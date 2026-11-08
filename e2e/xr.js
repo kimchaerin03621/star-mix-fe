@@ -11,6 +11,8 @@ export async function installQuestEmulator(page) {
   await page.route(/cdn\.jsdelivr\.net|storage\.googleapis\.com/, (route) => route.abort());
   await page.addInitScript({ path: IWER_BUNDLE });
   await page.addInitScript(() => {
+    // The app builds its lighter headset graph on a real Quest; this makes the emulator count as one.
+    window.__headsetGraph = true;
     const { XRDevice, metaQuest3 } = window.IWER;
     const device = new XRDevice(metaQuest3);
     device.installRuntime();

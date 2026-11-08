@@ -11,7 +11,9 @@ import { useIdleReturn } from './hand-tracking/useIdleReturn';
 import { isStillMode } from './stillMode';
 import { EXHIBITION_SONG } from './audio/songStems';
 
-const xrStore = createXRStore({ 
+const xrStore = createXRStore({
+  // The edges of the view are drawn less sharply, which the headset can afford; the middle stays crisp.
+  foveation: 0.75,
   offerSession: false
 });
 

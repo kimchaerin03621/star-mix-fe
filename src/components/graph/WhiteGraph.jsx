@@ -1,7 +1,10 @@
 import { useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { FOCUS, LIQUID, MOTION, OCCLUDER, PLAIN, REGION, SHOCK, WAVE, WEB, WHITE_GRAPH_CENTER } from './graphConstants';
+import { FOCUS, HEADSET_GRAPH, isHeadsetBrowser, LIQUID, MOTION, OCCLUDER, PLAIN, REGION, SHOCK, WAVE, WEB, WHITE_GRAPH_CENTER } from './graphConstants';
+
+// A headset's lighter graph has fewer dots and links, so the plain ones are drawn a little brighter.
+const PLAIN_ALPHA = PLAIN.ALPHA * (isHeadsetBrowser ? HEADSET_GRAPH.PLAIN_ALPHA_SCALE : 1);
 import { buildGraph, growRegions, nearestNode } from './graphLayout';
 import { getRegions, regionShapes } from './graphRegistry';
 import { isStillMode } from '../../stillMode';
@@ -238,7 +241,7 @@ const NODE_VERTEX = /* glsl */ `
     vColor = mix(vec3(1.0), sh.rgb, min(1.0, sh.w * 1.4));
     float depthSize = mix(${PLAIN.NEAR_SIZE.toFixed(2)}, ${PLAIN.FAR_SIZE.toFixed(2)}, plainDepth(dist));
     float size = min(aSize * ${PLAIN.SIZE_SCALE.toFixed(2)} * depthSize, dist * ${PLAIN.MAX_SCREEN_SIZE.toFixed(3)});
-    vAlpha = (${PLAIN.ALPHA.toFixed(3)} * plainGain(dist) + sh.w * ${SHOCK.ALPHA.toFixed(2)} * mix(depthDim(dist), 1.0, 0.5)) * (1.0 - strength) * (1.0 - occluded()) * nearFade(dist);
+    vAlpha = (${PLAIN_ALPHA.toFixed(3)} * plainGain(dist) + sh.w * ${SHOCK.ALPHA.toFixed(2)} * mix(depthDim(dist), 1.0, 0.5)) * (1.0 - strength) * (1.0 - occluded()) * nearFade(dist);
 #else
     int r = int(aRegion + 0.5);
     float high = r >= 0 ? uHigh[r] * (1.0 - aAmount) : 0.0;
@@ -319,7 +322,7 @@ const LINK_VERTEX = /* glsl */ `
 #ifdef PLAIN
     vec4 sh = shock(aPos);
     vColor = mix(vec3(1.0), sh.rgb, min(1.0, sh.w * 1.4));
-    vAlpha = (${PLAIN.ALPHA.toFixed(3)} * plainGain(dist) + sh.w * ${(SHOCK.ALPHA * 0.8).toFixed(2)} * mix(depthDim(dist), 1.0, 0.5)) * (1.0 - strength) * (1.0 - occluded()) * nearFade(dist);
+    vAlpha = (${PLAIN_ALPHA.toFixed(3)} * plainGain(dist) + sh.w * ${(SHOCK.ALPHA * 0.8).toFixed(2)} * mix(depthDim(dist), 1.0, 0.5)) * (1.0 - strength) * (1.0 - occluded()) * nearFade(dist);
 #else
     int r = int(aRegion + 0.5);
     float hit = r >= 0 ? uHit[r] * aAmount : 0.0;
@@ -678,7 +681,7 @@ export function WhiteGraph() {
     if (changed) {
       store.seeds = seeds;
       store.seedKeys = keys;
-      const { region, hops, reach: hopReach } = growRegions(graph, seeds, REGION.HOPS, REGION.MIN_NODES, REGION.MAX_HOPS);
+      const { region, hops, reach: hopReach } = growRegions(graph, seeds, isHeadsetBrowser ? HEADSET_GRAPH.REGION_HOPS : REGION.HOPS, isHeadsetBrowser ? HEADSET_GRAPH.REGION_MIN_NODES : REGION.MIN_NODES, REGION.MAX_HOPS);
       // How wide each region looks from outside (most of its nodes), for hiding what is in front of it.
       store.regionRadius = seeds.map((seed, regionIndex) => {
         if (seed < 0) return 1.5;
