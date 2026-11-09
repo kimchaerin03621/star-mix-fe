@@ -7,7 +7,7 @@ import { SONG_STEMS, getStemColor } from '../audio/songStems';
 import { getInstrumentTexture } from './instrumentIcons';
 import { VRLobby } from './VRLobby';
 import { WhiteGraph } from './graph/WhiteGraph';
-import { REGION_COLORS, WHITE_GRAPH_CENTER } from './graph/graphConstants';
+import { ENTRY_FLIGHT, REGION_COLORS, WHITE_GRAPH_CENTER, isHeadsetBrowser } from './graph/graphConstants';
 import { regionShapes, registerRegion, unregisterRegion } from './graph/graphRegistry';
 import { isStillMode } from '../stillMode';
 import { clampToGraph } from './graph/graphBounds';
@@ -878,6 +878,7 @@ const SPATIAL_OUTPUT_GAIN = 0.3;
 const SPATIAL_REF_DISTANCE = 4.0;
 
 const headPose = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion() };
+const testHead = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion() };
 
 // 3D VR Spatial Audio Experience (다이내믹 멀티트랙 스템 믹서 엔진)
 function VRAudioExperience({
@@ -1000,6 +1001,9 @@ function VRAudioExperience({
           visible: projected.z < 1 && Math.abs(projected.x) <= 1 && Math.abs(projected.y) <= 1,
         };
       },
+      getHeadPosition: () => readHeadPose({ gl, camera }, testHead).position.toArray(),
+      // How far the viewer's head (the eyes, in a headset) is from a star.
+      getHeadDistanceTo: (key) => (orbCoordsRef.current[key] ? readHeadPose({ gl, camera }, testHead).position.distanceTo(orbCoordsRef.current[key]) : null),
       getCameraDistanceTo: (key) => (orbCoordsRef.current[key] ? camera.position.distanceTo(orbCoordsRef.current[key]) : null),
       getRenderStats: () => ({ ...gl.info.render }),
       getControllerState: () => {
@@ -1385,6 +1389,96 @@ function VRAudioExperience({
   );
 }
 
+// The way in: instead of appearing already standing at the middle, the viewer is carried in from a
+// diagonal and settles in the middle of the ring of stars, so the arrival itself says "you are inside".
+// On a screen the camera flies; in a headset the whole play space is slid (the reference space is
+// offset), which moves the head, the hands and the sound together. Any click, drag or wheel ends it
+// at once. `window.__skipEntryFlight` (tests) and ?still skip it.
+const flightEase = (t) => {
+  const s = t * t * (3 - 2 * t);
+  return 1 - (1 - s) * (1 - s);
+};
+const flightScratch = { from: new THREE.Vector3(), to: new THREE.Vector3(), look: new THREE.Vector3(), middle: new THREE.Vector3() };
+
+// Puts the screen camera `remaining` of the way back along its flight (0 = at rest, 1 = at the start).
+function placeFlyingCamera(camera, controls, remaining) {
+  const { from, to, look, middle } = flightScratch;
+  to.set(...ENTRY_CAMERA_POSITION);
+  from.set(...ENTRY_FLIGHT.FROM).add(to);
+  camera.position.lerpVectors(to, from, remaining);
+  look.set(...ENTRY_FLIGHT.LOOK_FROM).lerp(middle.set(...WHITE_GRAPH_CENTER), 1 - remaining);
+  if (controls) {
+    controls.target.copy(look);
+    controls.update();
+  } else {
+    camera.lookAt(look);
+  }
+}
+
+function EntryFlight({ orbitControlsRef }) {
+  const { camera, gl } = useThree();
+  const flight = useRef({ elapsed: 0, done: false, baseSpace: null });
+
+  useEffect(() => {
+    const state = flight.current;
+    state.done = isStillMode || Boolean(window.__skipEntryFlight)
+      || (typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    state.elapsed = 0;
+    state.baseSpace = null;
+    // Already at the start of the flight before the first frame is drawn (the resting pose is set just before).
+    if (!state.done && !gl.xr.isPresenting && !isHeadsetBrowser) placeFlyingCamera(camera, orbitControlsRef.current, 1);
+    const stop = () => { state.done = true; };
+    const element = gl.domElement;
+    element.addEventListener('pointerdown', stop);
+    element.addEventListener('wheel', stop);
+    return () => {
+      element.removeEventListener('pointerdown', stop);
+      element.removeEventListener('wheel', stop);
+      state.done = true;
+      if (state.baseSpace && gl.xr.isPresenting) gl.xr.setReferenceSpace(state.baseSpace);
+    };
+  }, [camera, gl, orbitControlsRef]);
+
+  useFrame((_, delta) => {
+    const state = flight.current;
+    const xr = gl.xr;
+    const inHeadset = xr.isPresenting;
+
+    if (state.done) {
+      // Ended early (or finished): give the headset its own space back and leave the camera where it is.
+      if (state.baseSpace && inHeadset) xr.setReferenceSpace(state.baseSpace);
+      state.baseSpace = null;
+      return;
+    }
+    // A headset page waits for its session instead of flying the screen camera nobody is looking at.
+    if (!inHeadset && isHeadsetBrowser) return;
+    if (inHeadset && !state.baseSpace) {
+      state.baseSpace = xr.getReferenceSpace?.() ?? null;
+      if (!state.baseSpace) return; // the headset's space is not ready yet
+      if (!state.baseSpace.getOffsetReferenceSpace) { state.done = true; return; }
+    }
+
+    state.elapsed += Math.min(delta, 0.25); // a hitch while the scene loads must not eat the flight
+    const t = Math.min(1, state.elapsed / ENTRY_FLIGHT.SECONDS);
+    const remaining = 1 - flightEase(t);
+
+    if (inHeadset) {
+      const [ox, oy, oz] = ENTRY_FLIGHT.HEADSET_FROM;
+      // Sliding the space by -offset makes the viewer appear offset by +offset.
+      xr.setReferenceSpace(t >= 1 ? state.baseSpace : state.baseSpace.getOffsetReferenceSpace(
+        new XRRigidTransform({ x: -ox * remaining, y: -oy * remaining, z: -oz * remaining }, { x: 0, y: 0, z: 0, w: 1 }),
+      ));
+      if (t >= 1) { state.done = true; state.baseSpace = null; }
+      return;
+    }
+
+    placeFlyingCamera(camera, orbitControlsRef.current, remaining);
+    if (t >= 1) state.done = true;
+  });
+
+  return null;
+}
+
 function CameraRig({ vrCameraPos, vrCameraRot }) {
   const { camera, controls } = useThree();
   useFrame(() => {
@@ -1468,7 +1562,7 @@ export function VRScene({ lobby, onEnterRoom, store, starColors, handData, isInV
 
             <ControllerPairing />
             <ControllerHelpers />
-            {isDesktopVR && <OrbitControls ref={orbitControlsRef} enabled={!isDraggingOrb} enableRotate={!isHoveringOrb} enableZoom={true} enablePan={false} maxDistance={25} minDistance={1} />}
+            {isDesktopVR && <OrbitControls ref={orbitControlsRef} enabled={!isDraggingOrb} enableRotate={!isHoveringOrb} enableZoom={true} enablePan={false} maxDistance={25} minDistance={0.3} />}
 
             {/* Premium 3D VR Spatial Audio Experience - ONLY in VR 2 */}
             {isVRActive && vrModeType === 2 && !lobby && (
@@ -1488,6 +1582,8 @@ export function VRScene({ lobby, onEnterRoom, store, starColors, handData, isInV
                 handVisualFrameRef={handVisualFrameRef}
               />
             )}
+            {/* After the audio experience, so its resting camera is set first and the flight then starts from there */}
+            {isVRActive && vrModeType === 2 && !lobby && <EntryFlight orbitControlsRef={orbitControlsRef} />}
         </XR>
       </Canvas>
     </div>

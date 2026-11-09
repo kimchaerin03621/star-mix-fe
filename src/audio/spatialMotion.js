@@ -11,7 +11,7 @@ import * as THREE from 'three';
 export const SPATIAL_MOTION = {
   AZIMUTH_STRETCH: 1.4, // sideways angle times this
   ELEVATION_STRETCH: 1.3, // up/down angle times this
-  REFERENCE_DISTANCE: 4.2, // the distance the stars start at: level 1, bright
+  REFERENCE_DISTANCE: 3.1, // about the distance the stars start at: level 1, bright
   LOUDNESS_CURVE: 1.2, // gain = (reference / distance) ^ this (stars can only go about 8 m out)
   MIN_GAIN: 0.2,
   MAX_GAIN: 2.0,

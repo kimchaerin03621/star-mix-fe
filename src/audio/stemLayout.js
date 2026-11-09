@@ -1,9 +1,9 @@
 import { getStemColor } from './songStems';
 
-// Where the desktop camera starts when the spatial scene opens: far enough
-// back to frame every stem, close enough that the mix is about as loud as the
-// galaxy. It looks straight down -z with react-three-fiber's default 75deg fov.
-export const ENTRY_CAMERA_POSITION = [0, 1.6, 2];
+// Where the desktop camera comes to rest when the spatial scene opens: right by the middle of the
+// ring of stems (they wrap around it), looking straight down -z with react-three-fiber's default
+// 75deg fov. The camera flies in to here from a diagonal (see ENTRY_FLIGHT).
+export const ENTRY_CAMERA_POSITION = [0, 1.6, 1];
 export const ENTRY_CAMERA_TARGET = [0, 1.6, -2.9];
 const ENTRY_CAMERA_FOV_DEGREES = 75;
 

@@ -10,12 +10,14 @@ export const SONG_STEMS = {
     { key: 'guitar1', instrument: 'guitar', group: 'band', name: '🎸 Guitar 1', color: '#8d6fb3', url: '/Bohemian Rhapsody/Bohemian Rhapsody_electric guitar1.mp3', initialPos: [-2.5, 1.3, -4.5] },
     { key: 'guitar2', instrument: 'guitar', group: 'band', name: '🎸 Guitar 2', color: '#58ab75', url: '/Bohemian Rhapsody/Bohemian Rhapsody_electric guitar2.mp3', initialPos: [2.5, 1.3, -4.5] },
   ],
-  // Hype Boy: a semicircle (radius 4.2 m around the head, outer stars at +-50 degrees, inner at +-18) wrapping the listener's head at (0, 1.6, 0).
+  // Hype Boy: a close semicircle wrapping the listener's head at (0, 1.6, 0): the outer stars (vocal, drums) sit 2.9 m away
+  // at +-58 degrees, the inner ones (bass, piano) 3.3 m away at +-20 degrees and a little higher, so on arrival the
+  // regions are around the viewer rather than in front of them.
   2: [
-    { key: 'lead_vocal', instrument: 'vocal', group: 'lead', name: '🎤 Vocal', color: '#e07a9e', url: '/Hype Boy/Hype Boy_vocal.mp3', initialPos: [-3.22, 1.3, -2.7] },
-    { key: 'drums', instrument: 'drum', group: 'band', name: '🥁 Drums', color: '#e6e6e6', url: '/Hype Boy/Hype Boy_drum.mp3', initialPos: [3.22, 1.3, -2.7] },
-    { key: 'bass', instrument: 'bass', group: 'band', name: '🎸 Bass', color: '#599ec7', url: '/Hype Boy/Hype Boy_bass.mp3', initialPos: [-1.3, 1.95, -3.99] },
-    { key: 'piano', instrument: 'piano', group: 'band', name: '🎹 Piano', color: '#c99344', url: '/Hype Boy/Hype Boy_piano.mp3', initialPos: [1.3, 1.95, -3.99] },
+    { key: 'lead_vocal', instrument: 'vocal', group: 'lead', name: '🎤 Vocal', color: '#e07a9e', url: '/Hype Boy/Hype Boy_vocal.mp3', initialPos: [-2.46, 1.3, -1.54] },
+    { key: 'drums', instrument: 'drum', group: 'band', name: '🥁 Drums', color: '#e6e6e6', url: '/Hype Boy/Hype Boy_drum.mp3', initialPos: [2.46, 1.3, -1.54] },
+    { key: 'bass', instrument: 'bass', group: 'band', name: '🎸 Bass', color: '#599ec7', url: '/Hype Boy/Hype Boy_bass.mp3', initialPos: [-1.13, 1.95, -3.1] },
+    { key: 'piano', instrument: 'piano', group: 'band', name: '🎹 Piano', color: '#c99344', url: '/Hype Boy/Hype Boy_piano.mp3', initialPos: [1.13, 1.95, -3.1] },
   ],
   3: [
     { key: 'melody', instrument: 'piano', group: 'lead', name: '🎹 Piano', color: '#e07a9e', url: '/Kerning City/Kerning City_piano.mp3', initialPos: [-2.0, 1.6, -2.5] },

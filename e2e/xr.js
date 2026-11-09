@@ -13,9 +13,17 @@ export async function installQuestEmulator(page) {
   await page.addInitScript(() => {
     // The app builds its lighter headset graph on a real Quest; this makes the emulator count as one.
     window.__headsetGraph = true;
+    // The entry fly-in has its own test; everywhere else the view should be at rest straight away.
+    window.__skipEntryFlight = true;
     const { XRDevice, metaQuest3 } = window.IWER;
+    // IWER hands the XRRigidTransform itself to its matrix-based space, so an offset reference space (what
+    // the entry fly-in uses) comes out unshifted. A real headset browser shifts it; make the emulator do so too.
     const device = new XRDevice(metaQuest3);
     device.installRuntime();
+    const originalOffset = window.XRReferenceSpace?.prototype.getOffsetReferenceSpace;
+    if (originalOffset) {
+      window.XRReferenceSpace.prototype.getOffsetReferenceSpace = function (transform) { return originalOffset.call(this, transform.matrix ?? transform); };
+    }
     device.position.set(0, 1.6, 0);
     window.__xrDevice = device;
   });

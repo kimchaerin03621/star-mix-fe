@@ -206,3 +206,14 @@ export const LOBBY = {
   LOGO: { position: [0, 2.0, -2.2], size: [1.7, 0.42] },
   BUTTON: { position: [0, 1.5, -2.2], size: [1.0, 0.24] },
 };
+
+// The way in: the viewer is carried in from a diagonal and glides to the middle of the ring of stars
+// (VR carries the whole play space, so the offsets are small and low: no climbing).
+export const ENTRY_FLIGHT = {
+  SECONDS: 3.6,
+  // Where the camera starts, as an offset from where it comes to rest (right, up, back).
+  FROM: [-4.2, 1.5, 4.8],
+  HEADSET_FROM: [-3.6, 0.5, 4.2],
+  // What the camera looks at while flying (the front of the ring); it turns to the middle on arrival.
+  LOOK_FROM: [0, 1.7, -3.2],
+};

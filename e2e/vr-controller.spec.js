@@ -10,9 +10,10 @@ import {
 } from './xr.js';
 
 const CONTROLLER_AT = [0.4, 1.5, 0];
-const DRUMS_START = [3.22, 1.3, -2.7];
+const DRUMS_START = [2.46, 1.3, -1.54];
 const AIM_ELSEWHERE = [1.8, 2.0, -3];
-const HELD_DISTANCE = 3.97;
+// A grabbed star stays as far from the controller as it was when grabbed.
+const HELD_DISTANCE = Math.hypot(...DRUMS_START.map((value, index) => value - CONTROLLER_AT[index]));
 // The farthest a star can be sent: the edge of the graph, about 10 m from its middle.
 const GRAPH_EDGE_FROM_CONTROLLER = [8.2, 10.2];
 
