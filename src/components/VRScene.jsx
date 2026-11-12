@@ -1561,7 +1561,8 @@ export function VRScene({ lobby, onEnterRoom, store, starColors, handData, isInV
       visibility: isVRActive ? 'visible' : 'hidden',
       transition: 'opacity 0.3s ease, visibility 0.3s ease'
     }}>
-      <Canvas 
+      <Canvas
+        frameloop={isVRActive ? 'always' : 'demand'}
         gl={{ preserveDrawingBuffer: true, powerPreference: 'high-performance', antialias: true }}
         onCreated={({ gl }) => {
           gl.domElement.addEventListener('webglcontextlost', (e) => {
