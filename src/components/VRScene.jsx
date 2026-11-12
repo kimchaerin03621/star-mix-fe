@@ -1475,6 +1475,8 @@ function EntryFlight({ orbitControlsRef }) {
     }
     // A headset page waits for its session instead of flying the screen camera nobody is looking at.
     if (!inHeadset && isHeadsetBrowser) return;
+    // (For filming: the scene can be loaded first and the fly-in started on cue.)
+    if (window.__holdEntryFlight) return;
     if (inHeadset && !state.baseSpace) {
       state.baseSpace = xr.getReferenceSpace?.() ?? null;
       if (!state.baseSpace) return; // the headset's space is not ready yet

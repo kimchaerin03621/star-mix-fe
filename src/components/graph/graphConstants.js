@@ -78,7 +78,8 @@ export const WEB = {
   PER_NODE: 5, // an ordinary node reaches out to this many near ones
   RADIUS: 1.3, // ...within this distance (meters)
   MAX_PER_REGION: 1800,
-  ALPHA: 0.95, // one hairline
+  ALPHA: 1.6, // one hairline (lines add light, so above 1 just means brighter)
+  TAIL_FADE: 0.85, // a line fades by this much from the node it leaves to its far end
   PASTEL: 0.25, // the far end of each line is its color pulled this far toward white
   CONNECT_PER_PAIR: 26, // white lines from one region to another, per pair of regions
   CONNECT_ALPHA: 0.12,

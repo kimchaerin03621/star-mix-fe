@@ -1,5 +1,4 @@
 import './Tutorial.css';
-import { HandPose } from './HandPose';
 import { TUTORIAL_STEPS } from './tutorialSteps';
 import { useTutorial } from './useTutorial';
 
@@ -22,14 +21,6 @@ export function Tutorial({ enabled, handData }) {
             </div>
             <p className="tutorial-step">{step + 1} / {total}</p>
             <h2 className="tutorial-title">{current.title}</h2>
-            <div className="tutorial-hands">
-              {current.hands.map((hand) => (
-                <figure key={hand.label} className="tutorial-hand-figure">
-                  <HandPose pose={hand.pose} />
-                  <figcaption>{hand.label}</figcaption>
-                </figure>
-              ))}
-            </div>
             {current.lines.map((line) => <p key={line} className="tutorial-line">{line}</p>)}
             <p className="tutorial-mouse">{current.mouse}</p>
             <button type="button" className="tutorial-confirm" onClick={confirm} autoFocus>확인</button>

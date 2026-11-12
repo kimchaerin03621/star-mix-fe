@@ -20,13 +20,13 @@ const WOBBLE = 0.05; // how much farther a colored node drifts (meters), on top 
 const NEAR_FADE = [1.2, 3.2]; // nodes closer to the eye than this fade out (a big blurry dot in your face is only a smudge)
 const MAX_SCREEN_SIZE = 0.09; // no node is drawn bigger than this share of its distance to the eye
 const FAR_DIM = [2.5, 12]; // colored nodes dim between these distances, for depth
-const CORE_SIZE = 1.0; // a colored node is a solid disc this many times the node's size
+const CORE_SIZE = 3.2; // a colored node's drawn square is this many times the node's size (most of it is soft glow around a tiny hot core)
 const NODE_BASE_SIZE = isHeadsetBrowser ? HEADSET_GRAPH.NODE_SIZE : GRAPH.NODE_SIZE; // an ordinary node's size (hubs are drawn bigger)
-const HALO_SIZE = 6.5; // soft underlay around a colored node, in node sizes
-const HALO_ALPHA = 0.16; // a hub's glow; a leaf's is HALO_LEAF of this
+const HALO_SIZE = 5; // soft underlay around a colored node, in node sizes
+const HALO_ALPHA = 0.3; // a hub's glow; a leaf's is HALO_LEAF of this
 const HALO_LEAF = 0.18;
 const HALO_PASTEL = 0.22; // how far the underlay's color is pulled toward white (it keeps the region's hue)
-const CORE_WHITE = 0.45; // the very middle of a colored node is this much whiter: a bright pinpoint in a colored glow
+const CORE_WHITE = 0.8; // the very middle of a colored node is this much whiter: a bright pinpoint in a colored glow
 
 const SHARED_GLSL = /* glsl */ `
   uniform float uTime;
@@ -287,10 +287,11 @@ const NODE_FRAGMENT = /* glsl */ `
     float disc = 1.0 - smoothstep(0.82, 1.0, d);
     gl_FragColor = vec4(vColor, disc * vAlpha);
 #else
-    // A small crisp disc in the region's color with a bright pinpoint at its middle.
-    float disc = 1.0 - smoothstep(0.78, 0.96, d);
-    float core = 1.0 - smoothstep(0.0, 0.6, d);
-    gl_FragColor = vec4(mix(vColor, vec3(1.0), core * ${CORE_WHITE.toFixed(2)}), disc * vAlpha);
+    // A tiny hot pinpoint inside a soft glow of the region's color (no solid disc).
+    float core = 1.0 - smoothstep(0.1, 0.24, d);
+    float glow = exp(-d * d * 8.0) * (1.0 - smoothstep(0.7, 1.0, d));
+    vec3 color = mix(vColor, vec3(1.0), core * ${CORE_WHITE.toFixed(2)} + glow * 0.12);
+    gl_FragColor = vec4(color, max(core, glow * 0.6) * vAlpha);
 #endif
   }
 `;
@@ -377,7 +378,8 @@ const WEB_VERTEX = /* glsl */ `
 #else
     float focus = focusOf();
     vColor = mix(base, mix(base, vec3(1.0), ${WEB.PASTEL.toFixed(2)}), aEnd);
-    vAlpha = ${WEB.ALPHA.toFixed(3)} * strength * strength * (1.0 + focus * 0.6) * regionGain(dist) * nearFade(dist);
+    // Bright where it leaves the node, fading to almost nothing at the far end.
+    vAlpha = ${WEB.ALPHA.toFixed(3)} * (1.0 - ${WEB.TAIL_FADE.toFixed(2)} * aEnd) * strength * strength * (1.0 + focus * 0.6) * regionGain(dist) * nearFade(dist);
 #endif
     gl_Position = projectionMatrix * viewPosition;
   }
