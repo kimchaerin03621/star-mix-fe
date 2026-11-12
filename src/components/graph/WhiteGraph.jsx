@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { FOCUS, HEADSET_GRAPH, REGION_DEPTH, isHeadsetBrowser, LIQUID, MOTION, OCCLUDER, PLAIN, REGION, SHOCK, WAVE, WEB, WHITE_GRAPH_CENTER } from './graphConstants';
+import { FOCUS, GRAPH, HEADSET_GRAPH, REGION_DEPTH, isHeadsetBrowser, LIQUID, MOTION, OCCLUDER, PLAIN, REGION, SHOCK, WAVE, WEB, WHITE_GRAPH_CENTER } from './graphConstants';
 
 // A headset's lighter graph has fewer dots and links, so the plain ones are drawn a little brighter.
 const PLAIN_ALPHA = PLAIN.ALPHA * (isHeadsetBrowser ? HEADSET_GRAPH.PLAIN_ALPHA_SCALE : 1);
@@ -20,10 +20,13 @@ const WOBBLE = 0.05; // how much farther a colored node drifts (meters), on top 
 const NEAR_FADE = [1.2, 3.2]; // nodes closer to the eye than this fade out (a big blurry dot in your face is only a smudge)
 const MAX_SCREEN_SIZE = 0.09; // no node is drawn bigger than this share of its distance to the eye
 const FAR_DIM = [2.5, 12]; // colored nodes dim between these distances, for depth
-const CORE_SIZE = 1.5; // a colored node is a solid disc this many times the node's size
-const HALO_SIZE = 6.5; // soft pastel underlay around a colored node, in node sizes
-const HALO_ALPHA = 0.14;
-const HALO_PASTEL = 0.62; // how far the underlay's color is pulled toward white (same hue, lighter)
+const CORE_SIZE = 1.0; // a colored node is a solid disc this many times the node's size
+const NODE_BASE_SIZE = isHeadsetBrowser ? HEADSET_GRAPH.NODE_SIZE : GRAPH.NODE_SIZE; // an ordinary node's size (hubs are drawn bigger)
+const HALO_SIZE = 6.5; // soft underlay around a colored node, in node sizes
+const HALO_ALPHA = 0.16; // a hub's glow; a leaf's is HALO_LEAF of this
+const HALO_LEAF = 0.18;
+const HALO_PASTEL = 0.22; // how far the underlay's color is pulled toward white (it keeps the region's hue)
+const CORE_WHITE = 0.45; // the very middle of a colored node is this much whiter: a bright pinpoint in a colored glow
 
 const SHARED_GLSL = /* glsl */ `
   uniform float uTime;
@@ -236,6 +239,7 @@ const SHARED_GLSL = /* glsl */ `
 const NODE_VERTEX = /* glsl */ `
   ${SHARED_GLSL}
   attribute float aSize;
+  attribute float aHub;
   void main() {
     float strength = tint(0.85);
 #ifdef PLAIN
@@ -250,7 +254,7 @@ const NODE_VERTEX = /* glsl */ `
     vec4 sh = shock(aPos);
     vColor = mix(vec3(1.0), sh.rgb, min(1.0, sh.w * 1.4));
     float depthSize = mix(${PLAIN.NEAR_SIZE.toFixed(2)}, ${PLAIN.FAR_SIZE.toFixed(2)}, plainDepth(dist));
-    float size = min(aSize * ${PLAIN.SIZE_SCALE.toFixed(2)} * depthSize, dist * ${PLAIN.MAX_SCREEN_SIZE.toFixed(3)});
+    float size = min(${NODE_BASE_SIZE.toFixed(4)} * (0.9 + 0.5 * aHub) * ${PLAIN.SIZE_SCALE.toFixed(2)} * depthSize, dist * ${PLAIN.MAX_SCREEN_SIZE.toFixed(3)});
     vAlpha = (${PLAIN_ALPHA.toFixed(3)} * plainGain(dist) + sh.w * ${SHOCK.ALPHA.toFixed(2)} * mix(depthDim(dist), 1.0, 0.5)) * (1.0 - strength) * (1.0 - occluded()) * nearFade(dist);
 #else
     int r = int(aRegion + 0.5);
@@ -280,12 +284,13 @@ const NODE_FRAGMENT = /* glsl */ `
   void main() {
     float d = length(vUv - 0.5) * 2.0;
 #ifdef PLAIN
-    float disc = 1.0 - smoothstep(0.7, 1.0, d);
+    float disc = 1.0 - smoothstep(0.82, 1.0, d);
     gl_FragColor = vec4(vColor, disc * vAlpha);
 #else
-    // A small crisp disc in the region's own color.
-    float disc = 1.0 - smoothstep(0.55, 0.95, d);
-    gl_FragColor = vec4(vColor, disc * vAlpha);
+    // A small crisp disc in the region's color with a bright pinpoint at its middle.
+    float disc = 1.0 - smoothstep(0.78, 0.96, d);
+    float core = 1.0 - smoothstep(0.0, 0.6, d);
+    gl_FragColor = vec4(mix(vColor, vec3(1.0), core * ${CORE_WHITE.toFixed(2)}), disc * vAlpha);
 #endif
   }
 `;
@@ -294,16 +299,18 @@ const NODE_FRAGMENT = /* glsl */ `
 const HALO_VERTEX = /* glsl */ `
   ${SHARED_GLSL}
   attribute float aSize;
+  attribute float aHub;
   void main() {
     float strength = tint(0.0);
+    float hubGlow = mix(${HALO_LEAF.toFixed(2)}, 1.0, aHub);
     // The underlay is the same hue, pulled toward white (a pastel of the region's color).
     int hr = int(aRegion + 0.5);
     vColor = mix(hr >= 0 ? uColor[hr] : vec3(1.0), vec3(1.0), ${HALO_PASTEL.toFixed(2)});
     vec4 viewPosition = modelViewMatrix * vec4(drift(aPos, aSeed, strength), 1.0);
     float dist = length(viewPosition.xyz);
     float focus = focusOf();
-    vAlpha = ${HALO_ALPHA.toFixed(2)} * (1.0 + focus * ${FOCUS.HALO.toFixed(1)}) * strength * strength * regionGain(dist) * nearFade(dist);
-    float size = min(aSize * ${HALO_SIZE.toFixed(1)} * regionSize(dist) * (1.0 + focus * 0.4 * breath(focus)), dist * 0.12) * step(0.02, strength);
+    vAlpha = ${HALO_ALPHA.toFixed(2)} * hubGlow * (1.0 + focus * ${FOCUS.HALO.toFixed(1)}) * strength * strength * regionGain(dist) * nearFade(dist);
+    float size = min(aSize * ${HALO_SIZE.toFixed(1)} * mix(0.55, 1.0, aHub) * regionSize(dist) * (1.0 + focus * 0.4 * breath(focus)), dist * 0.12) * step(0.02, strength);
     viewPosition.xy += position.xy * size;
     gl_Position = projectionMatrix * viewPosition;
     vUv = position.xy + 0.5;
@@ -339,7 +346,7 @@ const LINK_VERTEX = /* glsl */ `
     float ring = r >= 0 ? wave(r) : 0.0;
     float focus = focusOf();
     vColor = min(vColor * (1.0 + hit * 0.2 + ring * 0.3 + focus * ${(FOCUS.BRIGHTEN * 0.3).toFixed(2)}), vec3(1.0));
-    vAlpha = strength * 0.55 * (1.0 + focus * 0.4) * regionGain(dist) * nearFade(dist);
+    vAlpha = strength * 0.42 * (1.0 + focus * 0.4) * regionGain(dist) * nearFade(dist);
 #endif
     gl_Position = projectionMatrix * viewPosition;
   }
@@ -503,14 +510,17 @@ export function WhiteGraph() {
     const aPos = new Float32Array(count * 3);
     const aSeed = new Float32Array(count);
     const aSize = new Float32Array(count);
+    const aHub = new Float32Array(count);
     graph.nodes.forEach((node, i) => {
       aPos.set(node.position, i * 3);
       aSeed[i] = node.seed;
       aSize[i] = node.size;
+      aHub[i] = node.hub;
     });
     nodeGeometry.setAttribute('aPos', new THREE.InstancedBufferAttribute(aPos, 3));
     nodeGeometry.setAttribute('aSeed', new THREE.InstancedBufferAttribute(aSeed, 1));
     nodeGeometry.setAttribute('aSize', new THREE.InstancedBufferAttribute(aSize, 1));
+    nodeGeometry.setAttribute('aHub', new THREE.InstancedBufferAttribute(aHub, 1));
     nodeGeometry.setAttribute('aRegion', new THREE.InstancedBufferAttribute(store.nodeRegion, 1).setUsage(THREE.DynamicDrawUsage));
     nodeGeometry.setAttribute('aAmount', new THREE.InstancedBufferAttribute(store.nodeAmount, 1).setUsage(THREE.DynamicDrawUsage));
     nodeGeometry.instanceCount = count;
@@ -543,6 +553,7 @@ export function WhiteGraph() {
       fragmentShader: LINK_FRAGMENT,
       transparent: true,
       depthWrite: false,
+      blending: THREE.AdditiveBlending, // overlapping light adds up: hubs glow like in the poster
     });
 
     // The same shaders again for the plain nodes and links: faint, flat, normal blending.
@@ -569,6 +580,7 @@ export function WhiteGraph() {
       fragmentShader: HALO_FRAGMENT,
       transparent: true,
       depthWrite: false,
+      blending: THREE.AdditiveBlending, // overlapping light adds up: hubs glow like in the poster
     });
 
     const webSet = makeLineSet(WEB.MAX_PER_REGION * MAX_REGIONS);
@@ -579,6 +591,7 @@ export function WhiteGraph() {
       fragmentShader: LINK_FRAGMENT,
       transparent: true,
       depthWrite: false,
+      blending: THREE.AdditiveBlending, // overlapping light adds up: hubs glow like in the poster
     });
     const connectMaterial = new THREE.ShaderMaterial({
       uniforms: graphUniforms,
@@ -723,22 +736,29 @@ export function WhiteGraph() {
       for (let i = 0; i < graph.count; i += 1) if (region[i] >= 0) members[region[i]].push(i);
       const webPairs = [];
       const radiusSquared = WEB.RADIUS * WEB.RADIUS;
-      members.forEach((list) => {
+      const hubRadiusSquared = WEB.HUB_RADIUS * WEB.HUB_RADIUS;
+      members.forEach((list, regionIndex) => {
         let made = 0;
-        for (let n = 0; n < list.length && made < WEB.MAX_PER_REGION; n += 1) {
-          const i = list[n];
+        // The best connected nodes (and the region's own center) are hubs: long spokes out to the rest.
+        const hubs = new Set([...list]
+          .sort((x, y) => graph.adjacency[y].length - graph.adjacency[x].length || x - y)
+          .slice(0, Math.max(3, Math.round(list.length * WEB.HUB_SHARE))));
+        if (seeds[regionIndex] >= 0) hubs.add(seeds[regionIndex]);
+        const reach = (i, wanted, limitSquared) => {
           let mine = 0;
-          for (let tries = 0; tries < WEB.PER_NODE * 3 && mine < WEB.PER_NODE && made < WEB.MAX_PER_REGION; tries += 1) {
+          for (let tries = 0; tries < wanted * 4 && mine < wanted && made < WEB.MAX_PER_REGION; tries += 1) {
             const j = list[Math.floor(Math.random() * list.length)];
             if (j === i) continue;
             const a = graph.nodes[i].position;
             const b = graph.nodes[j].position;
-            if ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2 > radiusSquared) continue;
+            if ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2 > limitSquared) continue;
             webPairs.push([i, j]);
             made += 1;
             mine += 1;
           }
-        }
+        };
+        hubs.forEach((i) => reach(i, WEB.HUB_SPOKES, hubRadiusSquared));
+        list.forEach((i) => { if (!hubs.has(i)) reach(i, WEB.PER_NODE, radiusSquared); });
       });
       const connectPairs = [];
       for (let a = 0; a < members.length; a += 1) {

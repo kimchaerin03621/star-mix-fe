@@ -13,6 +13,7 @@ import { isStillMode } from '../stillMode';
 import { clampToGraph } from './graph/graphBounds';
 import { addHallReverb } from '../audio/reverb';
 import { readHeadPose } from '../headPose';
+import { tutorialProbe } from '../tutorial/tutorialProbe';
 import { distanceCutoff, distanceGain, placeSound } from '../audio/spatialMotion';
 import { ENTRY_CAMERA_POSITION, ENTRY_CAMERA_TARGET } from '../audio/stemLayout';
 import { WebcamGestureController } from '../hand-tracking/WebcamGestureController';
@@ -879,6 +880,8 @@ const SPATIAL_REF_DISTANCE = 4.0;
 
 const headPose = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion() };
 const testHead = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion() };
+const probeHead = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion() };
+const probeForward = new THREE.Vector3();
 
 // 3D VR Spatial Audio Experience (다이내믹 멀티트랙 스템 믹서 엔진)
 function VRAudioExperience({
@@ -1245,6 +1248,24 @@ function VRAudioExperience({
 
   // Frame Loop updates: Head/Camera Tracking, 3D Sound Positioning & Sphere Collision
   useFrame((state) => {
+    // Tells the tutorial what the viewer is doing (the same for a hand and the mouse).
+    const heldKey = Object.keys(draggingOrbsRef.current).find((key) => draggingOrbsRef.current[key] && orbCoordsRef.current[key]) ?? null;
+    if (heldKey) {
+      const heldStar = orbCoordsRef.current[heldKey];
+      readHeadPose(state, probeHead);
+      tutorialProbe.heldDistance = heldStar.distanceTo(probeHead.position);
+      heldStar.toArray(tutorialProbe.heldPosition);
+      if (heldKey !== tutorialProbe.heldKey) {
+        // Where it was the moment it was grabbed (noted here, in the frame, so a slow poll cannot miss the start).
+        tutorialProbe.holdDistance = tutorialProbe.heldDistance;
+        tutorialProbe.holdFrom = [...tutorialProbe.heldPosition];
+      }
+    }
+    tutorialProbe.heldKey = heldKey;
+    state.camera.getWorldDirection(probeForward).toArray(tutorialProbe.cameraForward);
+    const turnPoint = orbitControlsRef.current?.target;
+    if (turnPoint) tutorialProbe.cameraDistance = state.camera.position.distanceTo(turnPoint);
+
     // 0. Sphere Collision & Repulsion: Prevent stars from colliding/merging with each other
     const stemKeys = Object.keys(orbCoordsRef.current);
     stemKeys.forEach((key) => clampToGraph(orbCoordsRef.current[key]));
@@ -1421,6 +1442,7 @@ function EntryFlight({ orbitControlsRef }) {
 
   useEffect(() => {
     const state = flight.current;
+    tutorialProbe.flightDone = false;
     state.done = isStillMode || Boolean(window.__skipEntryFlight)
       || (typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
     state.elapsed = 0;
@@ -1445,6 +1467,7 @@ function EntryFlight({ orbitControlsRef }) {
     const inHeadset = xr.isPresenting;
 
     if (state.done) {
+      tutorialProbe.flightDone = true;
       // Ended early (or finished): give the headset its own space back and leave the camera where it is.
       if (state.baseSpace && inHeadset) xr.setReferenceSpace(state.baseSpace);
       state.baseSpace = null;

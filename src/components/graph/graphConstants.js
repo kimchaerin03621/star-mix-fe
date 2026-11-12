@@ -19,7 +19,11 @@ export const GRAPH = {
   // Crowded spots are thinned: at most CROWD_MAX nodes within CROWD_RADIUS (meters) of one another.
   CROWD_RADIUS: 0.5,
   CROWD_MAX: 40,
-  NODE_SIZE: 0.045, // every node is this size (smaller, since there are many more)
+  NODE_SIZE: 0.045, // the size of an ordinary node (smaller, since there are many more)
+  // Hubs (nodes with many links) are drawn bigger, the rest a little smaller, so a cluster has a few
+  // clear centers with spokes running out of them. Only the drawn size changes, never where nodes are.
+  HUB_LINKS: [2, 8], // a node with this many links or fewer is a plain leaf; with this many or more, the biggest hub
+  HUB_SIZE: [0.75, 2.4], // size times this, from leaf to biggest hub
 };
 
 // A headset draws the scene twice (once per eye) on a phone-class chip, so it gets a lighter graph.
@@ -43,12 +47,12 @@ export const isHeadsetBrowser = typeof window !== 'undefined'
 // effects. ALPHA is how visible they are (0.1 = 10%).
 export const PLAIN = {
   ALPHA: 0.035, // lower than before: there are about three times as many dots and links to add up
-  SIZE_SCALE: 1.3, // plain dots are drawn this many times the node's size
+  SIZE_SCALE: 0.75, // plain dots are drawn this many times the node's size (small and crisp, like stars)
   // Depth: near dots are bigger and brighter, far ones smaller and fainter, so the space reads as deep.
   DEPTH_RANGE: [2.5, 8], // distances (meters) between which it goes from "near" to "far"
   NEAR_GAIN: 1.7, // near dots: ALPHA times this
   FAR_GAIN: 0.18, // far dots: ALPHA times this (low: the far space melts into the dark)
-  NEAR_SIZE: 1.7, // near dots: size times this
+  NEAR_SIZE: 1.35, // near dots: size times this
   FAR_SIZE: 0.7,
   MAX_SCREEN_SIZE: 0.14, // no plain dot is drawn bigger than this share of its distance to the eye
 };
@@ -66,11 +70,16 @@ export const MOTION = {
 // The fine hairlines that make a colored region look like a woven volume (and the white lines that
 // tie the regions together). The more lines, the denser and more solid a region reads.
 export const WEB = {
-  PER_NODE: 40, // each node of a region reaches out to this many others of the same region
+  // The poster look: a few hubs, each with long thin spokes out to the rest of the region, and only a
+  // light mesh between ordinary nodes.
+  HUB_SHARE: 0.12, // this share of a region's nodes (the best connected) are hubs
+  HUB_SPOKES: 56, // each hub reaches out to this many others of its region...
+  HUB_RADIUS: 2.1, // ...within this distance (meters)
+  PER_NODE: 5, // an ordinary node reaches out to this many near ones
   RADIUS: 1.3, // ...within this distance (meters)
   MAX_PER_REGION: 1800,
-  ALPHA: 0.8, // one hairline; many overlapping lines build up the color
-  PASTEL: 0.3, // the far end of each line is its color pulled this far toward white
+  ALPHA: 0.95, // one hairline
+  PASTEL: 0.25, // the far end of each line is its color pulled this far toward white
   CONNECT_PER_PAIR: 26, // white lines from one region to another, per pair of regions
   CONNECT_ALPHA: 0.12,
   MAX_CONNECT: 400,
@@ -131,12 +140,13 @@ export const OCCLUDER = {
 
 // Region colors. The graph is white, so a white-ish instrument color would look empty;
 // each instrument gets a clearly colored one here instead.
+// Soft, muted tones (from the poster): the node core goes whiter, the lines and glow keep the hue.
 export const REGION_COLORS = {
-  vocal: '#d9788f',
-  drum: '#e9b26c',
-  bass: '#3f9ea6',
-  piano: '#7f74d4',
-  guitar: '#7be0a4',
+  vocal: '#bc7988',
+  drum: '#b57f64',
+  bass: '#7294a3',
+  piano: '#8c7297',
+  guitar: '#7a9a84',
 };
 
 // A colored region seen near or far: close, it is bigger and brighter; far, smaller and faint. Strong on

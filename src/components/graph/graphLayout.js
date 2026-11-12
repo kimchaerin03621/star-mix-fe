@@ -167,12 +167,14 @@ export function buildGraph(seedText = 'white-graph') {
   const adjacency = Array.from({ length: count }, () => []);
   links.forEach(([a, b]) => { adjacency[a].push(b); adjacency[b].push(a); });
 
-  // Every node is the same size: the graph reads as one even field of dots.
-  const nodes = positions.map((position) => ({
-    position,
-    seed: random(),
-    size: GRAPH.NODE_SIZE,
-  }));
+  // The more links a node has, the bigger it is drawn (`hub` is 0 for a leaf, 1 for the biggest hub),
+  // so every cluster has a few clear centers. Positions are untouched.
+  const [leafLinks, hubLinks] = GRAPH.HUB_LINKS;
+  const [leafSize, hubSize] = GRAPH.HUB_SIZE;
+  const nodes = positions.map((position, index) => {
+    const hub = Math.max(0, Math.min(1, (adjacency[index].length - leafLinks) / (hubLinks - leafLinks)));
+    return { position, seed: random(), hub, size: GRAPH.NODE_SIZE * (leafSize + (hubSize - leafSize) * hub) };
+  });
 
   return { count, nodes, links, adjacency };
 }

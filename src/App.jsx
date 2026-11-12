@@ -9,6 +9,8 @@ import { HandGestureFeedback } from './hand-tracking/HandGestureFeedback';
 import { GestureHint } from './hand-tracking/GestureHint';
 import { useIdleReturn } from './hand-tracking/useIdleReturn';
 import { isStillMode } from './stillMode';
+import { Tutorial } from './tutorial/Tutorial';
+import { isHeadsetBrowser } from './components/graph/graphConstants';
 import { EXHIBITION_SONG } from './audio/songStems';
 
 // ?lobby is the headset exhibition address with a lobby: the browser offers the headset session as
@@ -796,6 +798,7 @@ function App() {
 
   // The intro opens the spatial scene (3D) directly: there is no 2D galaxy any more.
   const isInSpace = isDesktopVR && vrModeType === 2;
+  const isTutorialOn = isInSpace && !isInVR && !isStillMode && !isHeadsetBrowser && !isLobbyMode;
 
   const startExperience = () => {
     setVrModeType(2);
@@ -1445,7 +1448,9 @@ function App() {
         </button>
       )}
 
-      {isInSpace && cameraActive && !isInVR && (
+      {/* The first-visit tutorial (a screen visit only; the headset has its own controls and ?still is for photos) */}
+      <Tutorial enabled={isTutorialOn} handData={handData} />
+      {!isTutorialOn && isInSpace && cameraActive && !isInVR && (
         <GestureHint lines={['주먹을 쥐어 별을 잡고 옮겨 보세요']} />
       )}
 

@@ -1,0 +1,156 @@
+/* The first-visit tutorial: a translucent full-screen explanation, then a one-line hint at the bottom. */
+.tutorial-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(5, 6, 10, 0.55);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  animation: tutorial-fade 0.45s ease both;
+}
+
+.tutorial-card {
+  width: min(560px, calc(100vw - 32px));
+  padding: 34px 36px 26px;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(14, 17, 26, 0.62);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+  color: rgba(255, 255, 255, 0.92);
+  text-align: center;
+  font-family: 'Pretendard', system-ui, sans-serif;
+  animation: tutorial-rise 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+.tutorial-progress {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.tutorial-progress span {
+  width: 22px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.18);
+}
+.tutorial-progress span.done { background: rgba(255, 255, 255, 0.55); }
+.tutorial-progress span.on { background: #fff; }
+
+.tutorial-step {
+  margin: 0 0 4px;
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.tutorial-title {
+  margin: 0 0 18px;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.tutorial-hands {
+  display: flex;
+  justify-content: center;
+  gap: 38px;
+  margin-bottom: 18px;
+  color: rgba(255, 255, 255, 0.9);
+}
+.tutorial-hand-figure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.tutorial-hand-figure figcaption {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+}
+.tutorial-hand { animation: tutorial-bob 2.4s ease-in-out infinite; }
+
+.tutorial-line {
+  margin: 0 0 6px;
+  font-size: 17px;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.tutorial-mouse {
+  margin: 12px 0 22px;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.tutorial-confirm {
+  display: block;
+  margin: 0 auto;
+  min-width: 140px;
+  padding: 12px 32px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.tutorial-confirm:hover { background: rgba(255, 255, 255, 0.24); }
+
+.tutorial-skip {
+  display: block;
+  margin: 14px auto 0;
+  padding: 4px 10px;
+  border: 0;
+  background: none;
+  color: rgba(255, 255, 255, 0.4);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.tutorial-skip:hover { color: rgba(255, 255, 255, 0.75); }
+
+/* The one line shown while they try it, where the old hint was. */
+.tutorial-pill {
+  position: fixed;
+  left: 50%;
+  bottom: 72px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 22px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(14, 17, 26, 0.6);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: rgba(255, 255, 255, 0.9);
+  font-family: 'Pretendard', system-ui, sans-serif;
+  font-size: 16px;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+  transform: translateX(-50%);
+  animation: tutorial-pill-in 0.4s ease both;
+}
+.tutorial-pill-step {
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.5);
+}
+.tutorial-pill.success {
+  border-color: rgba(120, 220, 160, 0.55);
+  color: #bff0d3;
+}
+
+@keyframes tutorial-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes tutorial-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes tutorial-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+@keyframes tutorial-pill-in { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
