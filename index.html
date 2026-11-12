@@ -8,41 +8,43 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>channel</title>
   <script>
-    window.addEventListener('error', (event) => {
+    // Errors are only written to the console. (On a show floor a red/orange box over the picture is worse than the error.)
+    // Add ?debug to the address to see them on screen again.
+    const showErrors = new URLSearchParams(window.location.search).has('debug');
+    const showBox = (background, color, text) => {
+      if (!showErrors) return;
       const div = document.createElement('div');
-      div.style.position = 'fixed';
-      div.style.top = '10px';
-      div.style.left = '10px';
-      div.style.padding = '20px';
-      div.style.background = 'red';
-      div.style.color = 'white';
-      div.style.zIndex = '99999';
-      div.style.fontSize = '14px';
-      div.style.fontFamily = "'Pretendard Variable', Pretendard, sans-serif";
-      div.style.whiteSpace = 'pre-wrap';
-      div.style.maxWidth = '90vw';
-      div.style.maxHeight = '90vh';
-      div.style.overflow = 'auto';
-      div.innerText = `Error: ${event.message}\nAt: ${event.filename}:${event.lineno}:${event.colno}\nStack: ${event.error?.stack || 'No stack trace'}`;
+      div.style.cssText = `position:fixed;top:10px;left:10px;padding:20px;background:${background};color:${color};z-index:99999;font-size:14px;white-space:pre-wrap;max-width:90vw;max-height:90vh;overflow:auto`;
+      div.innerText = text;
       document.body.appendChild(div);
+    };
+
+    // The graphics card gave no drawing surface (after a long run, or when the card is busy): start over by itself,
+    // at most 3 times a minute so a card that stays broken does not reload in a loop.
+    const restartForGraphics = () => {
+      try {
+        const now = Date.now();
+        const times = JSON.parse(sessionStorage.getItem('graphicsRestarts') || '[]').filter((t) => now - t < 60000);
+        if (times.length >= 3) return;
+        sessionStorage.setItem('graphicsRestarts', JSON.stringify([...times, now]));
+      } catch (e) { /* storage blocked: restart anyway */ }
+      setTimeout(() => window.location.reload(), 2000);
+    };
+    const isGraphicsError = (message) => /WebGL context|context lost/i.test(String(message || ''));
+
+    window.addEventListener('error', (event) => {
+      console.error(event.message, event.error);
+      if (isGraphicsError(event.message)) restartForGraphics();
+      showBox('red', 'white', `Error: ${event.message}
+At: ${event.filename}:${event.lineno}:${event.colno}
+Stack: ${event.error?.stack || 'No stack trace'}`);
     });
     window.addEventListener('unhandledrejection', (event) => {
-      const div = document.createElement('div');
-      div.style.position = 'fixed';
-      div.style.top = '10px';
-      div.style.left = '10px';
-      div.style.padding = '20px';
-      div.style.background = 'orange';
-      div.style.color = 'black';
-      div.style.zIndex = '99999';
-      div.style.fontSize = '14px';
-      div.style.fontFamily = "'Pretendard Variable', Pretendard, sans-serif";
-      div.style.whiteSpace = 'pre-wrap';
-      div.style.maxWidth = '90vw';
-      div.style.maxHeight = '90vh';
-      div.style.overflow = 'auto';
-      div.innerText = `Promise Rejection: ${event.reason?.message || event.reason}\nStack: ${event.reason?.stack || 'No stack trace'}`;
-      document.body.appendChild(div);
+      const message = event.reason?.message || event.reason;
+      console.error('Promise Rejection:', event.reason);
+      if (isGraphicsError(message)) restartForGraphics();
+      showBox('orange', 'black', `Promise Rejection: ${message}
+Stack: ${event.reason?.stack || 'No stack trace'}`);
     });
   </script>
 </head>

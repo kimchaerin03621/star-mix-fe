@@ -1568,6 +1568,9 @@ export function VRScene({ lobby, onEnterRoom, store, starColors, handData, isInV
           gl.domElement.addEventListener('webglcontextlost', (e) => {
             e.preventDefault();
             console.warn('WebGL Context Lost - Attempting Restoration...');
+            // If the graphics card does not give it back within a few seconds, start over (a black screen helps nobody).
+            const giveUp = setTimeout(() => window.location.reload(), 4000);
+            gl.domElement.addEventListener('webglcontextrestored', () => clearTimeout(giveUp), { once: true });
           }, false);
         }}
       >
