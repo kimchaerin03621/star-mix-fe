@@ -568,7 +568,7 @@ function StarEditor({ onApply, onCancel, previousTexture, previousColors }) {
   );
 }
 
-const SPACE_IDLE_RETURN_MS = 30000;
+const SPACE_IDLE_RETURN_MS = 15 * 60 * 1000;
 // Long enough for the stars to gather, split into stem clusters and hold there.
 // ?vr turns a device into the headset station: no galaxy, no webcam, one big button
 // that starts the spatial scene in VR, and a reset once the headset comes off.
