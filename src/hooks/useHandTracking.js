@@ -75,7 +75,7 @@ export function useHandTracking(videoRef, enabled = true, load = true) {
 
   const detect = () => {
     if (!enabled) {
-      setHandData([]);
+      setHandData((previous) => (previous.length === 0 ? previous : []));
       return;
     }
     if (
@@ -238,7 +238,7 @@ export function useHandTracking(videoRef, enabled = true, load = true) {
             gestures: hand.gestures,
           })));
         } else {
-          setHandData([]);
+          setHandData((previous) => (previous.length === 0 ? previous : []));
         }
       }
     }
