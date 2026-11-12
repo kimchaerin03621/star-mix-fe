@@ -799,11 +799,11 @@ body {
 }
 
 .global-header-title {
-  font-family: var(--sf-font-mono);
+  font-family: var(--sf-font-body);
   font-size: var(--font-xl);
-  font-weight: 500;
+  font-weight: 900;
   color: var(--text-primary);
-  letter-spacing: 0.2em;
+  letter-spacing: -0.055em;
   text-transform: uppercase;
   opacity: 0.95;
   cursor: pointer;
@@ -1153,11 +1153,11 @@ body {
 }
 
 .global-header-title {
-  font-family: var(--sf-font-mono);
+  font-family: var(--sf-font-body);
   font-size: var(--font-xl);
-  font-weight: 500;
+  font-weight: 900;
   color: var(--text-primary);
-  letter-spacing: 0.2em;
+  letter-spacing: -0.055em;
   text-transform: uppercase;
   cursor: pointer;
   opacity: 0.95;
